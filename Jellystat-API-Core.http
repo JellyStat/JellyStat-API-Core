@@ -1,0 +1,6 @@
+@Jellystat_API_Core_HostAddress = http://localhost:5020
+
+GET {{Jellystat_API_Core_HostAddress}}/weatherforecast/getweatherforecast
+Accept: application/json
+
+###
