@@ -16,12 +16,13 @@ namespace Jellystat_API_Core.Classes.Tasks
         private Task? _monitoringTask;
         private readonly object _lock = new();
 
-        public int IntervalMilliseconds { get; set; } = 1500;
+        public int IntervalMilliseconds { get; set; } = 1000;
         public bool IsRunning => _monitoringTask != null && !_monitoringTask.IsCompleted;
 
-        List<ActivityStaging> watchdogData { get; set; } = [];
+        private List<ActivityStaging> watchdogData { get; set; } = [];
+        private List<Data.Schema.Activity> latestActivityCache { get; set; } = [];
 
-        public ActivityMonitor(iAPI api, int intervalMilliseconds = 1500)
+        public ActivityMonitor(iAPI api, int intervalMilliseconds = 1000)
         {
             this.api = api;
             this.IntervalMilliseconds = intervalMilliseconds;
@@ -156,17 +157,36 @@ namespace Jellystat_API_Core.Classes.Tasks
             int updateCount = await UpdateWatchdogDataAsync(sessionData);
 
 
+            // Update duration for items that were playing before stopped (duration is only updated on pause)
+            DateTime endTime = DateTime.UtcNow;
+            foreach (ActivityStaging playback in dataToRemove)
+            {
+                if (!playback.IsPaused)
+                {
+                    int diffInSeconds = (int)Math.Round((endTime - playback.DateCreated).TotalSeconds, MidpointRounding.AwayFromZero);
+                    playback.Duration += Math.Abs(diffInSeconds);
+                    playback.DateCreated = endTime;
+                }
+            }
+
+
             List<ActivityStaging> playbackToInsert = dataToRemove.Where(d => d.Duration > Global.MinimumDurationThreshold).ToList();
+
+
 
             //Do update existing from Activity logic here
 
             List<Data.Schema.Activity> ExistingRecords = await GetLatestActivity();
 
-            List<Data.Schema.Activity> ExistingRecordsToUpdate = ExistingRecords.Where(er => playbackToInsert.Any(d =>
+            // Create lookup for O(1) access instead of O(n) with Any()
+            var playbackLookup = playbackToInsert.ToLookup(d => (d.ServerId, d.UserId, d.ItemId));
+
+            List<Data.Schema.Activity> ExistingRecordsToUpdate = ExistingRecords.Where(er =>
             {
-                bool newDurationWitinThreshold = (d.Duration + er.Duration).ToTicks() <= d.RuntimeTicks;
-                return d.ServerId == er.ServerId && d.UserId == er.UserId && d.ItemId == er.ItemId && newDurationWitinThreshold;
-            })).ToList();
+                var key = (er.ServerId, er.UserId, er.ItemId);
+                return playbackLookup.Contains(key) &&
+                       playbackLookup[key].Any(d => (d.Duration + er.Duration).ToTicks() <= d.RuntimeTicks);
+            }).ToList();
 
             if (ExistingRecordsToUpdate.IsNotEmpty())
             {
@@ -250,27 +270,21 @@ namespace Jellystat_API_Core.Classes.Tasks
         private List<BaseSessionItem> GetSessionsNotInWatchDog(List<BaseSessionItem> sessionData, List<ActivityStaging> watchdogData)
         {
             if (watchdogData.IsEmpty()) return sessionData;
+
+            // Create HashSet for O(1) lookup instead of O(n) with Any()
+            var watchdogKeys = watchdogData.Select(wd => (wd.UserId, wd.DeviceId, wd.ItemId)).ToHashSet();
+
             List<BaseSessionItem> newSessionData = sessionData.Where(s =>
             {
-                return !watchdogData.Any(wd =>
-                {
-                    bool matchingSessionAndItemFound =
-                    wd.UserId == s.UserId &&
-                    wd.DeviceId == s.DeviceId &&
-                    wd.ItemId == s.NowPlayingItem!.Id &&
-                    wd.ItemId == s.NowPlayingItem.Id;
-
-                    return matchingSessionAndItemFound;
-
-                });
-
+                var key = (s.UserId, s.DeviceId, s.NowPlayingItem!.Id);
+                return !watchdogKeys.Contains(key);
             }).ToList();
+
             return newSessionData;
         }
 
         private async Task<int> UpdateWatchdogDataAsync(List<BaseSessionItem> sessionData)
         {
-            bool hasChanges = false;
             int changesCount = 0;
 
             foreach (ActivityStaging item in watchdogData)
@@ -278,22 +292,26 @@ namespace Jellystat_API_Core.Classes.Tasks
                 BaseSessionItem? sessionItem = sessionData.FirstOrDefault(s => s.UserId == item.UserId && s.DeviceId == item.DeviceId && s.NowPlayingItem!.Id == item.ItemId);
                 if (sessionItem != null && sessionItem.IsPaused != item.IsPaused)
                 {
-                    hasChanges = true;
                     item.IsPaused = sessionItem.IsPaused;
                     if (sessionItem.IsPaused)
                     {
                         DateTime startTime = item.DateCreated;
-                        DateTime lastPaused = sessionItem.LastPausedDate;
+                        DateTime lastPaused = sessionItem.LastPausedDate ?? DateTime.UtcNow;
+                        Debug.WriteLine($"[ActivityMonitor] Updating duration for paused item. User: {item.UserId}, Item: {item.ItemId}, StartTime: {startTime}, LastPaused: {lastPaused}");
                         int diffInSeconds = (int)Math.Round((lastPaused - startTime).TotalSeconds, MidpointRounding.AwayFromZero);
                         item.Duration = item.Duration + Math.Abs(diffInSeconds);
-                        //item.DateCreated = lastPaused;
+                        item.DateCreated = lastPaused;
                     }
-                    item.DateCreated = DateTime.UtcNow;
+                    else
+                    {
+                        item.DateCreated = DateTime.UtcNow;
+                    }
+
                     changesCount++;
                 }
             }
 
-            if (hasChanges)
+            if (changesCount > 0)
             {
                 try
                 {
@@ -314,33 +332,18 @@ namespace Jellystat_API_Core.Classes.Tasks
         private List<ActivityStaging> GetWatchDogNotInSessions(List<BaseSessionItem> sessionData, List<ActivityStaging> watchdogData)
         {
             if (sessionData.IsEmpty()) return watchdogData;
-            List<ActivityStaging> removedData = watchdogData.Where(wd =>
-            {
-                return !sessionData.Any(s =>
-                {
-                    bool matchingSessionAndItemFound =
-                    wd.UserId == s.UserId &&
-                    wd.DeviceId == s.DeviceId &&
-                    wd.ItemId == s.NowPlayingItem!.Id;
 
-                    //this is to update the playback duration for the removed items where it was playing before stopped as duration is only updated on pause
-                    if (matchingSessionAndItemFound && !wd.IsPaused)
-                    {
-                        DateTime startTime = wd.DateCreated;
-                        DateTime endTime = DateTime.UtcNow;
-                        int diffInSeconds = (int)Math.Round((startTime - endTime).TotalSeconds, MidpointRounding.AwayFromZero);
-                        wd.Duration = wd.Duration + Math.Abs(diffInSeconds);
-                        wd.DateCreated = endTime;
-                    }
-
-                    return matchingSessionAndItemFound;
-                });
-            }).ToList();
-            return removedData;
+            var sessionKeys = sessionData.Select(s => (s.UserId, s.DeviceId, s.NowPlayingItem!.Id)).ToHashSet();
+            return watchdogData.Where(wd => !sessionKeys.Contains((wd.UserId, wd.DeviceId, wd.ItemId))).ToList();
         }
 
-        public async Task<List<Data.Schema.Activity>> GetLatestActivity()
+        public async Task<List<Data.Schema.Activity>> GetLatestActivity(bool refresh = false)
         {
+
+            if (!refresh && latestActivityCache.IsNotEmpty() && !latestActivityCache.Any(a => a.DateCreated > DateTime.UtcNow.AddHours(-Global.NewWatchThresholdHours)))
+            {
+                return latestActivityCache;
+            }
 
             var cutoffTime = DateTime.UtcNow.AddHours(-Global.NewWatchThresholdHours);
 
@@ -350,7 +353,8 @@ namespace Jellystat_API_Core.Classes.Tasks
             .Select(g => g.OrderByDescending(a => a.DateCreated).First())
             .ToListAsync();
 
-            return results.Where(a => a.CompletionPercentage < Global.CompletionThreshold).OrderByDescending(a => a.DateCreated).ToList();
+            latestActivityCache = results.Where(a => a.CompletionPercentage < Global.CompletionThreshold).OrderByDescending(a => a.DateCreated).ToList();
+            return results;
 
         }
     }
