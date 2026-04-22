@@ -4,6 +4,7 @@ using Jellystat_API_Core.Data.Schema;
 using Jellystat_API_Core.Extensions;
 using Jellystat_API_Core.Models.API.Base;
 using Microsoft.EntityFrameworkCore;
+using Newtonsoft.Json;
 using System.Diagnostics;
 
 namespace Jellystat_API_Core.Classes.Tasks
@@ -87,6 +88,7 @@ namespace Jellystat_API_Core.Classes.Tasks
                 try
                 {
                     await ExecuteMonitoringTaskAsync();
+                    await BroadcastSessions();
                 }
                 catch (Exception ex)
                 {
@@ -356,6 +358,16 @@ namespace Jellystat_API_Core.Classes.Tasks
             latestActivityCache = results.Where(a => a.CompletionPercentage < Global.CompletionThreshold).OrderByDescending(a => a.DateCreated).ToList();
             return results;
 
+        }
+
+        public async Task BroadcastSessions()
+        {
+            IList<BaseSessionItem> sessionsItems = api.GetSessionData();
+
+
+            Debug.WriteLine($"[Websocket] Broadcasting session data to clients: {JsonConvert.SerializeObject(sessionsItems)}");
+
+            await Global.WebSocketServerService.BroadcastObjectAsync(sessionsItems);
         }
     }
 }

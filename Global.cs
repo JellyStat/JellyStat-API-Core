@@ -19,6 +19,7 @@ namespace Jellystat_API_Core
         public static iDatabaseRepository Database { get; set; } = null!;
         public static IWebSocketClientService WebSocketService { get; set; }
         public static IAPIInstanceManager APIInstanceManager { get; set; }
+        public static IWebSocketServerService WebSocketServerService { get; set; }
 
         public static readonly JsonSerializerSettings jsonSettings = new()
         {

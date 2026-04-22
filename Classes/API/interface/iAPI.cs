@@ -38,7 +38,6 @@ namespace Jellystat_API_Core.Classes.API.@interface
         public Task<BaseSystemInfo> GetSystemInfo();
 
         public IList<BaseSessionItem> GetSessionData();
-
         //
         public Task Dispose();
 

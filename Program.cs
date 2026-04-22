@@ -48,6 +48,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 builder.Services.AddSingleton<iDatabaseRepository, DatabaseRepository>();
 builder.Services.AddSingleton<IAPIInstanceManager, APIInstanceManager>();
 builder.Services.AddSingleton<IWebSocketClientService, WebSocketClientService>();
+builder.Services.AddSingleton<IWebSocketServerService, WebSocketServerService>();
 
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
@@ -63,6 +64,7 @@ using (var scope = app.Services.CreateScope())
     Global.Database = scope.ServiceProvider.GetRequiredService<iDatabaseRepository>();
     Global.WebSocketService = scope.ServiceProvider.GetRequiredService<IWebSocketClientService>();
     Global.APIInstanceManager = scope.ServiceProvider.GetRequiredService<IAPIInstanceManager>();
+    Global.WebSocketServerService = scope.ServiceProvider.GetRequiredService<IWebSocketServerService>();
 }
 
 // Apply migrations automatically in development (optional)
@@ -105,6 +107,9 @@ using (var scope = app.Services.CreateScope())
 app.MapOpenApi();
 
 app.MapGet("/", () => "Hello world!");
+
+// Enable WebSocket support
+app.UseWebSockets();
 
 app.UseHttpsRedirection();
 
