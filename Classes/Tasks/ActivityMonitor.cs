@@ -367,7 +367,10 @@ namespace Jellystat_API_Core.Classes.Tasks
 
             Debug.WriteLine($"[Websocket] Broadcasting session data to clients: {JsonConvert.SerializeObject(sessionsItems)}");
 
-            await Global.WebSocketServerService.BroadcastObjectAsync(sessionsItems);
+            if (sessionsItems.IsNotEmpty())
+            {
+                await Global.WebSocketServerService.BroadcastObjectAsync(sessionsItems);
+            }
         }
     }
 }
