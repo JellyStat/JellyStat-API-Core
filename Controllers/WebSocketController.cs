@@ -1,4 +1,6 @@
-﻿using Jellystat_API_Core.Services.WebSocket;
+﻿using Jellystat_API_Core.Extensions;
+using Jellystat_API_Core.Filters;
+using Jellystat_API_Core.Services.WebSocket;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Jellystat_API_Core.Controllers
@@ -19,6 +21,7 @@ namespace Jellystat_API_Core.Controllers
         }
 
         [HttpGet]
+        [ValidateHeader("ServerId")] // Example: Validate a required header
         public async Task Connect()
         {
             if (!HttpContext.WebSockets.IsWebSocketRequest)
@@ -27,12 +30,23 @@ namespace Jellystat_API_Core.Controllers
                 return;
             }
 
+            // Extract the validated header value
+            var serverId = HttpContext.GetValidatedHeader("ServerId");
+
+            if (serverId == null || Global.APIInstanceManager.GetInstance(serverId) == null)
+            {
+                HttpContext.Response.StatusCode = StatusCodes.Status404NotFound;
+                await HttpContext.Response.Body.WriteAsync(System.Text.Encoding.UTF8.GetBytes("No Instance found for provided Server Id"));
+                return;
+            }
+
             var connectionId = Guid.NewGuid().ToString();
             var webSocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
 
-            _logger.LogInformation("WebSocket connection established: {ConnectionId}", connectionId);
+            _logger.LogInformation("WebSocket connection established: {ConnectionId}, ClientId: {ClientId}",
+                connectionId, serverId);
 
-            await _webSocketService.HandleWebSocketAsync(webSocket, connectionId);
+            await _webSocketService.HandleWebSocketAsync(webSocket, connectionId, serverId);
         }
     }
 }

@@ -1,43 +1,33 @@
+using Newtonsoft.Json;
 using System.Collections.Concurrent;
 using System.Net.WebSockets;
 using System.Text;
-using Newtonsoft.Json;
 
 namespace Jellystat_API_Core.Services.WebSocket
 {
-    public interface IWebSocketServerService
-    {
-        Task HandleWebSocketAsync(System.Net.WebSockets.WebSocket webSocket, string connectionId);
-        Task BroadcastMessageAsync(string message);
-        Task BroadcastObjectAsync(object obj);
-        Task SendMessageToClientAsync(string connectionId, string message);
-        Task SendObjectToClientAsync(string connectionId, object obj);
-        IEnumerable<string> GetConnectedClients();
-        int GetConnectionCount();
-        bool IsClientConnected(string connectionId);
-    }
+
 
     public class WebSocketServerService : IWebSocketServerService
     {
-        private readonly ConcurrentDictionary<string, System.Net.WebSockets.WebSocket> _connections;
+        private readonly ConcurrentDictionary<string, (string ServerId, System.Net.WebSockets.WebSocket WebSocket)> _connections;
         private readonly ILogger<WebSocketServerService> _logger;
 
         public WebSocketServerService(ILogger<WebSocketServerService> logger)
         {
-            _connections = new ConcurrentDictionary<string, System.Net.WebSockets.WebSocket>();
+            _connections = new ConcurrentDictionary<string, (string ServerId, System.Net.WebSockets.WebSocket WebSocket)>();
             _logger = logger;
         }
 
-        public async Task HandleWebSocketAsync(System.Net.WebSockets.WebSocket webSocket, string connectionId)
+        public async Task HandleWebSocketAsync(System.Net.WebSockets.WebSocket webSocket, string connectionId, string serverId)
         {
-            if (!_connections.TryAdd(connectionId, webSocket))
+            if (!_connections.TryAdd(connectionId, (serverId, webSocket)))
             {
                 _logger.LogWarning("Connection {ConnectionId} already exists", connectionId);
                 await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Duplicate connection", CancellationToken.None);
                 return;
             }
 
-            _logger.LogInformation("WebSocket connection {ConnectionId} established. Total connections: {Count}", 
+            _logger.LogInformation("WebSocket connection {ConnectionId} established. Total connections: {Count}",
                 connectionId, _connections.Count);
 
             try
@@ -52,12 +42,10 @@ namespace Jellystat_API_Core.Services.WebSocket
                         var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
                         _logger.LogInformation("Received message from {ConnectionId}: {Message}", connectionId, message);
 
-                        // Echo back to sender (you can modify this behavior)
-                        await SendMessageToClientAsync(connectionId, $"Echo: {message}");
                     }
                     else if (result.MessageType == WebSocketMessageType.Binary)
                     {
-                        _logger.LogInformation("Received binary message from {ConnectionId}, length: {Length}", 
+                        _logger.LogInformation("Received binary message from {ConnectionId}, length: {Length}",
                             connectionId, result.Count);
                     }
 
@@ -78,7 +66,7 @@ namespace Jellystat_API_Core.Services.WebSocket
             finally
             {
                 _connections.TryRemove(connectionId, out _);
-                _logger.LogInformation("WebSocket connection {ConnectionId} removed. Total connections: {Count}", 
+                _logger.LogInformation("WebSocket connection {ConnectionId} removed. Total connections: {Count}",
                     connectionId, _connections.Count);
 
                 if (webSocket.State == WebSocketState.Open)
@@ -90,16 +78,16 @@ namespace Jellystat_API_Core.Services.WebSocket
             }
         }
 
-        public async Task BroadcastMessageAsync(string message)
+        public async Task BroadcastMessageAsync(string message, string? serverId)
         {
             var tasks = new List<Task>();
             var messageBytes = Encoding.UTF8.GetBytes(message);
 
-            foreach (var connection in _connections)
+            foreach (var connection in _connections.Where(c => serverId == null || c.Value.ServerId == serverId))
             {
-                if (connection.Value.State == WebSocketState.Open)
+                if (connection.Value.WebSocket.State == WebSocketState.Open)
                 {
-                    tasks.Add(SendBytesAsync(connection.Key, connection.Value, messageBytes));
+                    tasks.Add(SendBytesAsync(connection.Key, connection.Value.WebSocket, messageBytes));
                 }
             }
 
@@ -107,56 +95,30 @@ namespace Jellystat_API_Core.Services.WebSocket
             _logger.LogInformation("Broadcast message sent to {Count} clients", tasks.Count);
         }
 
-        public async Task BroadcastObjectAsync(object obj)
+        public async Task BroadcastObjectAsync(object obj, string? serverId = null)
         {
             var json = JsonConvert.SerializeObject(obj);
-            await BroadcastMessageAsync(json);
+            await BroadcastMessageAsync(json, serverId);
         }
 
-        public async Task SendMessageToClientAsync(string connectionId, string message)
-        {
-            if (_connections.TryGetValue(connectionId, out var webSocket))
-            {
-                if (webSocket.State == WebSocketState.Open)
-                {
-                    var messageBytes = Encoding.UTF8.GetBytes(message);
-                    await SendBytesAsync(connectionId, webSocket, messageBytes);
-                }
-                else
-                {
-                    _logger.LogWarning("Cannot send message to {ConnectionId}, WebSocket state: {State}", 
-                        connectionId, webSocket.State);
-                }
-            }
-            else
-            {
-                _logger.LogWarning("Connection {ConnectionId} not found", connectionId);
-            }
-        }
-
-        public async Task SendObjectToClientAsync(string connectionId, object obj)
-        {
-            var json = JsonConvert.SerializeObject(obj);
-            await SendMessageToClientAsync(connectionId, json);
-        }
 
         public IEnumerable<string> GetConnectedClients()
         {
             return _connections
-                .Where(c => c.Value.State == WebSocketState.Open)
+                .Where(c => c.Value.WebSocket.State == WebSocketState.Open)
                 .Select(c => c.Key)
                 .ToList();
         }
 
         public int GetConnectionCount()
         {
-            return _connections.Count(c => c.Value.State == WebSocketState.Open);
+            return _connections.Count(c => c.Value.WebSocket.State == WebSocketState.Open);
         }
 
         public bool IsClientConnected(string connectionId)
         {
-            return _connections.TryGetValue(connectionId, out var webSocket) && 
-                   webSocket.State == WebSocketState.Open;
+            return _connections.TryGetValue(connectionId, out var webSocket) &&
+                   webSocket.WebSocket.State == WebSocketState.Open;
         }
 
         private async Task SendBytesAsync(string connectionId, System.Net.WebSockets.WebSocket webSocket, byte[] messageBytes)
@@ -179,5 +141,7 @@ namespace Jellystat_API_Core.Services.WebSocket
                 _logger.LogError(ex, "Error sending message to {ConnectionId}", connectionId);
             }
         }
+
+
     }
 }

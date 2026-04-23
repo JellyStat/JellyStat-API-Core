@@ -62,7 +62,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     Global.Database = scope.ServiceProvider.GetRequiredService<iDatabaseRepository>();
-    Global.WebSocketService = scope.ServiceProvider.GetRequiredService<IWebSocketClientService>();
+    Global.WebSocketClientService = scope.ServiceProvider.GetRequiredService<IWebSocketClientService>();
     Global.APIInstanceManager = scope.ServiceProvider.GetRequiredService<IAPIInstanceManager>();
     Global.WebSocketServerService = scope.ServiceProvider.GetRequiredService<IWebSocketServerService>();
 }

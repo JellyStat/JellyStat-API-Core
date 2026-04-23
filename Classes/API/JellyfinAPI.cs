@@ -101,7 +101,7 @@ namespace Jellystat_API_Core.Classes.API
                 );
 
             Debug.WriteLine($"Sending Message: {JsonConvert.SerializeObject(message)}");
-            _ = Global.WebSocketService.SendMessageAsync(clientId, JsonConvert.SerializeObject(message));
+            _ = Global.WebSocketClientService.SendMessageAsync(clientId, JsonConvert.SerializeObject(message));
 
         };
         public Action<string>? OnDisconnected { get; set; } = clientId => { Debug.WriteLine("[Websocket] Client disconnected: " + clientId); };
@@ -130,14 +130,14 @@ namespace Jellystat_API_Core.Classes.API
             SessionItems = new List<BaseSessionItem>();
 
 
-            if (!Global.WebSocketService.ClientExists(config.Id))
+            if (!Global.WebSocketClientService.ClientExists(config.Id))
             {
                 WebSocketClientConfig webSocketConfig = config.WebSocketConfig;
                 webSocketConfig.OnMessageReceived = OnMessageReceived;
                 webSocketConfig.OnConnected = OnConnected;
                 webSocketConfig.OnDisconnected = OnDisconnected;
                 webSocketConfig.OnError = OnError;
-                Global.WebSocketService.AddClientAsync(webSocketConfig);
+                Global.WebSocketClientService.AddClientAsync(webSocketConfig);
             }
 
             activityMonitorTask = new ActivityMonitor(this);
@@ -251,8 +251,8 @@ namespace Jellystat_API_Core.Classes.API
 
         public async Task Dispose()
         {
-            await Global.WebSocketService.DisconnectClientAsync(config.Id);
-            await Global.WebSocketService.RemoveClientAsync(config.Id);
+            await Global.WebSocketClientService.DisconnectClientAsync(config.Id);
+            await Global.WebSocketClientService.RemoveClientAsync(config.Id);
             SessionItems.Clear();
             excludedUsers.Clear();
             excludedLibraries.Clear();

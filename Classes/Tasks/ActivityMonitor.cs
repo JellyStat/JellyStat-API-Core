@@ -4,7 +4,6 @@ using Jellystat_API_Core.Data.Schema;
 using Jellystat_API_Core.Extensions;
 using Jellystat_API_Core.Models.API.Base;
 using Microsoft.EntityFrameworkCore;
-using Newtonsoft.Json;
 using System.Diagnostics;
 
 namespace Jellystat_API_Core.Classes.Tasks
@@ -365,11 +364,9 @@ namespace Jellystat_API_Core.Classes.Tasks
             IList<BaseSessionItem> sessionsItems = api.GetSessionData();
 
 
-            Debug.WriteLine($"[Websocket] Broadcasting session data to clients: {JsonConvert.SerializeObject(sessionsItems)}");
-
             if (sessionsItems.IsNotEmpty())
             {
-                await Global.WebSocketServerService.BroadcastObjectAsync(sessionsItems);
+                await Global.WebSocketServerService.BroadcastObjectAsync(sessionsItems, api.config.Id);
             }
         }
     }

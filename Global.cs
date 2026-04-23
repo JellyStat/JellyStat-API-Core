@@ -17,7 +17,7 @@ namespace Jellystat_API_Core
         /// Access the database context via Global.Database.db
         /// </summary>
         public static iDatabaseRepository Database { get; set; } = null!;
-        public static IWebSocketClientService WebSocketService { get; set; }
+        public static IWebSocketClientService WebSocketClientService { get; set; }
         public static IAPIInstanceManager APIInstanceManager { get; set; }
         public static IWebSocketServerService WebSocketServerService { get; set; }
 
