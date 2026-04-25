@@ -259,6 +259,35 @@ namespace Jellystat_API_Core.Classes.API
             await activityMonitorTask.StopAsync();
         }
 
+        public async Task<bool> AuthenticateByUsername(string username, string password)
+        {
+            var authRequest = new
+            {
+                Username = username,
+                Pw = password
+            };
+
+            var authHeader = $"MediaBrowser Client=\"{UserAgent}\", Device=\"JellystatAPI\", DeviceId=\"{Guid.NewGuid()}\", Version=\"{Version}\"";
+
+            HttpClient _httpClient = new HttpClient
+            {
+                BaseAddress = new Uri(config.URL),
+                DefaultRequestHeaders =
+                {
+                    { "Authorization", authHeader },
+                    { "User-Agent", UserAgent }
+                }
+            };
+            var content = new StringContent(JsonConvert.SerializeObject(authRequest), System.Text.Encoding.UTF8, "application/json");
+
+            var response = await _httpClient.PostAsync("/Users/AuthenticateByName", content);
+            if (response.IsSuccessStatusCode)
+            {
+                return true;
+            }
+            return false;
+        }
+
 
     }
 }

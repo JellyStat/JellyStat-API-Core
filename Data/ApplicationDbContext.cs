@@ -21,6 +21,8 @@ namespace Jellystat_API_Core.Data
 
         public DbSet<Activity> Activity { get; set; }
         public DbSet<ActivityStaging> ActivityStaging { get; set; }
+        public DbSet<Permissions> Permissions { get; set; }
+        public DbSet<UserPermissions> UserPermissions { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -238,6 +240,33 @@ namespace Jellystat_API_Core.Data
                 entity.Property(e => e.IsPaused).HasDefaultValue(false);
                 entity.Property(e => e.RuntimeTicks).HasDefaultValue(0);
 
+            });
+
+            modelBuilder.Entity<Permissions>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Id).UseIdentityColumn();
+                entity.Property(e => e.PermissionKey).IsRequired();
+                entity.Property(e => e.Description).IsRequired();
+                entity.Property(e => e.Active).HasDefaultValue(true);
+
+            });
+
+
+            modelBuilder.Entity<UserPermissions>(entity =>
+            {
+                entity.HasKey(e => new { e.PermissionId, e.UserId });
+                entity.Property(e => e.PermissionId).IsRequired();
+                entity.Property(e => e.UserId).IsRequired();
+                entity.HasOne(e => e.Permissions)
+                    .WithMany()
+                    .HasForeignKey(e => e.PermissionId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(e => e.User)
+                        .WithMany()
+                        .HasForeignKey(e => e.UserId)
+                        .OnDelete(DeleteBehavior.Cascade);
             });
 
 

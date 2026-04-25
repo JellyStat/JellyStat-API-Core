@@ -495,6 +495,32 @@ namespace Jellystat_API_Core.Migrations
                     b.ToTable("LocalUsers");
                 });
 
+            modelBuilder.Entity("Jellystat_API_Core.Data.Schema.Permissions", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Active")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("PermissionKey")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Permissions");
+                });
+
             modelBuilder.Entity("Jellystat_API_Core.Data.Schema.Server", b =>
                 {
                     b.Property<string>("Id")
@@ -524,6 +550,21 @@ namespace Jellystat_API_Core.Migrations
                     b.HasKey("Id");
 
                     b.ToTable("Servers");
+                });
+
+            modelBuilder.Entity("Jellystat_API_Core.Data.Schema.UserPermissions", b =>
+                {
+                    b.Property<int>("PermissionId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("text");
+
+                    b.HasKey("PermissionId", "UserId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("UserPermissions");
                 });
 
             modelBuilder.Entity("Jellystat_API_Core.Data.Schema.Users", b =>
@@ -636,6 +677,25 @@ namespace Jellystat_API_Core.Migrations
                         .IsRequired();
 
                     b.Navigation("Server");
+                });
+
+            modelBuilder.Entity("Jellystat_API_Core.Data.Schema.UserPermissions", b =>
+                {
+                    b.HasOne("Jellystat_API_Core.Data.Schema.Permissions", "Permissions")
+                        .WithMany()
+                        .HasForeignKey("PermissionId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Jellystat_API_Core.Data.Schema.LocalUsers", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Permissions");
+
+                    b.Navigation("User");
                 });
 
             modelBuilder.Entity("Jellystat_API_Core.Data.Schema.Users", b =>

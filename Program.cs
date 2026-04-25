@@ -1,10 +1,16 @@
 using Jellystat_API_Core;
+using Jellystat_API_Core.Attributes;
 using Jellystat_API_Core.Data;
-using Jellystat_API_Core.Models.Jellystat;
+using Jellystat_API_Core.Enums;
+using Jellystat_API_Core.Extensions;
 using Jellystat_API_Core.Repositories;
 using Jellystat_API_Core.Services.API;
 using Jellystat_API_Core.Services.WebSocket;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,6 +24,19 @@ string? dbPassword = builder.Configuration["DB_PASSWORD"];
 double CompletionThreshold = builder.Configuration.GetValue<double?>("COMPLETION_THRESHOLD_PERCENTAGE") ?? Global.CompletionThreshold;
 int NewWatchThresholdHours = builder.Configuration.GetValue<int?>("NEW_WATCH_EVENT_THRESHOLD_HOURS") ?? Global.NewWatchThresholdHours;
 int MinimumDurationThreshold = builder.Configuration.GetValue<int?>("MINIMUM_SECONDS_TO_INCLUDE_PLAYBACK") ?? Global.MinimumDurationThreshold;
+
+var jwtKey = builder.Configuration["JWT_KEY"] ?? "A_super_secret_key_that_is_32_chars";
+var jwtIssuer = "Jellystat";
+
+if (string.IsNullOrEmpty(jwtKey))
+{
+    throw new InvalidOperationException("JWT Key is not defined");
+}
+
+if (jwtKey.Length < 32)
+{
+    throw new InvalidOperationException("JWT key must be at least 32 characters (256 bits) for HS256.");
+}
 
 if ((dbHost == null || dbUsername == null || dbPassword == null) && !builder.Environment.IsDevelopment())
 {
@@ -50,9 +69,46 @@ builder.Services.AddSingleton<IAPIInstanceManager, APIInstanceManager>();
 builder.Services.AddSingleton<IWebSocketClientService, WebSocketClientService>();
 builder.Services.AddSingleton<IWebSocketServerService, WebSocketServerService>();
 
+builder.Services.AddSingleton<IAuthorizationPolicyProvider, DefaultAccessTokenPolicyProvider>();
+
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
+
+builder.Services.AddAuthorization(options =>
+{
+    foreach (var permission in Enum.GetValues(typeof(PermissionTypes)).Cast<PermissionTypes>())
+    {
+        var permissionKey = permission.ToString();
+        options.AddPolicy($"Permission:{permissionKey}", policy =>
+            policy.Requirements.Add(new PermissionRequirement(permissionKey)));
+    }
+    options.AddPolicy("AccessTokenOnly", policy =>
+    policy.RequireAssertion(context =>
+        context.User.HasClaim(c => c.Type == "type" && c.Value == "access")));
+    options.AddPolicy("RefreshTokenOnly", policy =>
+    policy.RequireAssertion(context =>
+        context.User.HasClaim(c => c.Type == "type" && c.Value == "refresh")));
+
+});
+
+builder.Services.AddAuthentication(options =>
+{
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.TokenValidationParameters = new TokenValidationParameters
+    {
+        ValidateIssuer = true,
+        ValidateAudience = false,
+        ValidateLifetime = true,
+        ValidateIssuerSigningKey = true,
+        ValidIssuer = jwtIssuer,
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+    };
+});
 
 var app = builder.Build();
 
@@ -66,6 +122,8 @@ using (var scope = app.Services.CreateScope())
     Global.APIInstanceManager = scope.ServiceProvider.GetRequiredService<IAPIInstanceManager>();
     Global.WebSocketServerService = scope.ServiceProvider.GetRequiredService<IWebSocketServerService>();
 }
+
+
 
 // Apply migrations automatically in development (optional)
 // Comment out if you prefer to run migrations manually
@@ -84,11 +142,34 @@ using (var scope = app.Services.CreateScope())
         logger.LogInformation("Database migrations applied successfully.");
 
         logger.LogInformation("Fetching Configured Servers");
-        List<Server> serverConfigs = (await context.Servers.ToListAsync()).Select(s => new Server() { Id = s.Id, Name = s.Name, URL = s.URL, APIKey = s.APIKey }).ToList();
-        foreach (Server config in serverConfigs)
+        List<Jellystat_API_Core.Models.Jellystat.Server> serverConfigs = (await context.Servers.ToListAsync()).Select(s => new Jellystat_API_Core.Models.Jellystat.Server() { Id = s.Id, Name = s.Name, URL = s.URL, APIKey = s.APIKey }).ToList();
+        foreach (Jellystat_API_Core.Models.Jellystat.Server config in serverConfigs)
         {
             logger.LogInformation($"Fetched: {config.Id}");
             await apiManager.RegisterInstanceAsync(config);
+        }
+
+
+        var enumValues = Enum.GetNames(typeof(PermissionTypes));
+        var existingKeys = await context.Permissions.Select(p => p.PermissionKey).ToHashSetAsync();
+
+        bool hasChanges = false;
+        foreach (var key in enumValues)
+        {
+            if (!existingKeys.Contains(key))
+            {
+                hasChanges = true;
+                context.Permissions.Add(new Jellystat_API_Core.Data.Schema.Permissions
+                {
+                    PermissionKey = key,
+                    Description = key!.ToDisplayString(),
+                    Active = true
+                });
+            }
+        }
+        if (hasChanges)
+        {
+            await context.SaveChangesAsync();
         }
     }
     catch (Exception ex)

@@ -41,5 +41,7 @@ namespace Jellystat_API_Core.Classes.API.@interface
         //
         public Task Dispose();
 
+        public Task<bool> AuthenticateByUsername(string username, string password);
+
     }
 }
