@@ -110,7 +110,7 @@ namespace Jellystat_API_Core.Classes.API
         public List<Data.Schema.ExcludedUsers> excludedUsers { get; set; }
         public List<Data.Schema.ExcludedLibraries> excludedLibraries { get; set; }
 
-        public JellyfinAPI(Server config, List<Data.Schema.ExcludedUsers> excludedUsers, List<Data.Schema.ExcludedLibraries> excludedLibraries)
+        public JellyfinAPI(Server config, List<Data.Schema.ExcludedUsers> excludedUsers, List<Data.Schema.ExcludedLibraries> excludedLibraries, IServiceScopeFactory serviceScopeFactory)
         {
             this.config = config;
             this.excludedUsers = excludedUsers;
@@ -140,10 +140,10 @@ namespace Jellystat_API_Core.Classes.API
                 Global.WebSocketClientService.AddClientAsync(webSocketConfig);
             }
 
-            activityMonitorTask = new ActivityMonitor(this);
+            activityMonitorTask = new ActivityMonitor(this, serviceScopeFactory);
             activityMonitorTask.Start();
 
-            syncTask = new SyncTask(this);
+            syncTask = new SyncTask(this, serviceScopeFactory);
 
         }
 
@@ -227,7 +227,7 @@ namespace Jellystat_API_Core.Classes.API
 
         public async Task<IList<BaseLibrary>> GetLibraries()
         {
-            var response = await httpClient.GetAsync("/Users/Library/MediaFolders?isHidden=false");
+            var response = await httpClient.GetAsync("/Library/MediaFolders?isHidden=false");
             response.EnsureSuccessStatusCode();
 
             var responseWrapper = await response.Content.ReadAsJsonAsync<PaginatedResponse<Library>>();
@@ -261,31 +261,39 @@ namespace Jellystat_API_Core.Classes.API
 
         public async Task<bool> AuthenticateByUsername(string username, string password)
         {
-            var authRequest = new
+            try
             {
-                Username = username,
-                Pw = password
-            };
+                var authRequest = new
+                {
+                    Username = username,
+                    Pw = password
+                };
 
-            var authHeader = $"MediaBrowser Client=\"{UserAgent}\", Device=\"JellystatAPI\", DeviceId=\"{Guid.NewGuid()}\", Version=\"{Version}\"";
+                var authHeader = $"MediaBrowser Client=\"{UserAgent}\", Device=\"JellystatAPI\", DeviceId=\"{Guid.NewGuid()}\", Version=\"{Version}\"";
 
-            HttpClient _httpClient = new HttpClient
-            {
-                BaseAddress = new Uri(config.URL),
-                DefaultRequestHeaders =
+                HttpClient _httpClient = new HttpClient
+                {
+                    BaseAddress = new Uri(config.URL),
+                    DefaultRequestHeaders =
                 {
                     { "Authorization", authHeader },
                     { "User-Agent", UserAgent }
                 }
-            };
-            var content = new StringContent(JsonConvert.SerializeObject(authRequest), System.Text.Encoding.UTF8, "application/json");
+                };
+                var content = new StringContent(JsonConvert.SerializeObject(authRequest), System.Text.Encoding.UTF8, "application/json");
 
-            var response = await _httpClient.PostAsync("/Users/AuthenticateByName", content);
-            if (response.IsSuccessStatusCode)
-            {
-                return true;
+                var response = await _httpClient.PostAsync("/Users/AuthenticateByName", content);
+                if (response.IsSuccessStatusCode)
+                {
+                    return true;
+                }
+                return false;
             }
-            return false;
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error: {ex}");
+                return false;
+            }
         }
 
 

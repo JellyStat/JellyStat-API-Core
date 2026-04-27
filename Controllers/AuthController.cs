@@ -1,4 +1,5 @@
 ﻿using Jellystat_API_Core.Classes.API.@interface;
+using Jellystat_API_Core.Data;
 using Jellystat_API_Core.Data.Schema;
 using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Models.Jellystat;
@@ -18,6 +19,12 @@ namespace Jellystat_API_Core.Controllers
     [Route("[controller]")]
     public class AuthController : ControllerBase
     {
+        ApplicationDbContext context { get; set; }
+        public AuthController(ApplicationDbContext context)
+        {
+            this.context = context;
+        }
+
 
         private Object generateTokens(string Username, List<Permissions> permissions, string? ServerId)
         {
@@ -34,12 +41,11 @@ namespace Jellystat_API_Core.Controllers
                 claims = claims.Append(new Claim("serverId", ServerId)).ToArray();
             }
 
-            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(
-                HttpContext.RequestServices.GetRequiredService<IConfiguration>()["Jwt:Key"]!));
+            var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Global.JwtKey));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
             var token = new JwtSecurityToken(
-                issuer: HttpContext.RequestServices.GetRequiredService<IConfiguration>()["Jwt:Issuer"],
+                issuer: Global.JwtIssuer,
                 claims: claims,
                 expires: DateTime.Now.AddHours(1),
                 signingCredentials: creds);
@@ -57,7 +63,7 @@ namespace Jellystat_API_Core.Controllers
             }
 
             var refreshToken = new JwtSecurityToken(
-                issuer: HttpContext.RequestServices.GetRequiredService<IConfiguration>()["Jwt:Issuer"],
+                issuer: Global.JwtIssuer,
                 claims: claims,
                 expires: DateTime.Now.AddDays(7),
                 signingCredentials: creds);
@@ -83,9 +89,10 @@ namespace Jellystat_API_Core.Controllers
 
             try
             {
+
                 if (loginModel.ServerId == null)
                 {
-                    List<LocalUsers> localUsers = await Global.Database.context.LocalUsers.Where(u => u.Username == loginModel.Username).ToListAsync();
+                    List<LocalUsers> localUsers = await context.LocalUsers.Where(u => u.Username == loginModel.Username).ToListAsync();
 
                     if (localUsers.Count > 0)
                     {
@@ -93,7 +100,7 @@ namespace Jellystat_API_Core.Controllers
 
                         if (BCrypt.Net.BCrypt.Verify(loginModel.Password, user.Password))
                         {
-                            List<Permissions> permissions = await Global.Database.context.Permissions.Where(p => Global.Database.context.UserPermissions.Where(up => up.UserId == user.Id).Select(up => up.PermissionId).Contains(p.Id)).ToListAsync();
+                            List<Permissions> permissions = await context.Permissions.Where(p => context.UserPermissions.Where(up => up.UserId == user.Id).Select(up => up.PermissionId).Contains(p.Id)).ToListAsync();
 
                             var credentials = generateTokens(user.Username, permissions, null);
 
@@ -122,6 +129,7 @@ namespace Jellystat_API_Core.Controllers
                 var remoteCredentials = generateTokens(loginModel.Username, viewPermissions, loginModel.ServerId!);
 
                 return Ok(remoteCredentials);
+
             }
             catch (Exception ex)
             {

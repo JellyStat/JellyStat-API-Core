@@ -3,7 +3,6 @@ using Jellystat_API_Core.Attributes;
 using Jellystat_API_Core.Data;
 using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Extensions;
-using Jellystat_API_Core.Repositories;
 using Jellystat_API_Core.Services.API;
 using Jellystat_API_Core.Services.WebSocket;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -25,8 +24,7 @@ double CompletionThreshold = builder.Configuration.GetValue<double?>("COMPLETION
 int NewWatchThresholdHours = builder.Configuration.GetValue<int?>("NEW_WATCH_EVENT_THRESHOLD_HOURS") ?? Global.NewWatchThresholdHours;
 int MinimumDurationThreshold = builder.Configuration.GetValue<int?>("MINIMUM_SECONDS_TO_INCLUDE_PLAYBACK") ?? Global.MinimumDurationThreshold;
 
-var jwtKey = builder.Configuration["JWT_KEY"] ?? "A_super_secret_key_that_is_32_chars";
-var jwtIssuer = "Jellystat";
+var jwtKey = builder.Configuration["JWT_KEY"] ?? Global.JwtKey;
 
 if (string.IsNullOrEmpty(jwtKey))
 {
@@ -47,6 +45,9 @@ Global.CompletionThreshold = CompletionThreshold;
 Global.NewWatchThresholdHours = NewWatchThresholdHours;
 Global.MinimumDurationThreshold = MinimumDurationThreshold;
 
+Global.JwtKey = jwtKey;
+
+
 var connectionString = $"Host={dbHost};Port={dbPort};Database={dbName};Username={dbUsername};Password={dbPassword}";
 
 if (builder.Environment.IsDevelopment())
@@ -60,11 +61,10 @@ dataSourceBuilder.EnableDynamicJson();
 var dataSource = dataSourceBuilder.Build();
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(dataSource),
-    ServiceLifetime.Singleton); // Make it singleton for global access
+    options.UseNpgsql(dataSource)); // Scoped by default - each scope gets its own instance
 
 // Register repositories
-builder.Services.AddSingleton<iDatabaseRepository, DatabaseRepository>();
+//builder.Services.AddSingleton<iDatabaseRepository, DatabaseRepository>();
 builder.Services.AddSingleton<IAPIInstanceManager, APIInstanceManager>();
 builder.Services.AddSingleton<IWebSocketClientService, WebSocketClientService>();
 builder.Services.AddSingleton<IWebSocketServerService, WebSocketServerService>();
@@ -105,7 +105,7 @@ builder.Services.AddAuthentication(options =>
         ValidateAudience = false,
         ValidateLifetime = true,
         ValidateIssuerSigningKey = true,
-        ValidIssuer = jwtIssuer,
+        ValidIssuer = Global.JwtIssuer,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
     };
 });
@@ -117,11 +117,13 @@ var app = builder.Build();
 // This should be used carefully as it bypasses normal DI lifecycle
 using (var scope = app.Services.CreateScope())
 {
-    Global.Database = scope.ServiceProvider.GetRequiredService<iDatabaseRepository>();
+    //Global.Database = scope.ServiceProvider.GetRequiredService<iDatabaseRepository>();
     Global.WebSocketClientService = scope.ServiceProvider.GetRequiredService<IWebSocketClientService>();
     Global.APIInstanceManager = scope.ServiceProvider.GetRequiredService<IAPIInstanceManager>();
     Global.WebSocketServerService = scope.ServiceProvider.GetRequiredService<IWebSocketServerService>();
 }
+
+//Global.ServiceProvider = app.Services;
 
 
 
@@ -135,47 +137,46 @@ using (var scope = app.Services.CreateScope())
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     var apiManager = scope.ServiceProvider.GetRequiredService<IAPIInstanceManager>();
 
-    try
+
+    if (!await context.Database.CanConnectAsync())
     {
-        logger.LogInformation("Applying database migrations...");
-        await context.Database.MigrateAsync();
-        logger.LogInformation("Database migrations applied successfully.");
+        throw new InvalidOperationException("Unable to connect to database");
+    }
+    logger.LogInformation("Applying database migrations...");
+    await context.Database.MigrateAsync();
+    logger.LogInformation("Database migrations applied successfully.");
 
-        logger.LogInformation("Fetching Configured Servers");
-        List<Jellystat_API_Core.Models.Jellystat.Server> serverConfigs = (await context.Servers.ToListAsync()).Select(s => new Jellystat_API_Core.Models.Jellystat.Server() { Id = s.Id, Name = s.Name, URL = s.URL, APIKey = s.APIKey }).ToList();
-        foreach (Jellystat_API_Core.Models.Jellystat.Server config in serverConfigs)
+    logger.LogInformation("Fetching Configured Servers");
+    List<Jellystat_API_Core.Models.Jellystat.Server> serverConfigs = (await context.Servers.ToListAsync()).Select(s => new Jellystat_API_Core.Models.Jellystat.Server() { Id = s.Id, Name = s.Name, URL = s.URL, APIKey = s.APIKey }).ToList();
+    foreach (Jellystat_API_Core.Models.Jellystat.Server config in serverConfigs)
+    {
+        logger.LogInformation($"Fetched: {config.Id}");
+        await apiManager.RegisterInstanceAsync(config);
+    }
+
+
+    var enumValues = Enum.GetNames(typeof(PermissionTypes));
+    var existingKeys = await context.Permissions.Select(p => p.PermissionKey).ToHashSetAsync();
+
+    bool hasChanges = false;
+    foreach (var key in enumValues)
+    {
+        if (!existingKeys.Contains(key))
         {
-            logger.LogInformation($"Fetched: {config.Id}");
-            await apiManager.RegisterInstanceAsync(config);
-        }
-
-
-        var enumValues = Enum.GetNames(typeof(PermissionTypes));
-        var existingKeys = await context.Permissions.Select(p => p.PermissionKey).ToHashSetAsync();
-
-        bool hasChanges = false;
-        foreach (var key in enumValues)
-        {
-            if (!existingKeys.Contains(key))
+            hasChanges = true;
+            context.Permissions.Add(new Jellystat_API_Core.Data.Schema.Permissions
             {
-                hasChanges = true;
-                context.Permissions.Add(new Jellystat_API_Core.Data.Schema.Permissions
-                {
-                    PermissionKey = key,
-                    Description = key!.ToDisplayString(),
-                    Active = true
-                });
-            }
-        }
-        if (hasChanges)
-        {
-            await context.SaveChangesAsync();
+                PermissionKey = key,
+                Description = key!.ToDisplayString(),
+                Active = true
+            });
         }
     }
-    catch (Exception ex)
+    if (hasChanges)
     {
-        logger.LogError(ex, "An error occurred while migrating the database. Make sure PostgreSQL is running.");
+        await context.SaveChangesAsync();
     }
+
 }
 //}
 

@@ -1,5 +1,6 @@
 using Jellystat_API_Core.Classes.API;
 using Jellystat_API_Core.Classes.API.@interface;
+using Jellystat_API_Core.Data;
 using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Models.Jellystat;
 using Microsoft.EntityFrameworkCore;
@@ -10,10 +11,12 @@ namespace Jellystat_API_Core.Services.API
     public class APIInstanceManager : IAPIInstanceManager
     {
         private readonly ConcurrentDictionary<string, iAPI> _instances;
+        private readonly IServiceScopeFactory _serviceScopeFactory;
 
-        public APIInstanceManager()
+        public APIInstanceManager(IServiceScopeFactory serviceScopeFactory)
         {
             _instances = new ConcurrentDictionary<string, iAPI>();
+            _serviceScopeFactory = serviceScopeFactory;
         }
 
         public async Task RegisterInstanceAsync(Server config)
@@ -29,23 +32,30 @@ namespace Jellystat_API_Core.Services.API
                 await existingInstance.Dispose();
             }
 
-            List<Data.Schema.ExcludedUsers> excludedUsers = await Global.Database.context.ExcludedUsers.Where(x => x.ServerId == config.Id).ToListAsync();
-            List<Data.Schema.ExcludedLibraries> excludedLibraries = await Global.Database.context.ExcludedLibraries.Where(x => x.ServerId == config.Id).ToListAsync();
-
-            switch (config.Type)
+            using (var scope = _serviceScopeFactory.CreateScope())
             {
-                case ServerTypes.Jellyfin:
-                    instance = new JellyfinAPI(config, excludedUsers, excludedLibraries);
-                    break;
-                case ServerTypes.Emby:
-                    instance = new JellyfinAPI(config, excludedUsers, excludedLibraries);
-                    break;
-                default:
-                    throw new NotSupportedException($"Server type {config.Type} is not supported.");
+                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+
+                List<Data.Schema.ExcludedUsers> excludedUsers = await context.ExcludedUsers.Where(x => x.ServerId == config.Id).ToListAsync();
+                List<Data.Schema.ExcludedLibraries> excludedLibraries = await context.ExcludedLibraries.Where(x => x.ServerId == config.Id).ToListAsync();
+
+
+                switch (config.Type)
+                {
+                    case ServerTypes.Jellyfin:
+                        instance = new JellyfinAPI(config, excludedUsers, excludedLibraries, _serviceScopeFactory);
+                        break;
+                    case ServerTypes.Emby:
+                        instance = new JellyfinAPI(config, excludedUsers, excludedLibraries, _serviceScopeFactory);
+                        break;
+                    default:
+                        throw new NotSupportedException($"Server type {config.Type} is not supported.");
+                }
             }
 
             _instances.AddOrUpdate(instance.config.Id, instance, (key, oldValue) => instance);
         }
+
 
         public iAPI? GetInstance(string serverId)
         {
