@@ -1,4 +1,5 @@
 ﻿using Jellystat_API_Core.Enums;
+using Jellystat_API_Core.Models.Jellystat;
 
 namespace Jellystat_API_Core.Data.Schema
 {
@@ -13,5 +14,11 @@ namespace Jellystat_API_Core.Data.Schema
         public required string Name { get; set; }
 
         public ServerTypes Type { get; set; }
+
+        public List<TaskSettings> TaskSettings { get; set; } = new List<TaskSettings> {
+            new TaskSettings(TaskTypes.Backup, (24 * 60)),
+            new TaskSettings(TaskTypes.FullSync, (24 * 60)),
+            new TaskSettings(TaskTypes.PartialSync, (12 * 60)),
+        };
     }
 }

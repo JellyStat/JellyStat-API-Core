@@ -147,6 +147,26 @@ namespace Jellystat_API_Core.Classes.API
 
         }
 
+        public JellyfinAPI(string URL, string APIKey)
+        {
+            this.config = new Server { Id = "", Name = "", URL = URL, APIKey = APIKey };
+            this.excludedUsers = new List<Data.Schema.ExcludedUsers>();
+            this.excludedLibraries = new List<Data.Schema.ExcludedLibraries>();
+            Version = "1.0.0";
+            UserAgent = "JellystatAPI/1.0.0";
+            httpClient = new HttpClient
+            {
+                BaseAddress = new Uri(config.URL),
+                DefaultRequestHeaders =
+                {
+                    { "Authorization", String.Concat("MediaBrowser Token=","\"",this.config.APIKey,"\"") },
+                    { "User-Agent", UserAgent }
+                }
+            };
+
+            SessionItems = new List<BaseSessionItem>();
+        }
+
         public async Task<IList<BaseUser>> GetUsers()
         {
             var response = await httpClient.GetAsync("/Users");

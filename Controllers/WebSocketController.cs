@@ -31,9 +31,9 @@ namespace Jellystat_API_Core.Controllers
             }
 
             // Extract the validated header value
-            var serverId = HttpContext.GetValidatedHeader("ServerId");
+            var serverId = HttpContext.GetValidatedHeader("ServerId")!;
 
-            if (serverId == null || Global.APIInstanceManager.GetInstance(serverId) == null)
+            if (Global.APIInstanceManager.GetInstance(serverId) == null)
             {
                 HttpContext.Response.StatusCode = StatusCodes.Status404NotFound;
                 await HttpContext.Response.Body.WriteAsync(System.Text.Encoding.UTF8.GetBytes("No Instance found for provided Server Id"));

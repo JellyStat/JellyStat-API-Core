@@ -10,11 +10,21 @@ namespace Jellystat_API_Core.Models.Jellystat
 
         public string ExternalURL { get; set; } = "";
 
-        public required string APIKey { get; set; }
+        [Newtonsoft.Json.JsonIgnore]
+        [System.Text.Json.Serialization.JsonIgnore]
+        public string APIKey { get; set; } = string.Empty;
         public required string Name { get; set; }
 
         public ServerTypes Type { get; set; }
 
+        public List<TaskSettings> TaskSettings { get; set; } = new List<TaskSettings> {
+            new TaskSettings(TaskTypes.Backup, (24 * 60)),
+            new TaskSettings(TaskTypes.FullSync, (24 * 60)),
+            new TaskSettings(TaskTypes.PartialSync, (12 * 60)),
+        };
+
+        [Newtonsoft.Json.JsonIgnore]
+        [System.Text.Json.Serialization.JsonIgnore]
         public WebSocketClientConfig WebSocketConfig => new WebSocketClientConfig
         {
             Id = Id,

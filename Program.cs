@@ -1,5 +1,6 @@
 using Jellystat_API_Core;
 using Jellystat_API_Core.Attributes;
+using Jellystat_API_Core.Converters;
 using Jellystat_API_Core.Data;
 using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Extensions;
@@ -10,6 +11,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using System.Text;
+using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -56,7 +58,13 @@ if (builder.Environment.IsDevelopment())
 }
 
 // Configure Npgsql to use System.Text.Json with dynamic JSON support
+var jsonOptions = new JsonSerializerOptions
+{
+    Converters = { new PostgresDateTimeConverter() }
+};
+
 var dataSourceBuilder = new Npgsql.NpgsqlDataSourceBuilder(connectionString);
+dataSourceBuilder.ConfigureJsonOptions(jsonOptions);
 dataSourceBuilder.EnableDynamicJson();
 var dataSource = dataSourceBuilder.Build();
 
@@ -147,7 +155,7 @@ using (var scope = app.Services.CreateScope())
     logger.LogInformation("Database migrations applied successfully.");
 
     logger.LogInformation("Fetching Configured Servers");
-    List<Jellystat_API_Core.Models.Jellystat.Server> serverConfigs = (await context.Servers.ToListAsync()).Select(s => new Jellystat_API_Core.Models.Jellystat.Server() { Id = s.Id, Name = s.Name, URL = s.URL, APIKey = s.APIKey }).ToList();
+    List<Jellystat_API_Core.Models.Jellystat.Server> serverConfigs = (await context.Servers.ToListAsync()).Select(s => new Jellystat_API_Core.Models.Jellystat.Server() { Id = s.Id, Name = s.Name, URL = s.URL, APIKey = s.APIKey, Type = s.Type, TaskSettings = s.TaskSettings }).ToList();
     foreach (Jellystat_API_Core.Models.Jellystat.Server config in serverConfigs)
     {
         logger.LogInformation($"Fetched: {config.Id}");

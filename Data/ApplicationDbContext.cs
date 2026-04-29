@@ -1,4 +1,5 @@
 using Jellystat_API_Core.Data.Schema;
+using Jellystat_API_Core.Data.Schema.Views;
 using Microsoft.EntityFrameworkCore;
 
 namespace Jellystat_API_Core.Data
@@ -23,6 +24,7 @@ namespace Jellystat_API_Core.Data
         public DbSet<ActivityStaging> ActivityStaging { get; set; }
         public DbSet<Permissions> Permissions { get; set; }
         public DbSet<UserPermissions> UserPermissions { get; set; }
+        public DbSet<ItemsWithParentData> ItemsWithParentData { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -37,6 +39,8 @@ namespace Jellystat_API_Core.Data
                 entity.Property(e => e.APIKey).IsRequired();
                 entity.Property(e => e.Name).IsRequired();
                 entity.Property(e => e.ExternalURL).HasDefaultValue("");
+                entity.Property(e => e.Type).IsRequired();
+                entity.Property(e => e.TaskSettings).HasColumnType("jsonb").HasDefaultValueSql("'[]'");
             });
 
             modelBuilder.Entity<Users>(entity =>
@@ -72,6 +76,7 @@ namespace Jellystat_API_Core.Data
                 entity.Property(e => e.Name).IsRequired();
                 entity.Property(e => e.Type).IsRequired();
                 entity.Property(e => e.ImageTag).HasDefaultValue("");
+                entity.Property(e => e.ImageHash).HasDefaultValue("");
                 entity.Property(e => e.archived).HasDefaultValue(false);
 
                 entity.HasOne(e => e.Server)
@@ -268,6 +273,15 @@ namespace Jellystat_API_Core.Data
                         .HasForeignKey(e => e.UserId)
                         .OnDelete(DeleteBehavior.Cascade);
             });
+
+            modelBuilder.Entity<ItemsWithParentData>(entity =>
+            {
+                entity.HasBaseType((Type)null);
+                entity.HasNoKey();
+                entity.ToView("ItemsWithParentData");
+                entity.Property(e => e.Parent).HasColumnType("jsonb");
+            });
+
 
 
 

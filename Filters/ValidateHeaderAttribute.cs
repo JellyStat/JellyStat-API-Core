@@ -25,7 +25,8 @@ namespace Jellystat_API_Core.Filters
 
         public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
-            if (!context.HttpContext.Request.Headers.TryGetValue(_headerName, out var headerValue))
+            if (!context.HttpContext.Request.Headers.TryGetValue(_headerName, out var headerValue) || 
+                string.IsNullOrWhiteSpace(headerValue))
             {
                 if (_isRequired)
                 {

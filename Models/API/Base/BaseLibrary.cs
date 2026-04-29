@@ -11,9 +11,8 @@ namespace Jellystat_API_Core.Models.API.Base
 
         [JsonDefault(LibraryTypes.Unknown)]
         public virtual LibraryTypes Type { get; set; }
-
         public virtual string ImageTag { get; set; }
-
+        public virtual string ImageHash { get; set; }
         public virtual bool archived { get; set; } = false;
     }
 }

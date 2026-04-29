@@ -92,6 +92,7 @@ namespace Jellystat_API_Core.Classes.Tasks
                 existingLibrary.Name = library.Name;
                 existingLibrary.Type = library.Type;
                 existingLibrary.ImageTag = library.ImageTag;
+                existingLibrary.ImageHash = library.ImageHash;
                 existingLibrary.archived = library.archived;
             }
 
@@ -102,6 +103,7 @@ namespace Jellystat_API_Core.Classes.Tasks
                 Name = l.Name,
                 Type = l.Type,
                 ImageTag = l.ImageTag,
+                ImageHash = l.ImageHash,
                 archived = l.archived
             }));
 
@@ -112,6 +114,7 @@ namespace Jellystat_API_Core.Classes.Tasks
                 Name = l.Name,
                 Type = l.Type,
                 ImageTag = l.ImageTag,
+                ImageHash = l.ImageHash,
                 archived = l.archived
             }));
 
@@ -131,6 +134,7 @@ namespace Jellystat_API_Core.Classes.Tasks
                 Name = l.Name,
                 Type = l.Type,
                 ImageTag = l.ImageTag,
+                ImageHash = l.ImageHash,
                 archived = l.archived
             }).ToList();
         }

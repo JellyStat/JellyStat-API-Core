@@ -1,7 +1,9 @@
-﻿using System.Text.Json.Serialization;
+﻿
+using System.Text.Json.Serialization;
 
 namespace Jellystat_API_Core.Enums
 {
+    [Newtonsoft.Json.JsonConverter(typeof(Newtonsoft.Json.Converters.StringEnumConverter))]
     [JsonConverter(typeof(JsonStringEnumConverter))]
     public enum LibraryTypes
     {
