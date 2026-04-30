@@ -6,8 +6,10 @@
         public required string Username { get; set; }
 
         public required string ServerId { get; set; }
-        public Server? Server { get; set; }
-
         public string? ImageTag { get; set; }
+
+        [Newtonsoft.Json.JsonIgnore]
+        [System.Text.Json.Serialization.JsonIgnore]
+        public Server? Server { get; set; }
     }
 }
