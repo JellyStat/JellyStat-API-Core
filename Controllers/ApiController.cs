@@ -1,17 +1,19 @@
-﻿using Jellystat_API_Core.Classes.API.@interface;
+﻿using Jellystat_API_Core.Attributes;
+using Jellystat_API_Core.Classes.API.@interface;
 using Jellystat_API_Core.Data;
 using Jellystat_API_Core.Data.Schema;
 using Jellystat_API_Core.Data.Schema.Views;
-using Jellystat_API_Core.Extensions;
-using Jellystat_API_Core.Filters;
+using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Helpers;
 using Jellystat_API_Core.Models.API.Base;
 using Jellystat_API_Core.Models.Jellystat;
 using Jellystat_API_Core.Services.API;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Jellystat_API_Core.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("[controller]")]
     public class ApiController : Controller
@@ -27,12 +29,9 @@ namespace Jellystat_API_Core.Controllers
         }
 
         [HttpGet("Config", Name = "Config")]
-        [ValidateHeader("ServerId")]
-        public ActionResult<Models.Jellystat.Server> GetConfig()
+        public ActionResult<Models.Jellystat.Server> GetConfig([FromHeader(Name = "ServerId")] string ServerId)
         {
-
-
-            iAPI? api = _apiInstanceManager.GetInstance(HttpContext.GetValidatedHeader("ServerId")!);
+            iAPI? api = _apiInstanceManager.GetInstance(ServerId);
             if (api == null)
             {
                 return NotFound("API instance not found for provided Server Id");
@@ -41,8 +40,9 @@ namespace Jellystat_API_Core.Controllers
             return api.config;
         }
 
-        [HttpPost("AddServer", Name = "AddServer")]
-        public async Task<ActionResult<Models.Jellystat.Server?>> AddServer([FromBody] AddServer server)
+        [PermissionAuthorize(PermissionTypes.Administrator)]
+        [HttpPost("Config", Name = "Config")]
+        public async Task<ActionResult<Models.Jellystat.Server?>> AddOrUpdateServer([FromBody] AddServer server)
         {
             ServerManagerHelper serverHelper = new ServerManagerHelper();
 
@@ -87,12 +87,11 @@ namespace Jellystat_API_Core.Controllers
 
 
         [HttpGet("Libraries", Name = "Libraries")]
-        [ValidateHeader("ServerId")]
-        public ActionResult<List<Libraries>> GetLibraries()
+        public ActionResult<List<Libraries>> GetLibraries([FromHeader(Name = "ServerId")] string ServerId)
         {
 
 
-            iAPI? api = _apiInstanceManager.GetInstance(HttpContext.GetValidatedHeader("ServerId")!);
+            iAPI? api = _apiInstanceManager.GetInstance(ServerId);
             if (api == null)
             {
                 return NotFound("API instance not found for provided Server Id");
@@ -102,14 +101,8 @@ namespace Jellystat_API_Core.Controllers
         }
 
         [HttpGet("RecentlyAdded", Name = "RecentlyAdded")]
-        [ValidateHeader("ServerId")]
-        public ActionResult<List<ItemsWithParentData>> GetRecentlyAdded()
+        public ActionResult<List<ItemsWithParentData>> GetRecentlyAdded([FromHeader(Name = "ServerId")] string ServerId, string? libraryId, int limit = 50)
         {
-            string? libraryId = HttpContext.Request.Query["LibraryId"];
-            int limit = int.TryParse(HttpContext.Request.Query["Limit"].ToString(), out int result) ? result : 50;
-            bool groupResults = bool.TryParse(HttpContext.Request.Query["GroupResults"].ToString(), out bool groupResult) ? groupResult : true;
-            string ServerId = HttpContext.GetValidatedHeader("ServerId")!;
-
 
             iAPI? api = _apiInstanceManager.GetInstance(ServerId);
             if (api == null)
@@ -125,6 +118,7 @@ namespace Jellystat_API_Core.Controllers
 
             return context.ItemsWithParentData.Where(i => i.DateCreated != null && i.ServerId == ServerId).OrderByDescending(i => i.DateCreated).Take(limit).ToList();
         }
+
 
     }
 }

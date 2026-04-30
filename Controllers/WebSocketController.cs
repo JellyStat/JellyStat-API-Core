@@ -1,10 +1,10 @@
-﻿using Jellystat_API_Core.Extensions;
-using Jellystat_API_Core.Filters;
-using Jellystat_API_Core.Services.WebSocket;
+﻿using Jellystat_API_Core.Services.WebSocket;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Jellystat_API_Core.Controllers
 {
+    [Authorize]
     [ApiController]
     [Route("[controller]")]
     public class WebSocketController : ControllerBase
@@ -21,32 +21,31 @@ namespace Jellystat_API_Core.Controllers
         }
 
         [HttpGet]
-        [ValidateHeader("ServerId")] // Example: Validate a required header
-        public async Task Connect()
+        public async Task<ActionResult> Connect([FromHeader(Name = "ServerId")] string ServerId)
         {
             if (!HttpContext.WebSockets.IsWebSocketRequest)
             {
                 HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
-                return;
+                return BadRequest("WebSocket request expected");
+
             }
 
-            // Extract the validated header value
-            var serverId = HttpContext.GetValidatedHeader("ServerId")!;
-
-            if (Global.APIInstanceManager.GetInstance(serverId) == null)
+            if (Global.APIInstanceManager.GetInstance(ServerId) == null)
             {
                 HttpContext.Response.StatusCode = StatusCodes.Status404NotFound;
                 await HttpContext.Response.Body.WriteAsync(System.Text.Encoding.UTF8.GetBytes("No Instance found for provided Server Id"));
-                return;
+                return NotFound("API instance not found for provided Server Id");
             }
 
             var connectionId = Guid.NewGuid().ToString();
             var webSocket = await HttpContext.WebSockets.AcceptWebSocketAsync();
 
             _logger.LogInformation("WebSocket connection established: {ConnectionId}, ClientId: {ClientId}",
-                connectionId, serverId);
+                connectionId, ServerId);
 
-            await _webSocketService.HandleWebSocketAsync(webSocket, connectionId, serverId);
+            await _webSocketService.HandleWebSocketAsync(webSocket, connectionId, ServerId);
+
+            return Ok();
         }
     }
 }

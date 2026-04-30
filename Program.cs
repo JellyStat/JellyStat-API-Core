@@ -72,7 +72,9 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(dataSource)); // Scoped by default - each scope gets its own instance
 
 // Register repositories
-//builder.Services.AddSingleton<iDatabaseRepository, DatabaseRepository>();
+
+builder.Services.AddMemoryCache();
+builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddSingleton<IAPIInstanceManager, APIInstanceManager>();
 builder.Services.AddSingleton<IWebSocketClientService, WebSocketClientService>();
 builder.Services.AddSingleton<IWebSocketServerService, WebSocketServerService>();
@@ -202,6 +204,8 @@ app.MapGet("/", () => "Hello world!");
 app.UseWebSockets();
 
 app.UseHttpsRedirection();
+
+app.UseAuthentication();
 
 app.UseAuthorization();
 
