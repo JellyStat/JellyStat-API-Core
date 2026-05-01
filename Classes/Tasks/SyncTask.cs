@@ -2,6 +2,7 @@
 using Jellystat_API_Core.Classes.API.@interface;
 using Jellystat_API_Core.Data;
 using Jellystat_API_Core.Data.Schema;
+using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Models.API.Base;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
@@ -205,6 +206,28 @@ namespace Jellystat_API_Core.Classes.Tasks
                 try
                 {
                     var serverId = api.config.Id;
+
+                    // Step 1: Update Seasons by summing their child Episodes
+                    // This generates a single UPDATE ... FROM ... SQL statement
+                    await context.ItemsStaging
+                        .Where(s => s.Type == ItemTypes.Season) // Seasons
+                        .ExecuteUpdateAsync(setters => setters.SetProperty(
+                            s => s.Size,
+                            s => context.ItemsStaging
+                                .Where(e => e.Type == ItemTypes.Episode && e.ParentId == s.Id) // Episodes
+                                .Sum(e => e.Size)
+                        ));
+
+                    // Step 2: Update Series by summing their child Seasons
+                    // Since the previous command finished, the Season sizes are now accurate
+                    await context.ItemsStaging
+                        .Where(series => series.Type == ItemTypes.Series) // Series
+                        .ExecuteUpdateAsync(setters => setters.SetProperty(
+                            series => series.Size,
+                            series => context.ItemsStaging
+                                .Where(s => s.Type == ItemTypes.Season && s.ParentId == series.Id) // Seasons
+                                .Sum(s => s.Size)
+                        ));
 
                     // Update existing items from staging (pure EF, no materialization)
                     var updateQuery = from target in context.Items
