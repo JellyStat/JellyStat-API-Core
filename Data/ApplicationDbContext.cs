@@ -25,6 +25,7 @@ namespace Jellystat_API_Core.Data
         public DbSet<Permissions> Permissions { get; set; }
         public DbSet<UserPermissions> UserPermissions { get; set; }
         public DbSet<ItemsWithParentData> ItemsWithParentData { get; set; }
+        public DbSet<ItemsWithStats> ItemsWithStats { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -281,6 +282,27 @@ namespace Jellystat_API_Core.Data
                 entity.ToView("ItemsWithParentData");
                 entity.Property(e => e.Parent).HasColumnType("jsonb");
             });
+
+            modelBuilder.Entity<ItemsWithStats>(entity =>
+            {
+                entity.HasBaseType((Type)null);
+                entity.HasNoKey();
+                entity.ToView("ItemsWithStats");
+                entity.Property(e => e.PlayCount);
+                entity.Property(e => e.PlayDuration);
+            });
+
+            // Matches: CREATE INDEX idx_items_parent_lookup ON "Items" ("ParentId", "Id");
+            modelBuilder.Entity<Items>()
+                .HasIndex(i => new { i.ParentId, i.Id })
+                .HasDatabaseName("idx_items_parent_lookup");
+
+            // 2. Covering Index for Activity Sums
+            // Matches: CREATE INDEX idx_activity_item_lookup ON "Activity" ("ItemId") INCLUDE ("Duration");
+            modelBuilder.Entity<Activity>()
+                .HasIndex(a => a.ItemId)
+                .IncludeProperties(a => a.Duration) // This is the 'INCLUDE' part
+                .HasDatabaseName("idx_activity_item_lookup");
 
 
 

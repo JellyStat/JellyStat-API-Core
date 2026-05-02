@@ -231,9 +231,9 @@ namespace Jellystat_API_Core.Controllers
         [HttpGet("LibraryItems", Name = "LibraryItems")]
 
         [DefaultGridifyOrder(nameof(Items.Name))]
-        public ActionResult<Paging<Items>> GetLibraryItems([FromQuery] GridifyQuery query, [FromHeader(Name = "ServerId")] string ServerId)
+        public ActionResult<Paging<ItemsWithStats>> GetLibraryItems([FromQuery] GridifyQuery query, [FromHeader(Name = "ServerId")] string ServerId)
         {
-            return context.Items.Where(u => u.ServerId == ServerId).Gridify(query);
+            return context.ItemsWithStats.Where(u => u.ServerId == ServerId).Gridify(query);
         }
 
 
