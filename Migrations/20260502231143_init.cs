@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using Jellystat_API_Core.Models.API.Base;
+using Jellystat_API_Core.Models.Jellystat;
 using Microsoft.EntityFrameworkCore.Migrations;
+using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 
 #nullable disable
 
@@ -36,7 +38,8 @@ namespace Jellystat_API_Core.Migrations
                     Imported = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
                     DateCreated = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP"),
                     Container = table.Column<string>(type: "text", nullable: true),
-                    IpAddress = table.Column<string>(type: "text", nullable: false)
+                    IpAddress = table.Column<string>(type: "text", nullable: false),
+                    RuntimeTicks = table.Column<long>(type: "bigint", nullable: false, defaultValue: 0L)
                 },
                 constraints: table =>
                 {
@@ -68,7 +71,8 @@ namespace Jellystat_API_Core.Migrations
                     LastPaused = table.Column<DateTime>(type: "timestamp with time zone", nullable: false, defaultValueSql: "CURRENT_TIMESTAMP"),
                     Container = table.Column<string>(type: "text", nullable: true),
                     IpAddress = table.Column<string>(type: "text", nullable: false),
-                    IsPaused = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false)
+                    IsPaused = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
+                    RuntimeTicks = table.Column<long>(type: "bigint", nullable: false, defaultValue: 0L)
                 },
                 constraints: table =>
                 {
@@ -91,6 +95,21 @@ namespace Jellystat_API_Core.Migrations
                 });
 
             migrationBuilder.CreateTable(
+                name: "Permissions",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "integer", nullable: false)
+                        .Annotation("Npgsql:ValueGenerationStrategy", NpgsqlValueGenerationStrategy.IdentityByDefaultColumn),
+                    PermissionKey = table.Column<string>(type: "text", nullable: false),
+                    Description = table.Column<string>(type: "text", nullable: false),
+                    Active = table.Column<bool>(type: "boolean", nullable: false, defaultValue: true)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Permissions", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
                 name: "Servers",
                 columns: table => new
                 {
@@ -99,11 +118,36 @@ namespace Jellystat_API_Core.Migrations
                     ExternalURL = table.Column<string>(type: "text", nullable: false, defaultValue: ""),
                     APIKey = table.Column<string>(type: "text", nullable: false),
                     Name = table.Column<string>(type: "text", nullable: false),
-                    Type = table.Column<int>(type: "integer", nullable: false)
+                    Type = table.Column<int>(type: "integer", nullable: false),
+                    TaskSettings = table.Column<List<TaskSettings>>(type: "jsonb", nullable: false, defaultValueSql: "'[]'")
                 },
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Servers", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "UserPermissions",
+                columns: table => new
+                {
+                    PermissionId = table.Column<int>(type: "integer", nullable: false),
+                    UserId = table.Column<string>(type: "text", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_UserPermissions", x => new { x.PermissionId, x.UserId });
+                    table.ForeignKey(
+                        name: "FK_UserPermissions_LocalUsers_UserId",
+                        column: x => x.UserId,
+                        principalTable: "LocalUsers",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_UserPermissions_Permissions_PermissionId",
+                        column: x => x.PermissionId,
+                        principalTable: "Permissions",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
                 });
 
             migrationBuilder.CreateTable(
@@ -115,6 +159,7 @@ namespace Jellystat_API_Core.Migrations
                     Name = table.Column<string>(type: "text", nullable: false),
                     Type = table.Column<int>(type: "integer", nullable: false),
                     ImageTag = table.Column<string>(type: "text", nullable: true, defaultValue: ""),
+                    ImageHash = table.Column<string>(type: "text", nullable: true, defaultValue: ""),
                     archived = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false)
                 },
                 constraints: table =>
@@ -276,6 +321,37 @@ namespace Jellystat_API_Core.Migrations
                         onDelete: ReferentialAction.Cascade);
                 });
 
+            migrationBuilder.CreateTable(
+                name: "ItemsPath",
+                columns: table => new
+                {
+                    AncestorId = table.Column<string>(type: "text", nullable: false),
+                    DescendantId = table.Column<string>(type: "text", nullable: false),
+                    Depth = table.Column<int>(type: "integer", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_ItemsPath", x => new { x.AncestorId, x.DescendantId });
+                    table.ForeignKey(
+                        name: "FK_ItemsPath_Items_AncestorId",
+                        column: x => x.AncestorId,
+                        principalTable: "Items",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                    table.ForeignKey(
+                        name: "FK_ItemsPath_Items_DescendantId",
+                        column: x => x.DescendantId,
+                        principalTable: "Items",
+                        principalColumn: "Id",
+                        onDelete: ReferentialAction.Cascade);
+                });
+
+            migrationBuilder.CreateIndex(
+                name: "idx_activity_item_lookup",
+                table: "Activity",
+                column: "ItemId")
+                .Annotation("Npgsql:IndexInclude", new[] { "Duration" });
+
             migrationBuilder.CreateIndex(
                 name: "IX_ExcludedLibraries_LibraryId",
                 table: "ExcludedLibraries",
@@ -297,6 +373,21 @@ namespace Jellystat_API_Core.Migrations
                 column: "ServerId");
 
             migrationBuilder.CreateIndex(
+                name: "idx_itempaths_ancestor",
+                table: "ItemsPath",
+                column: "AncestorId");
+
+            migrationBuilder.CreateIndex(
+                name: "idx_itempaths_ancestor_depth",
+                table: "ItemsPath",
+                columns: new[] { "AncestorId", "Depth" });
+
+            migrationBuilder.CreateIndex(
+                name: "idx_itempaths_descendant",
+                table: "ItemsPath",
+                column: "DescendantId");
+
+            migrationBuilder.CreateIndex(
                 name: "IX_ItemsStaging_LibraryId",
                 table: "ItemsStaging",
                 column: "LibraryId");
@@ -310,6 +401,11 @@ namespace Jellystat_API_Core.Migrations
                 name: "IX_Libraries_ServerId",
                 table: "Libraries",
                 column: "ServerId");
+
+            migrationBuilder.CreateIndex(
+                name: "IX_UserPermissions_UserId",
+                table: "UserPermissions",
+                column: "UserId");
 
             migrationBuilder.CreateIndex(
                 name: "IX_Users_ServerId",
@@ -333,16 +429,25 @@ namespace Jellystat_API_Core.Migrations
                 name: "ExcludedUsers");
 
             migrationBuilder.DropTable(
-                name: "Items");
+                name: "ItemsPath");
 
             migrationBuilder.DropTable(
                 name: "ItemsStaging");
 
             migrationBuilder.DropTable(
-                name: "LocalUsers");
+                name: "UserPermissions");
 
             migrationBuilder.DropTable(
                 name: "Users");
+
+            migrationBuilder.DropTable(
+                name: "Items");
+
+            migrationBuilder.DropTable(
+                name: "LocalUsers");
+
+            migrationBuilder.DropTable(
+                name: "Permissions");
 
             migrationBuilder.DropTable(
                 name: "Libraries");

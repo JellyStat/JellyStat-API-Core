@@ -25,6 +25,7 @@ namespace Jellystat_API_Core.Data
         public DbSet<Permissions> Permissions { get; set; }
         public DbSet<UserPermissions> UserPermissions { get; set; }
         public DbSet<ItemsWithParentData> ItemsWithParentData { get; set; }
+        public DbSet<ItemsPath> ItemsPath { get; set; }
         public DbSet<ItemsWithStats> ItemsWithStats { get; set; }
 
 
@@ -275,6 +276,32 @@ namespace Jellystat_API_Core.Data
                         .OnDelete(DeleteBehavior.Cascade);
             });
 
+            modelBuilder.Entity<ItemsPath>(entity =>
+            {
+                entity.HasKey(e => new { e.AncestorId, e.DescendantId });
+                entity.Property(e => e.AncestorId).IsRequired();
+                entity.Property(e => e.DescendantId).IsRequired();
+                entity.Property(e => e.Depth).IsRequired();
+                entity.HasOne(e => e.Ancestor)
+                    .WithMany()
+                    .HasForeignKey(e => e.AncestorId)
+                    .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasOne(e => e.Descendant)
+                        .WithMany()
+                        .HasForeignKey(e => e.DescendantId)
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                entity.HasIndex(e => e.AncestorId)
+                      .HasDatabaseName("idx_itempaths_ancestor");
+
+                entity.HasIndex(e => e.DescendantId)
+                      .HasDatabaseName("idx_itempaths_descendant");
+
+                entity.HasIndex(e => new { e.AncestorId, e.Depth })
+                      .HasDatabaseName("idx_itempaths_ancestor_depth");
+            });
+
             modelBuilder.Entity<ItemsWithParentData>(entity =>
             {
                 entity.HasBaseType((Type)null);
@@ -293,33 +320,11 @@ namespace Jellystat_API_Core.Data
                 entity.Property(e => e.LastPlayedDate);
             });
 
-            // Matches: CREATE INDEX idx_items_parent_lookup ON "Items" ("ParentId", "Id");
-            modelBuilder.Entity<Items>()
-                .HasIndex(i => new { i.ParentId, i.Id })
-                .HasDatabaseName("idx_items_parent_lookup");
 
-            // 2. Covering Index for Activity Sums
-            // Matches: CREATE INDEX idx_activity_item_lookup ON "Activity" ("ItemId") INCLUDE ("Duration");
             modelBuilder.Entity<Activity>()
                 .HasIndex(a => a.ItemId)
-                .IncludeProperties(a => a.Duration) // This is the 'INCLUDE' part
+                .IncludeProperties(a => a.Duration)
                 .HasDatabaseName("idx_activity_item_lookup");
-
-            modelBuilder.Entity<Activity>()
-                .HasIndex(a => a.ItemId)
-                .IncludeProperties(a => a.DateCreated) // This is the 'INCLUDE' part
-                .HasDatabaseName("idx_activity_item_date");
-
-            modelBuilder.Entity<Activity>()
-                .HasIndex(a => a.SeriesId)
-                .IncludeProperties(a => a.DateCreated) // This is the 'INCLUDE' part
-                .HasDatabaseName("idx_activity_series_date");
-
-            modelBuilder.Entity<Activity>()
-                .HasIndex(a => a.SeasonId)
-                .IncludeProperties(a => a.DateCreated) // This is the 'INCLUDE' part
-                .HasDatabaseName("idx_activity_season_date");
-
 
 
 

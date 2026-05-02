@@ -115,19 +115,9 @@ namespace Jellystat_API_Core.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ItemId")
-                        .HasDatabaseName("idx_activity_item_date");
+                        .HasDatabaseName("idx_activity_item_lookup");
 
-                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("ItemId"), new[] { "DateCreated" });
-
-                    b.HasIndex("SeasonId")
-                        .HasDatabaseName("idx_activity_season_date");
-
-                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("SeasonId"), new[] { "DateCreated" });
-
-                    b.HasIndex("SeriesId")
-                        .HasDatabaseName("idx_activity_series_date");
-
-                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("SeriesId"), new[] { "DateCreated" });
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("ItemId"), new[] { "Duration" });
 
                     b.ToTable("Activity");
                 });
@@ -354,10 +344,32 @@ namespace Jellystat_API_Core.Migrations
 
                     b.HasIndex("ServerId");
 
-                    b.HasIndex("ParentId", "Id")
-                        .HasDatabaseName("idx_items_parent_lookup");
-
                     b.ToTable("Items");
+                });
+
+            modelBuilder.Entity("Jellystat_API_Core.Data.Schema.ItemsPath", b =>
+                {
+                    b.Property<string>("AncestorId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("DescendantId")
+                        .HasColumnType("text");
+
+                    b.Property<int>("Depth")
+                        .HasColumnType("integer");
+
+                    b.HasKey("AncestorId", "DescendantId");
+
+                    b.HasIndex("AncestorId")
+                        .HasDatabaseName("idx_itempaths_ancestor");
+
+                    b.HasIndex("DescendantId")
+                        .HasDatabaseName("idx_itempaths_descendant");
+
+                    b.HasIndex("AncestorId", "Depth")
+                        .HasDatabaseName("idx_itempaths_ancestor_depth");
+
+                    b.ToTable("ItemsPath");
                 });
 
             modelBuilder.Entity("Jellystat_API_Core.Data.Schema.ItemsStaging", b =>
@@ -827,6 +839,25 @@ namespace Jellystat_API_Core.Migrations
                     b.Navigation("Library");
 
                     b.Navigation("Server");
+                });
+
+            modelBuilder.Entity("Jellystat_API_Core.Data.Schema.ItemsPath", b =>
+                {
+                    b.HasOne("Jellystat_API_Core.Data.Schema.Items", "Ancestor")
+                        .WithMany()
+                        .HasForeignKey("AncestorId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Jellystat_API_Core.Data.Schema.Items", "Descendant")
+                        .WithMany()
+                        .HasForeignKey("DescendantId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Ancestor");
+
+                    b.Navigation("Descendant");
                 });
 
             modelBuilder.Entity("Jellystat_API_Core.Data.Schema.ItemsStaging", b =>

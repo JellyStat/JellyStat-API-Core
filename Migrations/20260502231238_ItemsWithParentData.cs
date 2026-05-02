@@ -13,13 +13,19 @@ namespace Jellystat_API_Core.Migrations
             migrationBuilder.Sql(
                  @"CREATE VIEW ""ItemsWithParentData"" AS 
                           SELECT 
-                          to_jsonb(p) AS ""Parent"",
-                          i.* 
+                              i.*,
+                              to_jsonb(root_item) AS ""Parent""
                           FROM public.""Items"" i
-                          LEFT JOIN  public.""Items"" s ON s.""Id"" = i.""ParentId""
-                          LEFT JOIN  public.""Items"" p ON p.""Id"" = s.""ParentId""
-                          Where i.""ParentId"" is not null
-                          and i.""Type"" not in (3,5,6,7)
+                          LEFT JOIN LATERAL (
+                              -- Look up all ancestors for the current item
+                              SELECT a.*
+                              FROM public.""ItemsPath"" ip
+                              JOIN public.""Items"" a ON a.""Id"" = ip.""AncestorId""
+                              WHERE ip.""DescendantId"" = i.""Id""
+                              -- The 'Absolute Top Parent' is the one with the maximum distance (Depth)
+                              ORDER BY ip.""Depth"" DESC
+                              LIMIT 1
+                          ) root_item ON TRUE
                           "
                  );
         }
@@ -31,3 +37,4 @@ namespace Jellystat_API_Core.Migrations
         }
     }
 }
+

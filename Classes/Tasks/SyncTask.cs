@@ -294,6 +294,30 @@ namespace Jellystat_API_Core.Classes.Tasks
                         .Where(s => s.ServerId == serverId)
                         .ExecuteDeleteAsync();
 
+                    // Rebuild the ItemsPath table using a recursive CTE, which is much faster than doing it in memory  
+                    await context.Database.ExecuteSqlRawAsync(@"
+                            DELETE FROM ""ItemsPath"";
+                            INSERT INTO ""ItemsPath"" (""AncestorId"", ""DescendantId"", ""Depth"")
+                            WITH RECURSIVE tree AS (
+                                -- 1. Base Case: Select from Items directly
+                                SELECT 
+                                    ""Id"" AS ancestor, 
+                                    ""Id"" AS descendant, 
+                                    0 AS depth
+                                FROM ""Items""
+
+                                UNION ALL
+
+                                -- 2. Recursive Step: Reference the aliases defined above
+                                SELECT 
+                                    t.ancestor, 
+                                    i.""Id"", 
+                                    t.depth + 1
+                                FROM tree t
+                                JOIN ""Items"" i ON i.""ParentId"" = t.descendant
+                            )
+                            SELECT ancestor, descendant, depth FROM tree;");
+
                     Debug.WriteLine($"Synced items: {insertedCount} inserted, {updatedCount} updated, {archivedCount} archived (pure EF, zero materialization)");
 
                     await transaction.CommitAsync();
