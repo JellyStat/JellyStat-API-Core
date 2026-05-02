@@ -115,9 +115,19 @@ namespace Jellystat_API_Core.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ItemId")
-                        .HasDatabaseName("idx_activity_item_lookup");
+                        .HasDatabaseName("idx_activity_item_date");
 
-                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("ItemId"), new[] { "Duration" });
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("ItemId"), new[] { "DateCreated" });
+
+                    b.HasIndex("SeasonId")
+                        .HasDatabaseName("idx_activity_season_date");
+
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("SeasonId"), new[] { "DateCreated" });
+
+                    b.HasIndex("SeriesId")
+                        .HasDatabaseName("idx_activity_series_date");
+
+                    NpgsqlIndexBuilderExtensions.IncludeProperties(b.HasIndex("SeriesId"), new[] { "DateCreated" });
 
                     b.ToTable("Activity");
                 });
@@ -713,6 +723,9 @@ namespace Jellystat_API_Core.Migrations
 
                     b.Property<int?>("Index")
                         .HasColumnType("integer");
+
+                    b.Property<DateTime?>("LastPlayedDate")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("LibraryId")
                         .IsRequired()

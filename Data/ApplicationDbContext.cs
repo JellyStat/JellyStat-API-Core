@@ -290,6 +290,7 @@ namespace Jellystat_API_Core.Data
                 entity.ToView("ItemsWithStats");
                 entity.Property(e => e.PlayCount);
                 entity.Property(e => e.PlayDuration);
+                entity.Property(e => e.LastPlayedDate);
             });
 
             // Matches: CREATE INDEX idx_items_parent_lookup ON "Items" ("ParentId", "Id");
@@ -303,6 +304,21 @@ namespace Jellystat_API_Core.Data
                 .HasIndex(a => a.ItemId)
                 .IncludeProperties(a => a.Duration) // This is the 'INCLUDE' part
                 .HasDatabaseName("idx_activity_item_lookup");
+
+            modelBuilder.Entity<Activity>()
+                .HasIndex(a => a.ItemId)
+                .IncludeProperties(a => a.DateCreated) // This is the 'INCLUDE' part
+                .HasDatabaseName("idx_activity_item_date");
+
+            modelBuilder.Entity<Activity>()
+                .HasIndex(a => a.SeriesId)
+                .IncludeProperties(a => a.DateCreated) // This is the 'INCLUDE' part
+                .HasDatabaseName("idx_activity_series_date");
+
+            modelBuilder.Entity<Activity>()
+                .HasIndex(a => a.SeasonId)
+                .IncludeProperties(a => a.DateCreated) // This is the 'INCLUDE' part
+                .HasDatabaseName("idx_activity_season_date");
 
 
 

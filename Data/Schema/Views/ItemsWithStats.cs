@@ -4,5 +4,6 @@
     {
         public int PlayCount { get; set; }
         public int PlayDuration { get; set; }
+        public DateTime? LastPlayedDate { get; set; }
     }
 }
