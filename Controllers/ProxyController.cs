@@ -1,12 +1,10 @@
 ﻿using Jellystat_API_Core.Classes.API.@interface;
-using Jellystat_API_Core.Extensions;
 using Jellystat_API_Core.Services.API;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Jellystat_API_Core.Controllers
 {
-    [Authorize]
+    //[Authorize]
     [ApiController]
     [Route("[controller]")]
     public class ProxyController : Controller
@@ -19,13 +17,13 @@ namespace Jellystat_API_Core.Controllers
         }
 
         [HttpGet("Images/Devices", Name = "Images/Devices")]
-        public async Task<ActionResult> ProxyDeviceImageRequest(string? ServerId, string DeviceName)
+        public async Task<ActionResult> ProxyDeviceImageRequest(string ServerId, string DeviceName)
         {
-            bool isAdmin = HttpContext.User.IsAdministrator();
-            if (!isAdmin || ServerId == null)
-            {
-                ServerId = HttpContext.User.GetServerId();
-            }
+            //bool isAdmin = HttpContext.User.IsAdministrator();
+            //if (!isAdmin || ServerId == null)
+            //{
+            //    ServerId = HttpContext.User.GetServerId();
+            //}
             iAPI? api = _apiInstanceManager.GetInstance(ServerId);
             if (api == null)
             {
@@ -44,13 +42,13 @@ namespace Jellystat_API_Core.Controllers
         }
 
         [HttpGet("Images/Items/Backdrop", Name = "Images/Items/Backdrop")]
-        public async Task<ActionResult> ProxyItemBackdropImageRequest(string? ServerId, string Id, int Width = 800, int Quality = 100, int Blur = 0)
+        public async Task<ActionResult> ProxyItemBackdropImageRequest(string ServerId, string Id, int Width = 800, int Quality = 100, int Blur = 0)
         {
-            bool isAdmin = HttpContext.User.IsAdministrator();
-            if (!isAdmin || ServerId == null)
-            {
-                ServerId = HttpContext.User.GetServerId();
-            }
+            //bool isAdmin = HttpContext.User.IsAdministrator();
+            //if (!isAdmin || ServerId == null)
+            //{
+            //    ServerId = HttpContext.User.GetServerId();
+            //}
             iAPI? api = _apiInstanceManager.GetInstance(ServerId);
             if (api == null)
             {
@@ -70,13 +68,13 @@ namespace Jellystat_API_Core.Controllers
         }
 
         [HttpGet("Images/Items/Primary", Name = "Images/Items/Primary")]
-        public async Task<ActionResult> ProxyItemPrimaryImageRequest(string? ServerId, string Id, int Width = 800, int Quality = 100, int Blur = 0)
+        public async Task<ActionResult> ProxyItemPrimaryImageRequest(string ServerId, string Id, int Width = 800, int Quality = 100, int Blur = 0)
         {
-            bool isAdmin = HttpContext.User.IsAdministrator();
-            if (!isAdmin || ServerId == null)
-            {
-                ServerId = HttpContext.User.GetServerId();
-            }
+            //bool isAdmin = HttpContext.User.IsAdministrator();
+            //if (!isAdmin || ServerId == null)
+            //{
+            //    ServerId = HttpContext.User.GetServerId();
+            //}
             iAPI? api = _apiInstanceManager.GetInstance(ServerId);
             if (api == null)
             {
@@ -96,13 +94,13 @@ namespace Jellystat_API_Core.Controllers
         }
 
         [HttpGet("Images/User/Primary", Name = "Images/User/Primary")]
-        public async Task<ActionResult> ProxyUserPrimaryImageRequest(string? ServerId, string Id, int Width = 800, int Quality = 100, int Blur = 0)
+        public async Task<ActionResult> ProxyUserPrimaryImageRequest(string ServerId, string Id, int Width = 800, int Quality = 100, int Blur = 0)
         {
-            bool isAdmin = HttpContext.User.IsAdministrator();
-            if (!isAdmin || ServerId == null)
-            {
-                ServerId = HttpContext.User.GetServerId();
-            }
+            //bool isAdmin = HttpContext.User.IsAdministrator();
+            //if (!isAdmin || ServerId == null)
+            //{
+            //    ServerId = HttpContext.User.GetServerId();
+            //}
             iAPI? api = _apiInstanceManager.GetInstance(ServerId);
             if (api == null)
             {
