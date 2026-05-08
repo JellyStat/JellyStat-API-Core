@@ -6,9 +6,11 @@ using Jellystat_API_Core.Data;
 using Jellystat_API_Core.Data.Schema;
 using Jellystat_API_Core.Data.Schema.Views;
 using Jellystat_API_Core.Enums;
+using Jellystat_API_Core.Extensions;
 using Jellystat_API_Core.Helpers;
 using Jellystat_API_Core.Models.API.Base;
 using Jellystat_API_Core.Models.Jellystat;
+using Jellystat_API_Core.Models.Jellystat.V1;
 using Jellystat_API_Core.Services.API;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -22,7 +24,7 @@ namespace Jellystat_API_Core.Controllers
     public class ApiController : Controller
     {
         private readonly IAPIInstanceManager _apiInstanceManager;
-        private ApplicationDbContext context { get; set; }
+        private readonly ApplicationDbContext context;
 
         public ApiController(IAPIInstanceManager apiInstanceManager, ApplicationDbContext context)
         {
@@ -32,15 +34,21 @@ namespace Jellystat_API_Core.Controllers
         }
 
         [HttpGet("Config", Name = "Config")]
-        public ActionResult<Models.Jellystat.Server> GetConfig([FromHeader(Name = "ServerId")] string ServerId)
+        public ActionResult<List<Models.Jellystat.Server>> GetConfig()
         {
-            iAPI? api = _apiInstanceManager.GetInstance(ServerId);
-            if (api == null)
+            List<iAPI> instances = _apiInstanceManager.GetAllInstances().ToList();
+
+            bool isAdmin = HttpContext.User.IsAdministrator();
+            string ServerId = HttpContext.User.GetServerId();
+
+            if (!isAdmin)
             {
-                return NotFound("API instance not found for provided Server Id");
+                instances = instances.Where(i => i.config.Id == (ServerId)).ToList();
             }
 
-            return api.config;
+
+
+            return instances.Select(i => i.config).ToList();
         }
 
         [PermissionAuthorize(PermissionTypes.Administrator)]
@@ -89,31 +97,29 @@ namespace Jellystat_API_Core.Controllers
         }
 
         [HttpGet("RecentlyAdded", Name = "RecentlyAdded")]
-        public ActionResult<List<ItemsWithParentData>> GetRecentlyAdded([FromHeader(Name = "ServerId")] string ServerId, string? libraryId, int limit = 50)
-        {
 
+        [DefaultGridifyOrder(nameof(ItemsWithParentData.DateCreated), true)]
+        public ActionResult<Paging<ItemsWithParentData>> GetRecentlyAdded([FromQuery] GridifyQuery query)
+        {
+            string ServerId = HttpContext.User.GetServerId();
             iAPI? api = _apiInstanceManager.GetInstance(ServerId);
             if (api == null)
             {
                 return NotFound("API instance not found for provided Server Id");
             }
 
-            if (libraryId != null)
-            {
-                //List<ItemTypes> excludedTypes = new List<ItemTypes> { ItemTypes.Folder, ItemTypes.Season, ItemTypes.Series, ItemTypes.Unknown };
-                return context.ItemsWithParentData.Where(i => i.DateCreated != null && i.LibraryId == libraryId && i.ServerId == ServerId).OrderByDescending(i => i.DateCreated).Take(limit).ToList();
-            }
 
-            return context.ItemsWithParentData.Where(i => i.DateCreated != null && i.ServerId == ServerId).OrderByDescending(i => i.DateCreated).Take(limit).ToList();
+            return context.ItemsWithParentData.Where(i => i.ServerId == ServerId).Gridify(query);
         }
 
-        //[PermissionAuthorize(PermissionTypes.Administrator)]
+        [PermissionAuthorize(PermissionTypes.Administrator)]
         [HttpGet("TrackedUsers", Name = "TrackedUsers")]
         [DefaultGridifyOrder(nameof(TrackedUsers.Username))]
-        public ActionResult<Paging<TrackedUsers>> GetTrackedUsers([FromQuery] GridifyQuery query)
+        public ActionResult<Paging<TrackedUsers>> GetTrackedUsers([FromQuery] GridifyQuery query, string? ServerId)
         {
-
+            ServerId ??= HttpContext.User.GetServerId();
             return context.Users
+                    .Where(u => u.ServerId == ServerId)
                     .GroupJoin(
                         context.ExcludedUsers,
                         u => u.Id,
@@ -133,7 +139,7 @@ namespace Jellystat_API_Core.Controllers
 
         }
 
-        //[PermissionAuthorize(PermissionTypes.Administrator)]
+        [PermissionAuthorize(PermissionTypes.Administrator)]
         [HttpPost("TrackedUsers", Name = "TrackedUsers")]
         public async Task<ActionResult<List<TrackedUsers>>> SetTrackedUsers([FromBody] List<TrackedUsers> TrackedUsers)
         {
@@ -159,13 +165,14 @@ namespace Jellystat_API_Core.Controllers
 
         }
 
-        //[PermissionAuthorize(PermissionTypes.Administrator)]
+        [PermissionAuthorize(PermissionTypes.Administrator)]
         [HttpGet("TrackedLibraries", Name = "TrackedLibraries")]
         [DefaultGridifyOrder(nameof(TrackedLibraries.Name))]
-        public ActionResult<Paging<TrackedLibraries>> GetTrackedLibraries([FromQuery] GridifyQuery query)
+        public ActionResult<Paging<TrackedLibraries>> GetTrackedLibraries([FromQuery] GridifyQuery query, string? ServerId)
         {
-
+            ServerId ??= HttpContext.User.GetServerId();
             return context.Libraries
+                    .Where(l => l.ServerId == ServerId)
                     .GroupJoin(
                         context.ExcludedLibraries,
                         l => l.Id,
@@ -188,7 +195,7 @@ namespace Jellystat_API_Core.Controllers
 
         }
 
-        //[PermissionAuthorize(PermissionTypes.Administrator)]
+        [PermissionAuthorize(PermissionTypes.Administrator)]
         [HttpPost("TrackedLibraries", Name = "TrackedLibraries")]
         public async Task<ActionResult<List<TrackedLibraries>>> SetTrackedLibraries([FromBody] List<TrackedLibraries> TrackedLibraries)
         {
@@ -216,26 +223,226 @@ namespace Jellystat_API_Core.Controllers
 
         [HttpGet("Users", Name = "Users")]
         [DefaultGridifyOrder(nameof(Users.Username))]
-        public ActionResult<Paging<Users>> GetUsers([FromQuery] GridifyQuery query, [FromHeader(Name = "ServerId")] string ServerId)
+        public ActionResult<Paging<Users>> GetUsers([FromQuery] GridifyQuery query, string? ServerId)
         {
+            bool isAdmin = HttpContext.User.IsAdministrator();
+            if (!isAdmin || ServerId == null)
+            {
+                ServerId = HttpContext.User.GetServerId();
+            }
             return context.Users.Where(u => u.ServerId == ServerId).Gridify(query);
         }
 
         [HttpGet("Libraries", Name = "Libraries")]
-        [DefaultGridifyOrder(nameof(Libraries.Name))]
-        public ActionResult<Paging<Libraries>> GetLibraries([FromQuery] GridifyQuery query, [FromHeader(Name = "ServerId")] string ServerId)
+        [DefaultGridifyOrder(nameof(LibrariesWithStats.Name))]
+        public ActionResult<Paging<LibrariesWithStats>> GetLibraries([FromQuery] GridifyQuery query, string? ServerId)
         {
-            return context.Libraries.Where(u => u.ServerId == ServerId).Gridify(query);
+            bool isAdmin = HttpContext.User.IsAdministrator();
+            ServerId ??= HttpContext.User.GetServerId(); ;
+            if (!isAdmin || ServerId == null)
+            {
+                ServerId = HttpContext.User.GetServerId();
+            }
+
+            var _query = context.Libraries
+               .Where(i => i.ServerId == ServerId)
+               .Select(library => new LibrariesWithStats
+               {
+                   // Stats fields - calculated from activity on items in this library
+                   PlayCount = context.Activity
+                       .Join(context.Items,
+                             activity => activity.ItemId,
+                             item => item.Id,
+                             (activity, item) => new { activity, item })
+                       .Where(x => x.item.LibraryId == library.Id)
+                       .Count(),
+
+                   PlayDuration = (context.Activity
+                       .Join(context.Items,
+                             activity => activity.ItemId,
+                             item => item.Id,
+                             (activity, item) => new { activity, item })
+                       .Where(x => x.item.LibraryId == library.Id)
+                       .Select(x => (long?)x.activity.Duration)
+                       .Sum() ?? 0),
+
+                   PlaybackDuration = (context.Items
+                       .Where(item => item.LibraryId == library.Id)
+                       .Select(item => (long?)item.Duration)
+                       .Sum() ?? 0),
+
+                   Size = (context.Items
+                       .Where(item => item.LibraryId == library.Id)
+                       .Select(item => (long?)item.Size)
+                       .Sum() ?? 0),
+
+                   TypeCounts = context.Items
+                       .Where(item => item.LibraryId == library.Id)
+                       .GroupBy(item => item.Type)
+                       .Select(group => new TypeCountModel
+                       {
+                           Type = group.Key,
+                           Count = group.Count()
+                       })
+                       .ToList(),
+
+                   LastPlayedDate = context.Activity
+                       .Join(context.Items,
+                             activity => activity.ItemId,
+                             item => item.Id,
+                             (activity, item) => new { activity, item })
+                       .Where(x => x.item.LibraryId == library.Id)
+                       .Select(x => (DateTime?)x.activity.DateCreated)
+                       .Max(),
+
+                   LastPlayedName = context.Activity
+                       .Join(context.Items,
+                             activity => activity.ItemId,
+                             item => item.Id,
+                             (activity, item) => new { activity, item })
+                       .Where(x => x.item.LibraryId == library.Id)
+                       .OrderByDescending(x => x.activity.DateCreated)
+                       .Select(x => x.activity.SeriesName ?? x.activity.Name)
+                       .FirstOrDefault(),
+
+                   // Library fields
+                   Name = library.Name,
+                   ServerId = library.ServerId,
+                   Id = library.Id,
+                   Type = library.Type,
+                   ImageTag = library.ImageTag,
+                   ImageHash = library.ImageHash,
+                   archived = library.archived
+               });
+
+            return _query.Gridify(query);
         }
 
         [HttpGet("LibraryItems", Name = "LibraryItems")]
 
         [DefaultGridifyOrder(nameof(Items.Name))]
-        public ActionResult<Paging<ItemsWithStats>> GetLibraryItems([FromQuery] GridifyQuery query, [FromHeader(Name = "ServerId")] string ServerId)
+        public ActionResult<Paging<ItemsWithStats>> GetLibraryItems([FromQuery] GridifyQuery query, string? ServerId)
         {
-            return context.ItemsWithStats.Where(u => u.ServerId == ServerId).Gridify(query);
+            bool isAdmin = HttpContext.User.IsAdministrator();
+            if (!isAdmin || ServerId == null)
+            {
+                ServerId = HttpContext.User.GetServerId();
+            }
+            var _query = context.Items
+                .Where(i => i.ServerId == ServerId)
+                .Select(item => new ItemsWithStats
+                {
+                    // Stats fields - calculated from descendant activity via ItemsPath
+                    PlayCount = context.ItemsPath
+                        .Where(path => path.AncestorId == item.Id)
+                        .Join(context.Activity,
+                              path => path.DescendantId,
+                              activity => activity.ItemId,
+                              (path, activity) => activity)
+                        .Count(),
+
+                    PlayDuration = (context.ItemsPath
+                        .Where(path => path.AncestorId == item.Id)
+                        .Join(context.Activity,
+                              path => path.DescendantId,
+                              activity => activity.ItemId,
+                              (path, activity) => activity)
+                        .Select(activity => (long?)activity.Duration)
+                        .Sum() ?? 0),
+
+                    LastPlayedDate = context.ItemsPath
+                        .Where(path => path.AncestorId == item.Id)
+                        .Join(context.Activity,
+                              path => path.DescendantId,
+                              activity => activity.ItemId,
+                              (path, activity) => activity)
+                        .Select(activity => (DateTime?)activity.DateCreated)
+                        .Max(),
+
+                    // Item fields
+                    Name = item.Name,
+                    ServerId = item.ServerId,
+                    Id = item.Id,
+                    LibraryId = item.LibraryId,
+                    DateCreated = item.DateCreated,
+                    MediaStreams = item.MediaStreams,
+                    Duration = item.Duration,
+                    Type = item.Type,
+                    ImageTag = item.ImageTag,
+                    ImageHash = item.ImageHash,
+                    Genres = item.Genres,
+                    Path = item.Path,
+                    Size = item.Size,
+                    Bitrate = item.Bitrate,
+                    ParentId = item.ParentId,
+                    ParentIndex = item.ParentIndex,
+                    Index = item.Index,
+                    archived = item.archived
+                });
+
+            return _query.Gridify(query);
         }
 
+
+        //Tasks
+        [HttpGet("StartSync", Name = "StartSync")]
+        [PermissionAuthorize(PermissionTypes.Administrator)]
+        public async Task<bool> StartSync()
+        {
+
+            string ServerId = HttpContext.User.GetServerId();
+
+            iAPI? api = _apiInstanceManager.GetInstance(ServerId);
+            if (api == null)
+            {
+                throw new Exception("API instance not found");
+            }
+
+            await api.syncTask.FullSync();
+
+            return true;
+        }
+
+
+        [PermissionAuthorize(PermissionTypes.Administrator)]
+        [HttpPost("InsertActivity", Name = "InsertActivity")]
+        public async Task<ActionResult> InsertActivity([FromBody] List<ActivityV1> activity, string? ServerId)
+        {
+            if (activity == null)
+            {
+                return BadRequest("Provided Activity list is empty");
+            }
+
+            bool isAdmin = HttpContext.User.IsAdministrator();
+            if (!isAdmin || ServerId == null)
+            {
+                ServerId = HttpContext.User.GetServerId();
+            }
+
+            iAPI? api = _apiInstanceManager.GetInstance(ServerId);
+            if (api == null)
+            {
+                return NotFound("Server Id not found");
+            }
+
+            try
+            {
+
+                await context.BulkInsertOrUpdateAsync(activity.Where(a => a.ServerId != null && a.ServerId.IsNotEmpty() && a.ServerId == api.config.Id).Select(a => a.ConvertData()).ToList());
+                return Ok();
+
+            }
+            catch (Exception ex)
+            {
+
+                Debug.WriteLine($"Error inserting activity: {ex.Message}");
+                Debug.WriteLine(ex);
+                return Problem($"Error inserting activity: {ex.Message}");
+
+            }
+
+
+        }
 
     }
 }

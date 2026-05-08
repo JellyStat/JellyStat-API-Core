@@ -53,7 +53,8 @@ namespace Jellystat_API_Core.Models.Jellystat.V1
                 DateCreated = ActivityDateInserted,
                 Container = OriginalContainer,
                 IpAddress = RemoteEndPoint ?? "",
-                RuntimeTicks = 0
+                RuntimeTicks = 0,
+                PlayMethod = PlayMethod ?? "Unknown"
             };
 
 

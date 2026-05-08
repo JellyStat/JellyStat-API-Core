@@ -26,7 +26,6 @@ namespace Jellystat_API_Core.Data
         public DbSet<UserPermissions> UserPermissions { get; set; }
         public DbSet<ItemsWithParentData> ItemsWithParentData { get; set; }
         public DbSet<ItemsPath> ItemsPath { get; set; }
-        public DbSet<ItemsWithStats> ItemsWithStats { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -216,6 +215,7 @@ namespace Jellystat_API_Core.Data
                 entity.Property(e => e.Container);
                 entity.Property(e => e.IpAddress).IsRequired();
                 entity.Property(e => e.RuntimeTicks).HasDefaultValue(0);
+                entity.Property(e => e.PlayMethod);
 
             });
 
@@ -310,23 +310,11 @@ namespace Jellystat_API_Core.Data
                 entity.Property(e => e.Parent).HasColumnType("jsonb");
             });
 
-            modelBuilder.Entity<ItemsWithStats>(entity =>
-            {
-                entity.HasBaseType((Type)null);
-                entity.HasNoKey();
-                entity.ToView("ItemsWithStats");
-                entity.Property(e => e.PlayCount);
-                entity.Property(e => e.PlayDuration);
-                entity.Property(e => e.LastPlayedDate);
-            });
-
 
             modelBuilder.Entity<Activity>()
                 .HasIndex(a => a.ItemId)
                 .IncludeProperties(a => a.Duration)
                 .HasDatabaseName("idx_activity_item_lookup");
-
-
 
 
         }

@@ -116,7 +116,7 @@ namespace Jellystat_API_Core.Classes.API
             this.excludedUsers = excludedUsers;
             this.excludedLibraries = excludedLibraries;
             Version = "1.0.0";
-            UserAgent = "JellystatAPI/1.0.0";
+            UserAgent = Global.UserAgent;
             httpClient = new HttpClient
             {
                 BaseAddress = new Uri(config.URL),
@@ -153,7 +153,7 @@ namespace Jellystat_API_Core.Classes.API
             this.excludedUsers = new List<Data.Schema.ExcludedUsers>();
             this.excludedLibraries = new List<Data.Schema.ExcludedLibraries>();
             Version = "1.0.0";
-            UserAgent = "JellystatAPI/1.0.0";
+            UserAgent = Global.UserAgent;
             httpClient = new HttpClient
             {
                 BaseAddress = new Uri(config.URL),

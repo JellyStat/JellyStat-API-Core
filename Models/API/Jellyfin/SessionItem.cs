@@ -49,6 +49,10 @@ namespace Jellystat_API_Core.Models.API.Jellyfin
                 PlayState.PlayMethod = value ? "DirectPlay" : "Transcode";
             }
         }
+        public override string PlayMethod
+        {
+            get => PlayState?.PlayMethod ?? (PlayState?.PlayMethod == "DirectPlay" ? "DirectPlay" : "Transcode");
+        }
 
         public string? RemoteEndPoint { private get; set; }
 

@@ -19,6 +19,7 @@ namespace Jellystat_API_Core.Data.Schema
         public string? SeasonId { get; set; }
         public long Duration { get; set; } = 0;
         public bool DirectPlay { get; set; } = true;
+        public string PlayMethod { get; set; }
         public IList<BaseMediaStream> MediaStreams { get; set; } = [];
         public BaseTranscodingInfo? TranscodingInfo { get; set; }
         public bool Imported { get; set; } = false;

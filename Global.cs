@@ -31,5 +31,7 @@ namespace Jellystat_API_Core
         public static int MinimumDurationThreshold = 1;
         public static string JwtKey = "A_super_secret_key_that_is_32_chars";
         public static string JwtIssuer = "Jellystat";
+
+        public static string UserAgent = "JellystatAPI/1.0.0";
     }
 }

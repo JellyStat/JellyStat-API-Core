@@ -1,4 +1,5 @@
-﻿using Jellystat_API_Core.Services.WebSocket;
+﻿using Jellystat_API_Core.Extensions;
+using Jellystat_API_Core.Services.WebSocket;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -21,8 +22,13 @@ namespace Jellystat_API_Core.Controllers
         }
 
         [HttpGet]
-        public async Task<ActionResult> Connect([FromHeader(Name = "ServerId")] string ServerId)
+        public async Task<ActionResult> Connect(string? ServerId)
         {
+            bool isAdmin = HttpContext.User.IsAdministrator();
+            if (!isAdmin || ServerId == null)
+            {
+                ServerId = HttpContext.User.GetServerId();
+            }
             if (!HttpContext.WebSockets.IsWebSocketRequest)
             {
                 HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
@@ -32,8 +38,6 @@ namespace Jellystat_API_Core.Controllers
 
             if (Global.APIInstanceManager.GetInstance(ServerId) == null)
             {
-                HttpContext.Response.StatusCode = StatusCodes.Status404NotFound;
-                await HttpContext.Response.Body.WriteAsync(System.Text.Encoding.UTF8.GetBytes("No Instance found for provided Server Id"));
                 return NotFound("API instance not found for provided Server Id");
             }
 

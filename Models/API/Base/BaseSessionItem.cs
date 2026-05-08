@@ -17,6 +17,7 @@
 
         public virtual bool IsPaused { get => NowPlayingItem != null && Paused; }
         public virtual bool IsDirectPlay { get; set; } = true;
+        public virtual string PlayMethod { get; set; }
         public virtual string IPAddress { get; set; } = "";
         public virtual DateTime? LastPausedDate { get; set; }
 

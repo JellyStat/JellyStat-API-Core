@@ -318,7 +318,23 @@ namespace Jellystat_API_Core.Classes.Tasks
                             )
                             SELECT ancestor, descendant, depth FROM tree;");
 
+                    // Update Activity table with Names from Items
+                    int activityUpdatedCount = await context.Activity
+                        .Where(a => a.ServerId == serverId)
+                        .ExecuteUpdateAsync(setters => setters
+                            .SetProperty(a => a.Name, a => context.Items
+                                .Where(i => i.Id == a.ItemId && a.ServerId == serverId)
+                                .Select(i => i.Name)
+                                .FirstOrDefault() ?? a.Name)
+                            .SetProperty(a => a.SeriesName, a => a.SeriesId != null
+                                ? context.Items
+                                    .Where(i => i.Id == a.SeriesId && a.ServerId == serverId)
+                                    .Select(i => i.Name)
+                                    .FirstOrDefault() ?? a.SeriesName
+                                : a.SeriesName));
+
                     Debug.WriteLine($"Synced items: {insertedCount} inserted, {updatedCount} updated, {archivedCount} archived (pure EF, zero materialization)");
+                    Debug.WriteLine($"Updated {activityUpdatedCount} activity records with item names");
 
                     await transaction.CommitAsync();
                 }

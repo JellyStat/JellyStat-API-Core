@@ -50,6 +50,11 @@ namespace Jellystat_API_Core.Models.API.Emby
             }
         }
 
+        public override string PlayMethod
+        {
+            get => PlayState?.PlayMethod ?? (PlayState?.PlayMethod == "DirectPlay" ? "DirectPlay" : "Transcode");
+        }
+
         public string? RemoteEndPoint { private get; set; }
 
         public override string IPAddress { get => RemoteEndPoint ?? ""; set => RemoteEndPoint = value; }

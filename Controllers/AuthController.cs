@@ -21,7 +21,7 @@ namespace Jellystat_API_Core.Controllers
     [Route("[controller]")]
     public class AuthController : ControllerBase
     {
-        ApplicationDbContext context { get; set; }
+        private readonly ApplicationDbContext context;
         public AuthController(ApplicationDbContext context)
         {
             this.context = context;
