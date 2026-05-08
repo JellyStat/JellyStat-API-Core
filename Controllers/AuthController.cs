@@ -104,17 +104,16 @@ namespace Jellystat_API_Core.Controllers
 
                 if (loginModel.ServerId == null)
                 {
-                    List<LocalUsers> localUsers = await context.LocalUsers.Where(u => u.Username == loginModel.Username).ToListAsync();
+                    LocalUsers? localUsers = await context.LocalUsers.Where(u => u.Username == loginModel.Username).FirstOrDefaultAsync();
 
-                    if (localUsers.Count > 0)
+                    if (localUsers != null)
                     {
-                        LocalUsers user = localUsers.First();
 
-                        if (BCrypt.Net.BCrypt.Verify(loginModel.Password, user.Password))
+                        if (BCrypt.Net.BCrypt.Verify(loginModel.Password, localUsers.Password))
                         {
-                            List<Permissions> permissions = await context.Permissions.Where(p => context.UserPermissions.Where(up => up.UserId == user.Id).Select(up => up.PermissionId).Contains(p.Id)).ToListAsync();
+                            List<Permissions> permissions = await context.Permissions.Where(p => context.UserPermissions.Where(up => up.UserId == localUsers.Id).Select(up => up.PermissionId).Contains(p.Id)).ToListAsync();
 
-                            var credentials = generateTokens(user.Username, permissions, null);
+                            var credentials = generateTokens(localUsers.Username, permissions, localUsers.ServerId);
 
                             return Ok(credentials);
                         }

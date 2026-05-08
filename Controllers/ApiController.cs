@@ -14,6 +14,7 @@ using Jellystat_API_Core.Models.Jellystat.V1;
 using Jellystat_API_Core.Services.API;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
 
 namespace Jellystat_API_Core.Controllers
@@ -421,6 +422,39 @@ namespace Jellystat_API_Core.Controllers
                 Debug.WriteLine(ex);
                 return Problem($"Error inserting activity: {ex.Message}");
 
+            }
+
+
+        }
+
+        [PermissionAuthorize(PermissionTypes.Administrator)]
+        [HttpPost("SetLocalUserServer", Name = "SetLocalUserServer")]
+        public async Task<ActionResult> SetLocalUserServer([FromBody] LocalUserDefaultServerModel model)
+        {
+            try
+            {
+                LocalUsers? user = await context.LocalUsers.Where(u => u.Id == model.UserId).FirstOrDefaultAsync();
+
+                if (user == null)
+                {
+                    return NotFound("Invalid User Id");
+                }
+
+                bool ServerExists = _apiInstanceManager.HasInstance(model.ServerId);
+
+                if (!ServerExists)
+                {
+                    return NotFound("Invalid Server Id");
+                }
+                user.ServerId = model.ServerId;
+                await context.SaveChangesAsync();
+
+                return Ok();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error Setting Local Users Server Id: {ex.Message}");
+                return Problem(ex.Message);
             }
 
 
