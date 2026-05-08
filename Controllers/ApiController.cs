@@ -33,26 +33,9 @@ namespace Jellystat_API_Core.Controllers
             this.context = context;
         }
 
-        [HttpGet("Config", Name = "Config")]
-        public ActionResult<List<Models.Jellystat.Server>> GetConfig()
-        {
-            List<iAPI> instances = _apiInstanceManager.GetAllInstances().ToList();
-
-            bool isAdmin = HttpContext.User.IsAdministrator();
-            string ServerId = HttpContext.User.GetServerId();
-
-            if (!isAdmin)
-            {
-                instances = instances.Where(i => i.config.Id == (ServerId)).ToList();
-            }
-
-
-
-            return instances.Select(i => i.config).ToList();
-        }
 
         [PermissionAuthorize(PermissionTypes.Administrator)]
-        [HttpPost("Config", Name = "Config")]
+        [HttpPost("UpdateConfig", Name = "UpdateConfig")]
         public async Task<ActionResult<Models.Jellystat.Server?>> AddOrUpdateServer([FromBody] AddServer server)
         {
             ServerManagerHelper serverHelper = new ServerManagerHelper();
@@ -238,7 +221,6 @@ namespace Jellystat_API_Core.Controllers
         public ActionResult<Paging<LibrariesWithStats>> GetLibraries([FromQuery] GridifyQuery query, string? ServerId)
         {
             bool isAdmin = HttpContext.User.IsAdministrator();
-            ServerId ??= HttpContext.User.GetServerId(); ;
             if (!isAdmin || ServerId == null)
             {
                 ServerId = HttpContext.User.GetServerId();

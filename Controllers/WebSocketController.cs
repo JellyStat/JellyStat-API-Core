@@ -1,11 +1,9 @@
 ﻿using Jellystat_API_Core.Extensions;
 using Jellystat_API_Core.Services.WebSocket;
-using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace Jellystat_API_Core.Controllers
 {
-    [Authorize]
     [ApiController]
     [Route("[controller]")]
     public class WebSocketController : ControllerBase
@@ -24,16 +22,22 @@ namespace Jellystat_API_Core.Controllers
         [HttpGet]
         public async Task<ActionResult> Connect(string? ServerId)
         {
-            bool isAdmin = HttpContext.User.IsAdministrator();
-            if (!isAdmin || ServerId == null)
-            {
-                ServerId = HttpContext.User.GetServerId();
-            }
             if (!HttpContext.WebSockets.IsWebSocketRequest)
             {
                 HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
                 return BadRequest("WebSocket request expected");
+            }
 
+            if (!HttpContext.User.Identity?.IsAuthenticated ?? true)
+            {
+                HttpContext.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                return Unauthorized("Authentication required");
+            }
+
+            bool isAdmin = HttpContext.User.IsAdministrator();
+            if (!isAdmin || ServerId == null)
+            {
+                ServerId = HttpContext.User.GetServerId();
             }
 
             if (Global.APIInstanceManager.GetInstance(ServerId) == null)

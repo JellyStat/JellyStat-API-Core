@@ -25,6 +25,8 @@ string? dbPassword = builder.Configuration["DB_PASSWORD"];
 double CompletionThreshold = builder.Configuration.GetValue<double?>("COMPLETION_THRESHOLD_PERCENTAGE") ?? Global.CompletionThreshold;
 int NewWatchThresholdHours = builder.Configuration.GetValue<int?>("NEW_WATCH_EVENT_THRESHOLD_HOURS") ?? Global.NewWatchThresholdHours;
 int MinimumDurationThreshold = builder.Configuration.GetValue<int?>("MINIMUM_SECONDS_TO_INCLUDE_PLAYBACK") ?? Global.MinimumDurationThreshold;
+string UiURI = builder.Configuration["UI_URI"] ?? "http://localhost:5020";
+
 
 var jwtKey = builder.Configuration["JWT_KEY"] ?? Global.JwtKey;
 
@@ -118,6 +120,43 @@ builder.Services.AddAuthentication(options =>
         ValidIssuer = Global.JwtIssuer,
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
     };
+
+    // Allow token from query string for WebSocket connections
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var token = context.Request.Query["token"];
+            var path = context.HttpContext.Request.Path;
+
+            // If the request is for our WebSocket endpoint and has a token in query string
+            if (!string.IsNullOrEmpty(token) && path.StartsWithSegments("/WebSocket"))
+            {
+                context.Token = token;
+            }
+
+            return Task.CompletedTask;
+        }
+    };
+});
+
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("DefaultCors", policy =>
+    {
+        if (builder.Environment.IsDevelopment())
+        {
+            policy.AllowAnyOrigin()
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        }
+        else
+        {
+            policy.WithOrigins(UiURI)
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
+        }
+    });
 });
 
 var app = builder.Build();
@@ -204,6 +243,8 @@ app.MapGet("/", () => "Hello world!");
 app.UseWebSockets();
 
 app.UseHttpsRedirection();
+
+app.UseCors("DefaultCors");
 
 app.UseAuthentication();
 

@@ -4,6 +4,7 @@ using Jellystat_API_Core.Data;
 using Jellystat_API_Core.Data.Schema;
 using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Models.Jellystat;
+using Jellystat_API_Core.Services.API;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -22,8 +23,11 @@ namespace Jellystat_API_Core.Controllers
     public class AuthController : ControllerBase
     {
         private readonly ApplicationDbContext context;
-        public AuthController(ApplicationDbContext context)
+        private readonly IAPIInstanceManager _apiInstanceManager;
+
+        public AuthController(IAPIInstanceManager apiInstanceManager, ApplicationDbContext context)
         {
+            _apiInstanceManager = apiInstanceManager;
             this.context = context;
         }
 
@@ -77,6 +81,12 @@ namespace Jellystat_API_Core.Controllers
             };
         }
 
+        [HttpGet("Config", Name = "Config")]
+        public ActionResult<List<Models.Jellystat.Server>> GetConfig()
+        {
+            List<iAPI> instances = _apiInstanceManager.GetAllInstances().ToList();
+            return instances.Select(i => i.config).ToList();
+        }
 
 
         [HttpPost("Login", Name = "Login")]
