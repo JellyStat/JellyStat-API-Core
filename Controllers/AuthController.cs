@@ -207,6 +207,7 @@ namespace Jellystat_API_Core.Controllers
                     await context.LocalUsers.AddAsync(new LocalUsers { Id = userId, Username = user.Username, Password = BCrypt.Net.BCrypt.HashPassword(user.Password) });
                     await context.UserPermissions.AddAsync(new UserPermissions { UserId = userId, PermissionId = context.Permissions.Where(p => p.PermissionKey == PermissionTypes.Administrator.GetDisplayName()).First().Id });
 
+                    await context.SaveChangesAsync();
                     List<Permissions> permissions = new() { new Permissions { PermissionKey = PermissionTypes.Administrator.GetDisplayName() } };
                     var credentials = generateTokens(user.Username, permissions, null);
 
