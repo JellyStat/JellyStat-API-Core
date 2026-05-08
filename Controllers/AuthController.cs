@@ -3,6 +3,7 @@ using Jellystat_API_Core.Classes.API.@interface;
 using Jellystat_API_Core.Data;
 using Jellystat_API_Core.Data.Schema;
 using Jellystat_API_Core.Enums;
+using Jellystat_API_Core.Extensions;
 using Jellystat_API_Core.Models.Jellystat;
 using Jellystat_API_Core.Services.API;
 using Microsoft.AspNetCore.Authorization;
@@ -152,6 +153,49 @@ namespace Jellystat_API_Core.Controllers
             }
 
 
+        }
+
+        [Authorize(Policy = "RefreshTokenOnly")]
+        [HttpGet("Refresh", Name = "RefreshToken")]
+        public async Task<IActionResult> Refresh()
+        {
+            string? Username = HttpContext.User.GetUsername();
+            if (Username == null)
+                return Unauthorized("Invalid token");
+            bool isAdmin = HttpContext.User.IsAdministrator();
+            string ServerId = HttpContext.User.GetServerId();
+
+            if (isAdmin)
+            {
+                LocalUsers? localUsers = await context.LocalUsers.Where(u => u.Username == Username).FirstOrDefaultAsync();
+
+                if (localUsers != null)
+                {
+
+                    List<Permissions> permissions = await context.Permissions.Where(p => context.UserPermissions.Where(up => up.UserId == localUsers.Id).Select(up => up.PermissionId).Contains(p.Id)).ToListAsync();
+
+                    var credentials = generateTokens(localUsers.Username, permissions, localUsers.ServerId);
+
+                    return Ok(credentials);
+                }
+
+                return Unauthorized("Invalid username or password");
+
+            }
+
+            iAPI? instance = Global.APIInstanceManager.GetInstance(ServerId!);
+            if (instance == null)
+            {
+                return Unauthorized("Invalid server ID");
+            }
+
+
+
+            List<Permissions> viewPermissions = new() { new Permissions { PermissionKey = PermissionTypes.CanView.GetDisplayName() } };
+
+            var remoteCredentials = generateTokens(Username, viewPermissions, ServerId!);
+
+            return Ok(remoteCredentials);
         }
 
         [Authorize]
