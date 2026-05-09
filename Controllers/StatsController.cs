@@ -35,6 +35,9 @@ namespace Jellystat_API_Core.Controllers
             {
                 ServerId = HttpContext.User.GetServerId();
             }
+            DateTime cutoffDate = days == 0
+                    ? DateTime.MinValue
+                    : DateTime.UtcNow.AddDays(-days);
             var _query = context.Items
                 .Where(i => i.ServerId == ServerId)
                 .Select(item => new ItemsWithStats
@@ -46,7 +49,7 @@ namespace Jellystat_API_Core.Controllers
                               path => path.DescendantId,
                               activity => activity.ItemId,
                               (path, activity) => activity)
-                        .Where(activity => activity.DateCreated >= DateTime.UtcNow.AddDays(-days))
+                        .Where(activity => activity.DateCreated >= cutoffDate)
                         .Count(),
 
                     PlayDuration = (context.ItemsPath
@@ -55,7 +58,7 @@ namespace Jellystat_API_Core.Controllers
                               path => path.DescendantId,
                               activity => activity.ItemId,
                               (path, activity) => activity)
-                        .Where(activity => activity.DateCreated >= DateTime.UtcNow.AddDays(-days))
+                        .Where(activity => activity.DateCreated >= cutoffDate)
                         .Select(activity => (long?)activity.Duration)
                         .Sum() ?? 0),
 
@@ -65,7 +68,7 @@ namespace Jellystat_API_Core.Controllers
                               path => path.DescendantId,
                               activity => activity.ItemId,
                               (path, activity) => activity)
-                        .Where(activity => activity.DateCreated >= DateTime.UtcNow.AddDays(-days))
+                        .Where(activity => activity.DateCreated >= cutoffDate)
                         .Select(activity => (DateTime?)activity.DateCreated)
                         .Max(),
 
@@ -103,6 +106,9 @@ namespace Jellystat_API_Core.Controllers
             {
                 ServerId = HttpContext.User.GetServerId();
             }
+            DateTime cutoffDate = days == 0
+                    ? DateTime.MinValue
+                    : DateTime.UtcNow.AddDays(-days);
             var _query = context.Items
                 .Where(i => i.ServerId == ServerId)
                 .Select(item => new ItemsWithStats
@@ -115,7 +121,7 @@ namespace Jellystat_API_Core.Controllers
                               path => path.DescendantId,
                               activity => activity.ItemId,
                               (path, activity) => activity)
-                        .Where(activity => activity.DateCreated >= DateTime.UtcNow.AddDays(-days))
+                        .Where(activity => activity.DateCreated >= cutoffDate)
                         .Select(activity => activity.UserId)
                         .Distinct()
                         .Count(),
@@ -126,7 +132,7 @@ namespace Jellystat_API_Core.Controllers
                               path => path.DescendantId,
                               activity => activity.ItemId,
                               (path, activity) => activity)
-                        .Where(activity => activity.DateCreated >= DateTime.UtcNow.AddDays(-days))
+                        .Where(activity => activity.DateCreated >= cutoffDate)
                         .Select(activity => (long?)activity.Duration)
                         .Sum() ?? 0),
 
@@ -136,7 +142,7 @@ namespace Jellystat_API_Core.Controllers
                               path => path.DescendantId,
                               activity => activity.ItemId,
                               (path, activity) => activity)
-                        .Where(activity => activity.DateCreated >= DateTime.UtcNow.AddDays(-days))
+                        .Where(activity => activity.DateCreated >= cutoffDate)
                         .Select(activity => (DateTime?)activity.DateCreated)
                         .Max(),
 
@@ -174,69 +180,72 @@ namespace Jellystat_API_Core.Controllers
             {
                 ServerId = HttpContext.User.GetServerId();
             }
+            DateTime cutoffDate = days == 0
+                ? DateTime.MinValue
+                : DateTime.UtcNow.AddDays(-days);
+
             var _query = context.Libraries
-                .Where(i => i.ServerId == ServerId)
-                .Select(library => new LibrariesWithStats
-                {
-                    // Stats fields - calculated from activity on items in this library
-                    PlayCount = context.Activity
-                        .Where(activity => activity.DateCreated >= DateTime.UtcNow.AddDays(-days))
-                        .Join(context.Items,
-                              activity => activity.ItemId,
-                              item => item.Id,
-                              (activity, item) => new { activity, item })
-                        .Where(x => x.item.LibraryId == library.Id)
-                        .Count(),
+                 .Where(i => i.ServerId == ServerId)
+                 .Select(library => new LibrariesWithStats
+                 {
+                     PlayCount = context.Activity
+                         .Where(activity => activity.DateCreated >= cutoffDate) // Simple comparison
+                         .Join(context.Items,
+                               activity => activity.ItemId,
+                               item => item.Id,
+                               (activity, item) => new { activity, item })
+                         .Where(x => x.item.LibraryId == library.Id)
+                         .Count(),
 
-                    PlayDuration = (context.Activity
-                        .Where(activity => activity.DateCreated >= DateTime.UtcNow.AddDays(-days))
-                        .Join(context.Items,
-                              activity => activity.ItemId,
-                              item => item.Id,
-                              (activity, item) => new { activity, item })
-                        .Where(x => x.item.LibraryId == library.Id)
-                        .Select(x => (long?)x.activity.Duration)
-                        .Sum() ?? 0),
+                     PlayDuration = (context.Activity
+                         .Where(activity => activity.DateCreated >= cutoffDate)
+                         .Join(context.Items,
+                               activity => activity.ItemId,
+                               item => item.Id,
+                               (activity, item) => new { activity, item })
+                         .Where(x => x.item.LibraryId == library.Id)
+                         .Select(x => (long?)x.activity.Duration)
+                         .Sum() ?? 0),
 
-                    PlaybackDuration = (context.Items
-                        .Where(item => item.LibraryId == library.Id)
-                        .Select(item => (long?)item.Duration)
-                        .Sum() ?? 0),
+                     PlaybackDuration = (context.Items
+                         .Where(item => item.LibraryId == library.Id)
+                         .Select(item => (long?)item.Duration)
+                         .Sum() ?? 0),
 
-                    Size = (context.Items
-                        .Where(item => item.LibraryId == library.Id)
-                        .Select(item => (long?)item.Size)
-                        .Sum() ?? 0),
+                     Size = (context.Items
+                         .Where(item => item.LibraryId == library.Id)
+                         .Select(item => (long?)item.Size)
+                         .Sum() ?? 0),
 
-                    TypeCounts = context.Items
-                        .Where(item => item.LibraryId == library.Id)
-                        .GroupBy(item => item.Type)
-                        .Select(group => new TypeCountModel
-                        {
-                            Type = group.Key,
-                            Count = group.Count()
-                        })
-                        .ToList(),
+                     TypeCounts = context.Items
+                         .Where(item => item.LibraryId == library.Id)
+                         .GroupBy(item => item.Type)
+                         .Select(group => new TypeCountModel
+                         {
+                             Type = group.Key,
+                             Count = group.Count()
+                         })
+                         .ToList(),
 
-                    LastPlayedDate = context.Activity
-                        .Where(activity => activity.DateCreated >= DateTime.UtcNow.AddDays(-days))
-                        .Join(context.Items,
-                              activity => activity.ItemId,
-                              item => item.Id,
-                              (activity, item) => new { activity, item })
-                        .Where(x => x.item.LibraryId == library.Id)
-                        .Select(x => (DateTime?)x.activity.DateCreated)
-                        .Max(),
+                     LastPlayedDate = context.Activity
+                         .Where(activity => activity.DateCreated >= cutoffDate)
+                         .Join(context.Items,
+                               activity => activity.ItemId,
+                               item => item.Id,
+                               (activity, item) => new { activity, item })
+                         .Where(x => x.item.LibraryId == library.Id)
+                         .Select(x => (DateTime?)x.activity.DateCreated)
+                         .Max(),
 
-                    // Library fields
-                    Name = library.Name,
-                    ServerId = library.ServerId,
-                    Id = library.Id,
-                    Type = library.Type,
-                    ImageTag = library.ImageTag,
-                    ImageHash = library.ImageHash,
-                    archived = library.archived
-                });
+                     // Library fields
+                     Name = library.Name,
+                     ServerId = library.ServerId,
+                     Id = library.Id,
+                     Type = library.Type,
+                     ImageTag = library.ImageTag,
+                     ImageHash = library.ImageHash,
+                     archived = library.archived
+                 });
 
             return _query.Gridify(query);
         }
@@ -251,8 +260,11 @@ namespace Jellystat_API_Core.Controllers
             {
                 ServerId = HttpContext.User.GetServerId();
             }
+            DateTime cutoffDate = days == 0
+                                ? DateTime.MinValue
+                                : DateTime.UtcNow.AddDays(-days);
             return context.Activity
-                .Where(activity => activity.DateCreated >= DateTime.UtcNow.AddDays(-days) && activity.ServerId == ServerId)
+                .Where(activity => activity.DateCreated >= cutoffDate && activity.ServerId == ServerId)
                 .GroupBy(activity => activity.Client)
                 .Select(group => new ClientsWithStats
                 {
@@ -273,8 +285,11 @@ namespace Jellystat_API_Core.Controllers
             {
                 ServerId = HttpContext.User.GetServerId();
             }
+            DateTime cutoffDate = days == 0
+                    ? DateTime.MinValue
+                    : DateTime.UtcNow.AddDays(-days);
             return context.Activity
-                .Where(activity => activity.DateCreated >= DateTime.UtcNow.AddDays(-days) && activity.ServerId == ServerId)
+                .Where(activity => activity.DateCreated >= cutoffDate && activity.ServerId == ServerId)
                 .GroupBy(activity => activity.UserId)
                 .Select(group => new UsersWithStats
                 {
@@ -300,8 +315,12 @@ namespace Jellystat_API_Core.Controllers
             {
                 ServerId = HttpContext.User.GetServerId();
             }
+
+            DateTime cutoffDate = days == 0
+                    ? DateTime.MinValue
+                    : DateTime.UtcNow.AddDays(-days);
             return context.Activity
-                .Where(activity => activity.DateCreated >= DateTime.UtcNow.AddDays(-days) && activity.ServerId == ServerId)
+                .Where(activity => activity.DateCreated >= cutoffDate && activity.ServerId == ServerId)
                 .GroupBy(activity => activity.PlayMethod)
                 .Select(group => new TranscodesWithStats
                 {
