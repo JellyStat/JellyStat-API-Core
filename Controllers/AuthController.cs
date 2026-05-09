@@ -61,6 +61,7 @@ namespace Jellystat_API_Core.Controllers
            {
                 new Claim("username", Username),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+                new Claim("permissions", JsonConvert.SerializeObject(permissions.Select(p=>p.PermissionKey).ToList() ) ),
                 new Claim("type", "refresh")
             };
 
