@@ -370,10 +370,8 @@ namespace Jellystat_API_Core.Controllers
         //Tasks
         [HttpGet("StartSync", Name = "StartSync")]
         [PermissionAuthorize(PermissionTypes.Administrator)]
-        public async Task<bool> StartSync()
+        public async Task<bool> StartSync(string ServerId)
         {
-
-            string ServerId = HttpContext.User.GetServerId();
 
             iAPI? api = _apiInstanceManager.GetInstance(ServerId);
             if (api == null)
