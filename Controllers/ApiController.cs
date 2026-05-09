@@ -269,23 +269,14 @@ namespace Jellystat_API_Core.Controllers
                        })
                        .ToList(),
 
-                   LastPlayedDate = context.Activity
-                       .Join(context.Items,
-                             activity => activity.ItemId,
-                             item => item.Id,
-                             (activity, item) => new { activity, item })
-                       .Where(x => x.item.LibraryId == library.Id)
-                       .Select(x => (DateTime?)x.activity.DateCreated)
-                       .Max(),
-
-                   LastPlayedName = context.Activity
+                   LatestActivity = context.Activity
                        .Join(context.Items,
                              activity => activity.ItemId,
                              item => item.Id,
                              (activity, item) => new { activity, item })
                        .Where(x => x.item.LibraryId == library.Id)
                        .OrderByDescending(x => x.activity.DateCreated)
-                       .Select(x => x.activity.SeriesName ?? x.activity.Name)
+                       .Select(x => x.activity)
                        .FirstOrDefault(),
 
                    // Library fields
@@ -333,14 +324,24 @@ namespace Jellystat_API_Core.Controllers
                         .Select(activity => (long?)activity.Duration)
                         .Sum() ?? 0),
 
-                    LastPlayedDate = context.ItemsPath
+                    LatestActivity = context.ItemsPath
                         .Where(path => path.AncestorId == item.Id)
                         .Join(context.Activity,
                               path => path.DescendantId,
                               activity => activity.ItemId,
                               (path, activity) => activity)
-                        .Select(activity => (DateTime?)activity.DateCreated)
-                        .Max(),
+                        .OrderByDescending(activity => activity.DateCreated)
+                        .FirstOrDefault(),
+
+                    LatestActivityDate = context.ItemsPath
+                        .Where(path => path.AncestorId == item.Id)
+                        .Join(context.Activity,
+                              path => path.DescendantId,
+                              activity => activity.ItemId,
+                              (path, activity) => activity)
+                        .OrderByDescending(activity => activity.DateCreated)
+                        .Select(activity => activity.DateCreated)
+                        .FirstOrDefault(),
 
                     // Item fields
                     Name = item.Name,

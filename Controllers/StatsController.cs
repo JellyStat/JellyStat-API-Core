@@ -26,7 +26,7 @@ namespace Jellystat_API_Core.Controllers
         }
 
         [HttpGet("ItemStats", Name = "ItemStats")]
-        [DefaultGridifyOrder(new[] { nameof(ItemsWithStats.PlayCount), nameof(ItemsWithStats.LastPlayedDate) }, new[] { true, true })]
+        [DefaultGridifyOrder(new[] { nameof(ItemsWithStats.PlayCount), nameof(ItemsWithStats.LatestActivityDate) }, new[] { true, true })]
         [DefaultGridifyPageSize(5)]
         public Paging<ItemsWithStats> GetItemStats([FromQuery] GridifyQuery query, string? ServerId, int days = 30)
         {
@@ -62,15 +62,21 @@ namespace Jellystat_API_Core.Controllers
                         .Select(activity => (long?)activity.Duration)
                         .Sum() ?? 0),
 
-                    LastPlayedDate = context.ItemsPath
-                        .Where(path => path.AncestorId == item.Id)
-                        .Join(context.Activity,
-                              path => path.DescendantId,
-                              activity => activity.ItemId,
-                              (path, activity) => activity)
-                        .Where(activity => activity.DateCreated >= cutoffDate)
-                        .Select(activity => (DateTime?)activity.DateCreated)
-                        .Max(),
+                    LatestActivity = context.Activity
+                                    .Where(activity => context.ItemsPath
+                                        .Where(path => path.AncestorId == item.Id)
+                                        .Select(path => path.DescendantId)
+                                        .Contains(activity.ItemId))
+                                    .OrderByDescending(a => a.DateCreated)
+                                    .FirstOrDefault(),
+
+                    LatestActivityDate = context.Activity
+                                    .Where(activity => context.ItemsPath
+                                        .Where(path => path.AncestorId == item.Id)
+                                        .Select(path => path.DescendantId)
+                                        .Contains(activity.ItemId))
+                                    .Select(a => (DateTime?)a.DateCreated)
+                                    .Max(),
 
                     // Item fields
                     Name = item.Name,
@@ -97,7 +103,7 @@ namespace Jellystat_API_Core.Controllers
         }
 
         [HttpGet("MostPopularItems", Name = "MostPopularItems")]
-        [DefaultGridifyOrder(new[] { nameof(ItemsWithStats.PlayCount), nameof(ItemsWithStats.LastPlayedDate) }, new[] { true, true })]
+        [DefaultGridifyOrder(new[] { nameof(ItemsWithStats.PlayCount), nameof(ItemsWithStats.LatestActivityDate) }, new[] { true, true })]
         [DefaultGridifyPageSize(5)]
         public Paging<ItemsWithStats> GetMostPopularItems([FromQuery] GridifyQuery query, string? ServerId, int days = 30)
         {
@@ -136,7 +142,7 @@ namespace Jellystat_API_Core.Controllers
                         .Select(activity => (long?)activity.Duration)
                         .Sum() ?? 0),
 
-                    LastPlayedDate = context.ItemsPath
+                    LatestActivityDate = context.ItemsPath
                         .Where(path => path.AncestorId == item.Id)
                         .Join(context.Activity,
                               path => path.DescendantId,
@@ -145,6 +151,14 @@ namespace Jellystat_API_Core.Controllers
                         .Where(activity => activity.DateCreated >= cutoffDate)
                         .Select(activity => (DateTime?)activity.DateCreated)
                         .Max(),
+
+                    LatestActivity = context.Activity
+                                    .Where(activity => context.ItemsPath
+                                        .Where(path => path.AncestorId == item.Id)
+                                        .Select(path => path.DescendantId)
+                                        .Contains(activity.ItemId))
+                                    .OrderByDescending(a => a.DateCreated)
+                                    .FirstOrDefault(),
 
                     // Item fields
                     Name = item.Name,
@@ -171,7 +185,7 @@ namespace Jellystat_API_Core.Controllers
         }
 
         [HttpGet("LibraryStats", Name = "LibraryStats")]
-        [DefaultGridifyOrder(new[] { nameof(LibrariesWithStats.PlayCount), nameof(LibrariesWithStats.LastPlayedDate) }, new[] { true, true })]
+        [DefaultGridifyOrder(new[] { nameof(LibrariesWithStats.PlayCount), nameof(LibrariesWithStats.LatestActivityDate) }, new[] { true, true })]
         [DefaultGridifyPageSize(5)]
         public Paging<LibrariesWithStats> GetLibraryStats([FromQuery] GridifyQuery query, string? ServerId, int days = 30)
         {
@@ -227,15 +241,22 @@ namespace Jellystat_API_Core.Controllers
                          })
                          .ToList(),
 
-                     LastPlayedDate = context.Activity
-                         .Where(activity => activity.DateCreated >= cutoffDate)
-                         .Join(context.Items,
-                               activity => activity.ItemId,
-                               item => item.Id,
-                               (activity, item) => new { activity, item })
-                         .Where(x => x.item.LibraryId == library.Id)
-                         .Select(x => (DateTime?)x.activity.DateCreated)
-                         .Max(),
+                     LatestActivity = context.Activity
+                                      .Where(activity => context.Items
+                                          .Where(item => item.LibraryId == library.Id)
+                                          .Select(item => item.Id)
+                                          .Contains(activity.ItemId))
+                                      .OrderByDescending(a => a.DateCreated)
+                                      .FirstOrDefault(),
+
+                     LatestActivityDate = context.Activity
+                                      .Where(activity => context.Items
+                                          .Where(item => item.LibraryId == library.Id)
+                                          .Select(item => item.Id)
+                                          .Contains(activity.ItemId))
+                                      .Select(a => (DateTime?)a.DateCreated)
+                                      .Max(),
+
 
                      // Library fields
                      Name = library.Name,
@@ -251,7 +272,7 @@ namespace Jellystat_API_Core.Controllers
         }
 
         [HttpGet("MostUsedClients", Name = "MostUsedClients")]
-        [DefaultGridifyOrder(new[] { nameof(ClientsWithStats.PlayCount), nameof(ClientsWithStats.LastPlayedDate) }, new[] { true, true })]
+        [DefaultGridifyOrder(new[] { nameof(ClientsWithStats.PlayCount), nameof(ClientsWithStats.LatestActivityDate) }, new[] { true, true })]
         [DefaultGridifyPageSize(5)]
         public Paging<ClientsWithStats> GetMostUsedClients([FromQuery] GridifyQuery query, string? ServerId, int days = 30)
         {
@@ -270,13 +291,14 @@ namespace Jellystat_API_Core.Controllers
                 {
                     ClientName = group.Key,
                     PlayCount = group.Count(),
-                    LastPlayedDate = group.Select(a => (DateTime?)a.DateCreated).Max()
+                    LatestActivity = group.OrderByDescending(a => a.DateCreated).FirstOrDefault(),
+                    LatestActivityDate = group.Select(a => (DateTime?)a.DateCreated).Max()
                 })
                 .Gridify(query);
         }
 
         [HttpGet("UserStats", Name = "UserStats")]
-        [DefaultGridifyOrder(new[] { nameof(UsersWithStats.PlayCount), nameof(UsersWithStats.LastPlayedDate) }, new[] { true, true })]
+        [DefaultGridifyOrder(new[] { nameof(UsersWithStats.PlayCount), nameof(UsersWithStats.LatestActivityDate) }, new[] { true, true })]
         [DefaultGridifyPageSize(5)]
         public Paging<UsersWithStats> GetUserStats([FromQuery] GridifyQuery query, string? ServerId, int days = 30)
         {
@@ -299,7 +321,8 @@ namespace Jellystat_API_Core.Controllers
                     ImageTag = context.Users.Where(u => u.Id == group.Key).Select(u => u.ImageTag).FirstOrDefault(),
                     PlayCount = group.Count(),
                     PlayDuration = (group.Select(a => (long?)a.Duration).Sum() ?? 0),
-                    LastPlayedDate = group.Select(a => (DateTime?)a.DateCreated).Max()
+                    LatestActivity = group.OrderByDescending(a => a.DateCreated).FirstOrDefault(),
+                    LatestActivityDate = group.Select(a => (DateTime?)a.DateCreated).Max()
 
                 })
                 .Gridify(query);
