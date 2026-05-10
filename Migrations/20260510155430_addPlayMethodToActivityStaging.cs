@@ -1,0 +1,29 @@
+﻿using Microsoft.EntityFrameworkCore.Migrations;
+
+#nullable disable
+
+namespace Jellystat_API_Core.Migrations
+{
+    /// <inheritdoc />
+    public partial class addPlayMethodToActivityStaging : Migration
+    {
+        /// <inheritdoc />
+        protected override void Up(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.AddColumn<string>(
+                name: "PlayMethod",
+                table: "ActivityStaging",
+                type: "text",
+                nullable: false,
+                defaultValue: "");
+        }
+
+        /// <inheritdoc />
+        protected override void Down(MigrationBuilder migrationBuilder)
+        {
+            migrationBuilder.DropColumn(
+                name: "PlayMethod",
+                table: "ActivityStaging");
+        }
+    }
+}

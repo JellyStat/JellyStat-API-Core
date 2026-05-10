@@ -302,7 +302,7 @@ namespace Jellystat_API_Core.Controllers
             {
                 ServerId = HttpContext.User.GetServerId();
             }
-            var _query = context.Items
+            var _query = context.ItemsWithParentData
                 .Where(i => i.ServerId == ServerId)
                 .Select(item => new ItemsWithStats
                 {
@@ -344,6 +344,7 @@ namespace Jellystat_API_Core.Controllers
                         .FirstOrDefault(),
 
                     // Item fields
+                    Parent = item.Parent,
                     Name = item.Name,
                     ServerId = item.ServerId,
                     Id = item.Id,

@@ -193,6 +193,10 @@ namespace Jellystat_API_Core.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<string>("PlayMethod")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<long>("RuntimeTicks")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("bigint")

@@ -152,7 +152,6 @@ namespace Jellystat_API_Core.Data
                 entity.Property(e => e.Index);
                 entity.Property(e => e.archived).HasDefaultValue(false);
 
-
             });
 
             modelBuilder.Entity<ItemsStaging>(entity =>
@@ -186,7 +185,6 @@ namespace Jellystat_API_Core.Data
                 entity.Property(e => e.ParentIndex);
                 entity.Property(e => e.Index);
                 entity.Property(e => e.archived).HasDefaultValue(false);
-
 
             });
 
@@ -246,6 +244,7 @@ namespace Jellystat_API_Core.Data
                 entity.Property(e => e.IpAddress).IsRequired();
                 entity.Property(e => e.IsPaused).HasDefaultValue(false);
                 entity.Property(e => e.RuntimeTicks).HasDefaultValue(0);
+                entity.Property(e => e.PlayMethod);
 
             });
 
