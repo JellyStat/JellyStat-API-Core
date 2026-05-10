@@ -7,6 +7,8 @@
     <RootNamespace>Jellystat_API_Core</RootNamespace>
     <UserSecretsId>78ab66d8-255c-4640-b557-3084541b3550</UserSecretsId>
     <DockerDefaultTargetOS>Linux</DockerDefaultTargetOS>
+    <AssemblyVersion>2.0.0.0</AssemblyVersion>
+    <FileVersion>2.0.0.0</FileVersion>
   </PropertyGroup>
 
   <ItemGroup>

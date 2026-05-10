@@ -14,6 +14,7 @@ using Microsoft.OpenApi.Extensions;
 using Newtonsoft.Json;
 using System.Diagnostics;
 using System.IdentityModel.Tokens.Jwt;
+using System.Reflection;
 using System.Security.Claims;
 using System.Text;
 
@@ -88,6 +89,30 @@ namespace Jellystat_API_Core.Controllers
         {
             List<iAPI> instances = _apiInstanceManager.GetAllInstances().ToList();
             return instances.Select(i => i.config).ToList();
+        }
+
+        [HttpGet("/System/Info", Name = "/System/Info")]
+        public async Task<ActionResult<SystemInfoModel>> GetSystemInfo()
+        {
+            string version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "2.0.0.0";
+
+            SystemInfoModel info = new SystemInfoModel(SystemState.Unconfigured, version);
+
+            bool hasLocalUsers = await context.LocalUsers.CountAsync() > 0;
+            bool hasConfiguredServers = await context.Servers.CountAsync() > 0;
+
+            if (hasLocalUsers)
+            {
+                info.State = SystemState.FirstUserCreated;
+            }
+
+            if (hasConfiguredServers)
+            {
+                info.State = SystemState.Configured;
+            }
+
+            return info;
+
         }
 
 
