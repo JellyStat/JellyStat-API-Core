@@ -99,17 +99,21 @@ namespace Jellystat_API_Core.Controllers
             SystemInfoModel info = new SystemInfoModel(SystemState.Unconfigured, version);
 
             bool hasLocalUsers = await context.LocalUsers.CountAsync() > 0;
-            bool hasConfiguredServers = await context.Servers.CountAsync() > 0;
+
 
             if (hasLocalUsers)
             {
                 info.State = SystemState.FirstUserCreated;
+
+                bool hasConfiguredServers = await context.Servers.CountAsync() > 0;
+
+                if (hasConfiguredServers)
+                {
+                    info.State = SystemState.Configured;
+                }
             }
 
-            if (hasConfiguredServers)
-            {
-                info.State = SystemState.Configured;
-            }
+
 
             return info;
 
