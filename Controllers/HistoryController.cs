@@ -281,7 +281,9 @@ namespace Jellystat_API_Core.Controllers
                         IpAddress = a.activity.IpAddress,
                         RuntimeTicks = a.activity.RuntimeTicks,
                         LibraryId = a.item.LibraryId,
-                        Item = a.item
+                        Item = a.item,
+                        PlayDuration = a.activity.Duration,
+                        PlayCount = 1
                     })
                 .Gridify(query);
         }
