@@ -31,7 +31,7 @@ namespace Jellystat_API_Core.Controllers
 
         [HttpGet("Activity", Name = "Activity")]
         [DefaultGridifyOrder(nameof(Activity.DateCreated), true)]
-        public ActionResult<Paging<ActivityModel>> GetActivity([FromQuery] GridifyQuery query, string? ServerId, bool GroupResults = true)
+        public async Task<ActionResult<Paging<ActivityModel>>> GetActivityAsync([FromQuery] GridifyQuery query, string? ServerId, bool GroupResults = true)
         {
             bool isAdmin = HttpContext.User.IsAdministrator();
             if (!isAdmin || ServerId == null)
@@ -41,88 +41,137 @@ namespace Jellystat_API_Core.Controllers
             if (GroupResults)
             {
 
-                var baseQuery = context.Activity
-                                        .Where(a => a.ServerId == ServerId)
-                                        .Join(context.Items,
-                                              activity => activity.ItemId,
-                                              item => item.Id,
-                                              (activity, item) => new { activity, item });
+                // 1. Get the IDs of the latest record for each group (Server-Side)
+                // We use a subquery to find the specific ID that corresponds to the Max DateCreated
+                var latestIdsQuery = context.Activity
+                    .Where(a => a.ServerId == ServerId)
+                    .GroupBy(a => new { a.UserId, a.ItemId })
+                    .Select(g => g.OrderByDescending(x => x.DateCreated)
+                                  .Select(x => x.Id)
+                                  .FirstOrDefault());
 
-                // 2. Perform Grouping and Deep Projection
-#pragma warning disable CS8601 // Possible null reference assignment.
-                var groupedQuery = baseQuery
-                    .GroupBy(joined => new { joined.activity.UserId, joined.activity.ItemId })
-                    .Select(g => new ActivityModel
+                // 2. Build the query for the entities (Server-Side)
+                // latestIdsQuery is still just an IQueryable of strings, so Gridify won't break
+                var flatQuery = context.Activity
+                    .Where(a => latestIdsQuery.Contains(a.Id))
+                    .Join(context.Items,
+                          activity => activity.ItemId,
+                          item => item.Id,
+                          (a, i) => new
+                          {
+                              // Include all fields you want to be able to filter/sort by
+                              a.Id,
+                              a.ServerId,
+                              a.Name,
+                              a.SeriesName,
+                              a.UserId,
+                              a.UserName,
+                              a.Client,
+                              a.Device,
+                              a.DeviceId,
+                              a.ItemId,
+                              a.SeriesId,
+                              a.SeasonId,
+                              a.Duration,
+                              a.DirectPlay,
+                              a.PlayMethod,
+                              a.MediaStreams,
+                              a.TranscodingInfo,
+                              a.Imported,
+                              a.DateCreated,
+                              a.Container,
+                              a.IpAddress,
+                              a.RuntimeTicks,
+                              LibraryId = i.LibraryId // Joined field
+                          });
+
+                // 3. Apply Gridify
+                // This handles all filtering/sorting on raw Activity fields
+                var pagedActivities = flatQuery.Gridify(query);
+
+                if (pagedActivities.Count == 0)
+                    return new Paging<ActivityModel>(0, new List<ActivityModel>());
+
+                // 4. Batch fetch history and items for the current page
+                var pageActivities = pagedActivities.Data.ToList();
+                var userIds = pageActivities.Select(a => a.UserId).Distinct().ToList();
+                var itemIds = pageActivities.Select(a => a.ItemId).Distinct().ToList();
+
+                var allHistory = await context.Activity
+                    .AsNoTracking()
+                    .Where(a => a.ServerId == ServerId && userIds.Contains(a.UserId) && itemIds.Contains(a.ItemId))
+                    .ToListAsync();
+
+                var itemsDict = await context.Items
+                    .AsNoTracking()
+                    .Where(i => itemIds.Contains(i.Id))
+                    .ToDictionaryAsync(i => i.Id);
+
+                // 5. Final Mapping
+                var resultData = pageActivities.Select(activity =>
+                {
+                    var history = allHistory
+                        .Where(h => h.UserId == activity.UserId && h.ItemId == activity.ItemId)
+                        .OrderByDescending(h => h.DateCreated)
+                        .ToList();
+
+                    itemsDict.TryGetValue(activity.ItemId, out var item);
+
+                    return new ActivityModel
                     {
-                        // --- Aggregate Fields ---
-                        PlayCount = g.Count(),
-                        PlayDuration = g.Sum(x => x.activity.Duration),
-
-                        // --- Header/Latest Record Fields ---
-                        // We use FirstOrDefault on the sorted group to pick the 'Latest' metadata
-                        Id = g.OrderByDescending(x => x.activity.DateCreated).Select(x => x.activity.Id).FirstOrDefault(),
+                        Id = activity.Id,
                         ServerId = ServerId,
-                        Name = g.OrderByDescending(x => x.activity.DateCreated).Select(x => x.activity.Name).FirstOrDefault(),
-                        SeriesName = g.OrderByDescending(x => x.activity.DateCreated).Select(x => x.activity.SeriesName).FirstOrDefault(),
-                        UserId = g.Key.UserId,
-                        UserName = g.OrderByDescending(x => x.activity.DateCreated).Select(x => x.activity.UserName).FirstOrDefault(),
-                        Client = g.OrderByDescending(x => x.activity.DateCreated).Select(x => x.activity.Client).FirstOrDefault(),
-                        Device = g.OrderByDescending(x => x.activity.DateCreated).Select(x => x.activity.Device).FirstOrDefault(),
-                        DeviceId = g.OrderByDescending(x => x.activity.DateCreated).Select(x => x.activity.DeviceId).FirstOrDefault(),
-                        ItemId = g.Key.ItemId,
-                        SeriesId = g.OrderByDescending(x => x.activity.DateCreated).Select(x => x.activity.SeriesId).FirstOrDefault(),
-                        SeasonId = g.OrderByDescending(x => x.activity.DateCreated).Select(x => x.activity.SeasonId).FirstOrDefault(),
-                        Duration = g.OrderByDescending(x => x.activity.DateCreated).Select(x => x.activity.Duration).FirstOrDefault(),
-                        DirectPlay = g.OrderByDescending(x => x.activity.DateCreated).Select(x => x.activity.DirectPlay).FirstOrDefault(),
-                        PlayMethod = g.OrderByDescending(x => x.activity.DateCreated).Select(x => x.activity.PlayMethod).FirstOrDefault(),
-                        MediaStreams = g.OrderByDescending(x => x.activity.DateCreated).Select(x => x.activity.MediaStreams).FirstOrDefault(),
-                        TranscodingInfo = g.OrderByDescending(x => x.activity.DateCreated).Select(x => x.activity.TranscodingInfo).FirstOrDefault(),
-                        Imported = g.OrderByDescending(x => x.activity.DateCreated).Select(x => x.activity.Imported).FirstOrDefault(),
-                        DateCreated = g.Max(x => x.activity.DateCreated),
-                        Container = g.OrderByDescending(x => x.activity.DateCreated).Select(x => x.activity.Container).FirstOrDefault(),
-                        IpAddress = g.OrderByDescending(x => x.activity.DateCreated).Select(x => x.activity.IpAddress).FirstOrDefault(),
-                        RuntimeTicks = g.OrderByDescending(x => x.activity.DateCreated).Select(x => x.activity.RuntimeTicks).FirstOrDefault(),
-                        LibraryId = g.OrderByDescending(x => x.activity.DateCreated).Select(x => x.item.LibraryId).FirstOrDefault(),
-                        Item = g.OrderByDescending(x => x.activity.DateCreated).Select(x => x.item).FirstOrDefault(),
+                        Name = activity.Name,
+                        SeriesName = activity.SeriesName,
+                        UserId = activity.UserId,
+                        UserName = activity.UserName,
+                        Client = activity.Client,
+                        Device = activity.Device,
+                        DeviceId = activity.DeviceId,
+                        ItemId = activity.ItemId,
+                        SeriesId = activity.SeriesId,
+                        SeasonId = activity.SeasonId,
+                        Duration = activity.Duration,
+                        DirectPlay = activity.DirectPlay,
+                        PlayMethod = activity.PlayMethod,
+                        DateCreated = activity.DateCreated,
+                        Container = activity.Container,
+                        IpAddress = activity.IpAddress,
+                        RuntimeTicks = activity.RuntimeTicks,
+                        Item = item,
+                        LibraryId = item?.LibraryId ?? "N/A",
+                        PlayCount = history.Count,
+                        PlayDuration = history.Sum(h => h.Duration),
+                        GroupedResults = history.Select(h => new ActivityModel
+                        {
+                            Id = h.Id,
+                            ServerId = ServerId,
+                            Name = h.Name,
+                            SeriesName = h.SeriesName,
+                            UserId = h.UserId,
+                            UserName = h.UserName,
+                            Client = h.Client,
+                            Device = h.Device,
+                            DeviceId = h.DeviceId,
+                            ItemId = h.ItemId,
+                            SeriesId = h.SeriesId,
+                            SeasonId = h.SeasonId,
+                            Duration = h.Duration,
+                            DirectPlay = h.DirectPlay,
+                            PlayMethod = h.PlayMethod,
+                            DateCreated = h.DateCreated,
+                            Container = h.Container,
+                            IpAddress = h.IpAddress,
+                            RuntimeTicks = h.RuntimeTicks,
+                            Item = item,
+                            LibraryId = item?.LibraryId ?? "N/A",
+                            PlayCount = 1,
+                            PlayDuration = h.Duration,
+                        }).ToList()
+                    };
+                }).ToList();
 
-                        // --- Fully Populated Nested List (Server-Side) ---
-                        GroupedResults = g.OrderByDescending(y => y.activity.DateCreated)
-                            .Select(y => new ActivityModel
-                            {
-                                Id = y.activity.Id,
-                                ServerId = y.activity.ServerId,
-                                Name = y.activity.Name,
-                                SeriesName = y.activity.SeriesName,
-                                UserId = y.activity.UserId,
-                                UserName = y.activity.UserName,
-                                Client = y.activity.Client,
-                                Device = y.activity.Device,
-                                DeviceId = y.activity.DeviceId,
-                                ItemId = y.activity.ItemId,
-                                SeriesId = y.activity.SeriesId,
-                                SeasonId = y.activity.SeasonId,
-                                Duration = y.activity.Duration,
-                                DirectPlay = y.activity.DirectPlay,
-                                PlayMethod = y.activity.PlayMethod,
-                                MediaStreams = y.activity.MediaStreams,
-                                TranscodingInfo = y.activity.TranscodingInfo,
-                                Imported = y.activity.Imported,
-                                DateCreated = y.activity.DateCreated,
-                                Container = y.activity.Container,
-                                IpAddress = y.activity.IpAddress,
-                                RuntimeTicks = y.activity.RuntimeTicks,
-                                LibraryId = y.item.LibraryId,
-                                Item = y.item,
-                                PlayCount = 1,
-                                PlayDuration = y.activity.Duration
-                            }).ToList()
-                    })
-                    .AsSplitQuery(); // Crucial: Executes the GroupedResults as a separate SQL command
-#pragma warning restore CS8601 // Possible null reference assignment.
-
-                // 3. Gridify handles Filtering/Sorting/Paging on the DB
-                return groupedQuery.Gridify(query);
-
+                return new Paging<ActivityModel>(pagedActivities.Count, resultData);
 
                 //return context.Activity
                 //     .Where(a => a.ServerId == ServerId)
