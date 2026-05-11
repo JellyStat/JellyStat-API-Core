@@ -318,6 +318,12 @@ namespace Jellystat_API_Core.Classes.Tasks
                             )
                             SELECT ancestor, descendant, depth FROM tree;");
 
+                    // Migrate Archived Activity to Matching Item
+                    await context.Database.ExecuteSqlRawAsync(@"
+                            
+                        ");
+
+
                     // Update Activity table with Names from Items
                     int activityUpdatedCount = await context.Activity
                         .Where(a => a.ServerId == serverId)
