@@ -3,6 +3,7 @@ using Jellystat_API_Core.Classes.API.@interface;
 using Jellystat_API_Core.Data;
 using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Models.Jellystat;
+using Jellystat_API_Core.Services.Tasks;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Concurrent;
 
@@ -12,11 +13,13 @@ namespace Jellystat_API_Core.Services.API
     {
         private readonly ConcurrentDictionary<string, iAPI> _instances;
         private readonly IServiceScopeFactory _serviceScopeFactory;
+        private readonly ITaskSchedulerService _taskSchedulerService;
 
-        public APIInstanceManager(IServiceScopeFactory serviceScopeFactory)
+        public APIInstanceManager(IServiceScopeFactory serviceScopeFactory, ITaskSchedulerService taskSchedulerService)
         {
             _instances = new ConcurrentDictionary<string, iAPI>();
             _serviceScopeFactory = serviceScopeFactory;
+            _taskSchedulerService = taskSchedulerService;
         }
 
         public async Task RegisterInstanceAsync(Server config)
@@ -30,6 +33,7 @@ namespace Jellystat_API_Core.Services.API
             if (existingInstance != null)
             {
                 await existingInstance.Dispose();
+                await _taskSchedulerService.UnregisterServerAsync(config.Id);
             }
 
             using (var scope = _serviceScopeFactory.CreateScope())
@@ -54,6 +58,7 @@ namespace Jellystat_API_Core.Services.API
             }
 
             _instances.AddOrUpdate(instance.config.Id, instance, (key, oldValue) => instance);
+            await _taskSchedulerService.RegisterServerAsync(config);
         }
 
 

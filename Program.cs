@@ -5,6 +5,7 @@ using Jellystat_API_Core.Data;
 using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Extensions;
 using Jellystat_API_Core.Services.API;
+using Jellystat_API_Core.Services.Tasks;
 using Jellystat_API_Core.Services.WebSocket;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -71,15 +72,22 @@ dataSourceBuilder.EnableDynamicJson();
 var dataSource = dataSourceBuilder.Build();
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseNpgsql(dataSource)); // Scoped by default - each scope gets its own instance
+    options.UseNpgsql(dataSource, npgsqlOptions =>
+    {
+        npgsqlOptions.CommandTimeout(120); // Set command timeout to 120 seconds
+    })); // Scoped by default - each scope gets its own instance
+
 
 // Register repositories
 
 builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<ITaskSchedulerService, TaskSchedulerService>();
+builder.Services.AddHostedService<TaskSchedulerHostedService>();
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();
 builder.Services.AddSingleton<IAPIInstanceManager, APIInstanceManager>();
 builder.Services.AddSingleton<IWebSocketClientService, WebSocketClientService>();
 builder.Services.AddSingleton<IWebSocketServerService, WebSocketServerService>();
+
 
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, DefaultAccessTokenPolicyProvider>();
 
