@@ -228,7 +228,10 @@ namespace Jellystat_API_Core.Classes.API
                 $"excludeLocationTypes=Virtual",
                 $"StartIndex={startIndex}",
                 $"Limit={limit}",
-                $"Recursive={recursive.ToString().ToLower()}"
+                $"Recursive={recursive.ToString().ToLower()}",
+                "sortBy=DateCreated",
+                "sortOrder=Descending"
+
             };
 
             if (itemIds != null && itemIds.Any())

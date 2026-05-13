@@ -36,7 +36,32 @@ namespace Jellystat_API_Core.Classes.Tasks
                 await SyncUsers(context);
                 List<Libraries> libraries = await SyncLibraries(context);
                 await SyncLibraryItems(context, libraries);
+                await UpdateFromStaging(context);
                 Debug.WriteLine($"Full sync completed for server {api.config.Name}");
+
+                context.ChangeTracker.Clear();
+            }
+            IsRunning = false;
+        }
+
+        public async Task PartialSync()
+        {
+            if (IsRunning)
+            {
+                Debug.WriteLine($"Partial sync already running for server {api.config.Name}, skipping.");
+                return;
+            }
+            IsRunning = true;
+            using (var scope = _serviceScopeFactory.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                Debug.WriteLine($"Starting Partial sync for server {api.config.Name}");
+                await SyncUsers(context);
+                List<Libraries> libraries = await SyncLibraries(context);
+                await SyncLibraryItems(context, libraries, 1);
+
+                await UpdateFromStaging(context, false);
+                Debug.WriteLine($"Partial sync completed for server {api.config.Name}");
 
                 context.ChangeTracker.Clear();
             }
@@ -140,7 +165,7 @@ namespace Jellystat_API_Core.Classes.Tasks
             }).ToList();
         }
 
-        private async Task SyncLibraryItems(ApplicationDbContext context, List<Libraries> libraries)
+        private async Task SyncLibraryItems(ApplicationDbContext context, List<Libraries> libraries, int limit = 0)
         {
             await context.ItemsStaging.ExecuteDeleteAsync();
             foreach (Libraries library in libraries)
@@ -149,12 +174,14 @@ namespace Jellystat_API_Core.Classes.Tasks
                 IList<BaseItem> items = new List<BaseItem>();
                 int index = 0;
 
+                int limitCounter = limit;
+
                 using (var transaction = context.Database.BeginTransaction())
                 {
 
                     try
                     {
-                        while ((items = await api.GetItemsFromParentId(library.Id, null, index)).Count > 0)
+                        while ((items = await api.GetItemsFromParentId(library.Id, null, index)).Count > 0 && (limit > 0 ? limitCounter-- > 0 : true))
                         {
                             total += items.Count;
                             Debug.WriteLine($"Fetched {items.Count} items from library {library.Name} (total: {total})");
@@ -190,16 +217,13 @@ namespace Jellystat_API_Core.Classes.Tasks
                     }
                     catch (Exception)
                     {
-                        // Rollback is automatic on Dispose() if not committed, 
-                        // but explicit rollback is safer for complex logic.
                         await transaction.RollbackAsync();
                     }
                 }
             }
 
-            await UpdateFromStaging(context);
         }
-        private async Task UpdateFromStaging(ApplicationDbContext context)
+        private async Task UpdateFromStaging(ApplicationDbContext context, bool performArchiveStep = true)
         {
             using (var transaction = context.Database.BeginTransaction())
             {
@@ -283,11 +307,15 @@ namespace Jellystat_API_Core.Classes.Tasks
                     await context.Items.AddRangeAsync(newItemsQuery);
                     int insertedCount = await context.SaveChangesAsync();
 
-                    // Archive items not in staging
-                    int archivedCount = await context.Items
-                        .Where(i => i.ServerId == serverId &&
-                                    !context.ItemsStaging.Any(s => s.Id == i.Id && s.ServerId == serverId))
-                        .ExecuteUpdateAsync(setters => setters.SetProperty(i => i.archived, true));
+                    int archivedCount = 0;
+                    if (performArchiveStep)
+                    {
+                        // Archive items not in staging
+                        archivedCount = await context.Items
+                            .Where(i => i.ServerId == serverId &&
+                                        !context.ItemsStaging.Any(s => s.Id == i.Id && s.ServerId == serverId))
+                            .ExecuteUpdateAsync(setters => setters.SetProperty(i => i.archived, true));
+                    }
 
                     // Clean up staging
                     await context.ItemsStaging
@@ -352,6 +380,9 @@ namespace Jellystat_API_Core.Classes.Tasks
                 }
             }
         }
+
+
+
 
     }
 }

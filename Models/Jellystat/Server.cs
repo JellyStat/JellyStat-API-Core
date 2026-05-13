@@ -20,7 +20,7 @@ namespace Jellystat_API_Core.Models.Jellystat
         public List<TaskSettings> TaskSettings { get; set; } = new List<TaskSettings> {
             new TaskSettings(TaskTypes.Backup, (24 * 60)),
             new TaskSettings(TaskTypes.FullSync, (24 * 60)),
-            new TaskSettings(TaskTypes.PartialSync, (12 * 60)),
+            new TaskSettings(TaskTypes.PartialSync, (1 * 60)),
         };
 
         [Newtonsoft.Json.JsonIgnore]

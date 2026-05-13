@@ -207,7 +207,7 @@ namespace Jellystat_API_Core.Services.Tasks
 
                     case TaskTypes.PartialSync:
                         _logger.LogInformation($"Executing PartialSync task for server {server.Name}");
-                        await ExecutePartialSyncTask(server);
+                        await api.syncTask.PartialSync();
                         break;
 
                     case TaskTypes.PlaybackReportingPluginSync:
@@ -234,12 +234,6 @@ namespace Jellystat_API_Core.Services.Tasks
         private async Task ExecuteBackupTask(Server server)
         {
             _logger.LogInformation($"Backup task logic not yet implemented for server {server.Name}");
-            await Task.CompletedTask;
-        }
-
-        private async Task ExecutePartialSyncTask(Server server)
-        {
-            _logger.LogInformation($"Partial sync task logic not yet implemented for server {server.Name}");
             await Task.CompletedTask;
         }
 
