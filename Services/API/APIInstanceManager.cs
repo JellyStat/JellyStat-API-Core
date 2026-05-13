@@ -32,8 +32,7 @@ namespace Jellystat_API_Core.Services.API
             iAPI? existingInstance = GetInstance(config.Id);
             if (existingInstance != null)
             {
-                await existingInstance.Dispose();
-                await _taskSchedulerService.UnregisterServerAsync(config.Id);
+                await this.RemoveInstanceAsync(config.Id);
             }
 
             using (var scope = _serviceScopeFactory.CreateScope())
@@ -80,6 +79,8 @@ namespace Jellystat_API_Core.Services.API
             if (existingInstance != null)
             {
                 await existingInstance.Dispose();
+
+                await _taskSchedulerService.UnregisterServerAsync(serverId);
             }
 
 
