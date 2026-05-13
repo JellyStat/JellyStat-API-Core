@@ -204,7 +204,7 @@ using (var scope = app.Services.CreateScope())
     logger.LogInformation("Database migrations applied successfully.");
 
     logger.LogInformation("Fetching Configured Servers");
-    List<Jellystat_API_Core.Models.Jellystat.Server> serverConfigs = (await context.Servers.ToListAsync()).Select(s => new Jellystat_API_Core.Models.Jellystat.Server() { Id = s.Id, Name = s.Name, URL = s.URL, APIKey = s.APIKey, Type = s.Type, TaskSettings = s.TaskSettings }).ToList();
+    List<Jellystat_API_Core.Models.Jellystat.Server> serverConfigs = (await context.Servers.ToListAsync()).Select(s => new Jellystat_API_Core.Models.Jellystat.Server() { Id = s.Id, Name = s.Name, URL = s.URL, ExternalURL = s.ExternalURL, APIKey = s.APIKey, Type = s.Type, TaskSettings = s.TaskSettings }).ToList();
     foreach (Jellystat_API_Core.Models.Jellystat.Server config in serverConfigs)
     {
         logger.LogInformation($"Fetched: {config.Id}");
