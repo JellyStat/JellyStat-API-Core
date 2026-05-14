@@ -168,83 +168,6 @@ namespace Jellystat_API_Core.Controllers
 
                 return new Paging<ActivityModel>(pagedActivities.Count, resultData);
 
-                //return context.Activity
-                //     .Where(a => a.ServerId == ServerId)
-                //     .Join(context.Items,
-                //           activity => activity.ItemId,
-                //           item => item.Id,
-                //           (activity, item) => new { activity, item })
-                //     .AsEnumerable() // Switch to client-side evaluation
-                //                     // Group by the unique pair of User and Item
-                //     .GroupBy(joined => new { joined.activity.UserId, joined.activity.ItemId })
-                //     .Select(g => new
-                //     {
-                //         group = g,
-                //         latest = g.OrderByDescending(x => x.activity.DateCreated).First()
-                //     })
-                //     .Select(x => new ActivityModel
-                //     {
-                //         Id = x.latest.activity.Id,
-                //         ServerId = x.latest.activity.ServerId,
-                //         Name = x.latest.activity.Name,
-                //         SeriesName = x.latest.activity.SeriesName,
-                //         UserId = x.group.Key.UserId, // From Group Key
-                //         UserName = x.latest.activity.UserName,
-                //         Client = x.latest.activity.Client,
-                //         Device = x.latest.activity.Device,
-                //         DeviceId = x.latest.activity.DeviceId,
-                //         ItemId = x.group.Key.ItemId, // From Group Key
-                //         SeriesId = x.latest.activity.SeriesId,
-                //         SeasonId = x.latest.activity.SeasonId,
-                //         Duration = x.latest.activity.Duration,
-                //         DirectPlay = x.latest.activity.DirectPlay,
-                //         PlayMethod = x.latest.activity.PlayMethod,
-                //         MediaStreams = x.latest.activity.MediaStreams,
-                //         TranscodingInfo = x.latest.activity.TranscodingInfo,
-                //         Imported = x.latest.activity.Imported,
-                //         DateCreated = x.latest.activity.DateCreated,
-                //         Container = x.latest.activity.Container,
-                //         IpAddress = x.latest.activity.IpAddress,
-                //         RuntimeTicks = x.latest.activity.RuntimeTicks,
-                //         LibraryId = x.latest.item.LibraryId,
-                //         Item = x.latest.item,
-                //         PlayCount = x.group.Count(),
-                //         PlayDuration = x.group.Sum(a => a.activity.Duration),
-
-                //         // Map the rest of the group to your nested list
-                //         GroupedResults = x.group.OrderByDescending(y => y.activity.DateCreated)
-                //                           .Select(y => new ActivityModel
-                //                           {
-                //                               Id = y.activity.Id,
-                //                               ServerId = y.activity.ServerId,
-                //                               Name = y.activity.Name,
-                //                               SeriesName = y.activity.SeriesName,
-                //                               UserId = y.activity.UserId, // From Group Key
-                //                               UserName = y.activity.UserName,
-                //                               Client = y.activity.Client,
-                //                               Device = y.activity.Device,
-                //                               DeviceId = y.activity.DeviceId,
-                //                               ItemId = y.activity.ItemId, // From Group Key
-                //                               SeriesId = y.activity.SeriesId,
-                //                               SeasonId = y.activity.SeasonId,
-                //                               Duration = y.activity.Duration,
-                //                               DirectPlay = y.activity.DirectPlay,
-                //                               PlayMethod = y.activity.PlayMethod,
-                //                               MediaStreams = y.activity.MediaStreams,
-                //                               TranscodingInfo = y.activity.TranscodingInfo,
-                //                               Imported = y.activity.Imported,
-                //                               DateCreated = y.activity.DateCreated,
-                //                               Container = y.activity.Container,
-                //                               IpAddress = y.activity.IpAddress,
-                //                               RuntimeTicks = y.activity.RuntimeTicks,
-                //                               LibraryId = y.item.LibraryId,
-                //                               Item = y.item,
-                //                               PlayCount = 1,
-                //                               PlayDuration = y.activity.Duration
-                //                           }).ToList()
-                //     })
-                //     .AsQueryable() // Convert back to IQueryable for Gridify
-                //     .Gridify(query);
             }
             return context.Activity.Where(a => a.ServerId == ServerId)
                     .Join(context.Items,
@@ -308,20 +231,115 @@ namespace Jellystat_API_Core.Controllers
 
         [HttpGet("UnlinkedActivity", Name = "UnlinkedActivity")]
         [DefaultGridifyOrder(nameof(Activity.DateCreated), true)]
-        public async Task<ActionResult<Paging<Activity>>> GetUnlinkedActivity([FromQuery] GridifyQuery query, string? ServerId)
+        public ActionResult<Paging<Activity>> GetUnlinkedActivity([FromQuery] GridifyQuery query, string? ServerId)
         {
             if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
                 ServerId = HttpContext.User.GetServerId();
             }
 
+            var unlinkedIds = context.Activity
+           .Where(a => a.ServerId == ServerId)
+           .Where(a => !context.Items.Any(i => i.Id == a.ItemId && i.ServerId == a.ServerId))
+           .GroupBy(a => a.ItemId)
+           .Select(g => g.Min(x => x.Id));
+
             return context.Activity
-                .Where(a => a.ServerId == ServerId)
-                .Where(a => !context.Items.Any(i => i.Id == a.ItemId && i.ServerId == a.ServerId))
-                .GroupBy(a => a.ItemId)
-                .Select(g => g.OrderBy(x => x.Id).First())
+                .Where(a => unlinkedIds.Contains(a.Id))
                 .Gridify(query);
         }
 
+        [HttpPost("MigrateActivity", Name = "MigrateActivity")]
+        [PermissionAuthorize(PermissionTypes.Administrator)]
+        public async Task<ActionResult> MigrateActivity([FromBody] MigrateActivity[] activities)
+        {
+            List<Activity> matchingActivities = await context.Activity.Where(a => activities.Select(ac => ac.Id).Contains(a.Id)).ToListAsync();
+
+            var matchingIds = matchingActivities.Select(a => a.Id).ToHashSet();
+            var matchingActivitiesDict = matchingActivities.ToDictionary(a => a.Id);
+
+            var propertiesToCompare = typeof(MigrateActivity).GetProperties()
+                .Where(p => p.Name is not ("Id" or "Success" or "ErrorMessage" or "Changes" or "hasChanges"))
+                .ToList();
+
+
+            foreach (var activity in activities)
+            {
+                if (!matchingIds.Contains(activity.Id))
+                {
+                    activity.Success = false;
+                    activity.ErrorMessage = "Activity not found";
+                }
+                else
+                {
+                    var matchingActivity = matchingActivitiesDict[activity.Id];
+
+                    foreach (var property in propertiesToCompare)
+                    {
+                        var activityValue = property.GetValue(activity);
+                        if (activityValue == null)
+                        {
+                            activity.Success = false;
+                            activity.ErrorMessage = $"'{property}' cannot be null";
+                            continue;
+                        }
+                        var matchingProperty = typeof(Activity).GetProperty(property.Name);
+                        if (matchingProperty == null)
+                        {
+                            activity.Success = false;
+                            activity.ErrorMessage = $"Unable to map '{property}' to Activity";
+                            continue;
+                        }
+                        var matchingValue = matchingProperty.GetValue(matchingActivity);
+
+                        if (matchingValue == null)
+                        {
+                            continue;
+                        }
+
+                        if (!Equals(activityValue, matchingValue))
+                        {
+                            activity.Changes.Add(new ChangeTracker { PropertyName = matchingProperty.Name, OldValue = matchingValue.ToString(), NewValue = activityValue.ToString() });
+                        }
+                    }
+                }
+            }
+
+            List<ChangeTracker> changeTrackers = activities
+                                                .Where(a => a.hasChanges)
+                                                .SelectMany(a => a.Changes)
+                                                .DistinctBy(ct => new { ct.PropertyName, ct.OldValue })
+                                                .ToList();
+
+            using (var transaction = context.Database.BeginTransaction())
+            {
+                try
+                {
+                    foreach (var changeTracker in changeTrackers)
+                    {
+                        var propertyInfo = typeof(Activity).GetProperty(changeTracker.PropertyName);
+                        if (propertyInfo == null || !propertyInfo.CanWrite)
+                        {
+                            continue;
+                        }
+
+                        var sql = $"UPDATE \"Activity\" SET \"{changeTracker.PropertyName}\" = {{0}} WHERE \"{changeTracker.PropertyName}\" = {{1}}";
+                        await context.Database.ExecuteSqlRawAsync(sql, changeTracker.NewValue, changeTracker.OldValue);
+                    }
+
+                    await transaction.CommitAsync();
+                    return Ok(activities);
+                }
+                catch (Exception ex)
+                {
+                    await transaction.RollbackAsync();
+                    System.Diagnostics.Debug.WriteLine(ex);
+                    return Problem("Error occurred while migrating activity");
+                }
+            }
+
+
+
+        }
     }
 }
