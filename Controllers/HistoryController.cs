@@ -280,20 +280,27 @@ namespace Jellystat_API_Core.Controllers
                         if (activityValue == null)
                         {
                             activity.Success = false;
-                            activity.ErrorMessage = $"'{property}' cannot be null";
+                            activity.ErrorMessage = $"'{property.Name}' cannot be null";
                             continue;
                         }
                         var matchingProperty = typeof(Activity).GetProperty(property.Name);
                         if (matchingProperty == null)
                         {
                             activity.Success = false;
-                            activity.ErrorMessage = $"Unable to map '{property}' to Activity";
+                            activity.ErrorMessage = $"Unable to map '{property.Name}' to Activity";
                             continue;
                         }
                         var matchingValue = matchingProperty.GetValue(matchingActivity);
 
                         if (matchingValue == null)
                         {
+                            continue;
+                        }
+
+                        if (matchingValue.ToString().Trim().IsNotEmpty() && activityValue.ToString().Trim().IsEmpty())
+                        {
+                            activity.Success = false;
+                            activity.ErrorMessage = $"'{property.Name}' cannot be set to an empty string";
                             continue;
                         }
 
