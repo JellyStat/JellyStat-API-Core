@@ -49,7 +49,7 @@ namespace Jellystat_API_Core.Services.API
                         instance = new JellyfinAPI(config, excludedUsers, excludedLibraries, _serviceScopeFactory);
                         break;
                     case ServerTypes.Emby:
-                        instance = new JellyfinAPI(config, excludedUsers, excludedLibraries, _serviceScopeFactory);
+                        instance = new EmbyAPI(config, excludedUsers, excludedLibraries, _serviceScopeFactory);
                         break;
                     default:
                         throw new NotSupportedException($"Server type {config.Type} is not supported.");

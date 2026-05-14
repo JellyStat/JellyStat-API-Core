@@ -201,12 +201,15 @@ namespace Jellystat_API_Core.Classes.API
             var queryParams = new List<string>
             {
                 $"Ids={string.Join(",", itemIds.Select(Uri.EscapeDataString))}",
-                $"fields=MediaSources,DateCreated,Genres",
+                $"fields=MediaSources,DateCreated,Genres,Path",
                 $"isMissing=false",
                 $"excludeLocationTypes=Virtual",
                 $"StartIndex={startIndex}",
                 $"Limit={limit}",
-                $"Recursive={recursive.ToString().ToLower()}"
+                $"Recursive={recursive.ToString().ToLower()}",
+                "ExcludeItemTypes=Folder,Studio,Genre",
+                "sortBy=DateCreated",
+                "sortOrder=Descending"
             };
 
             var queryString = string.Join("&", queryParams);
@@ -223,12 +226,13 @@ namespace Jellystat_API_Core.Classes.API
             var queryParams = new List<string>
             {
                 $"ParentId={Uri.EscapeDataString(id)}",
-                $"fields=MediaSources,DateCreated,Genres",
+                $"fields=MediaSources,DateCreated,Genres,Path",
                 $"isMissing=false",
                 $"excludeLocationTypes=Virtual",
                 $"StartIndex={startIndex}",
                 $"Limit={limit}",
                 $"Recursive={recursive.ToString().ToLower()}",
+                "ExcludeItemTypes=Folder,Studio,Genre",
                 "sortBy=DateCreated",
                 "sortOrder=Descending"
 

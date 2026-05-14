@@ -83,9 +83,12 @@ namespace Jellystat_API_Core.Controllers
         [HttpGet("RecentlyAdded", Name = "RecentlyAdded")]
 
         [DefaultGridifyOrder(nameof(ItemsWithParentData.DateCreated), true)]
-        public ActionResult<Paging<ItemsWithParentData>> GetRecentlyAdded([FromQuery] GridifyQuery query)
+        public ActionResult<Paging<ItemsWithParentData>> GetRecentlyAdded([FromQuery] GridifyQuery query, string? ServerId)
         {
-            string ServerId = HttpContext.User.GetServerId();
+            if (!HttpContext.User.IsAdministrator() || ServerId == null)
+            {
+                ServerId = HttpContext.User.GetServerId();
+            }
             iAPI? api = _apiInstanceManager.GetInstance(ServerId);
             if (api == null)
             {
@@ -101,7 +104,10 @@ namespace Jellystat_API_Core.Controllers
         [DefaultGridifyOrder(nameof(TrackedUsers.Username))]
         public ActionResult<Paging<TrackedUsers>> GetTrackedUsers([FromQuery] GridifyQuery query, string? ServerId)
         {
-            ServerId ??= HttpContext.User.GetServerId();
+            if (!HttpContext.User.IsAdministrator() || ServerId == null)
+            {
+                ServerId = HttpContext.User.GetServerId();
+            }
             return context.Users
                     .Where(u => u.ServerId == ServerId)
                     .GroupJoin(
@@ -154,7 +160,10 @@ namespace Jellystat_API_Core.Controllers
         [DefaultGridifyOrder(nameof(TrackedLibraries.Name))]
         public ActionResult<Paging<TrackedLibraries>> GetTrackedLibraries([FromQuery] GridifyQuery query, string? ServerId)
         {
-            ServerId ??= HttpContext.User.GetServerId();
+            if (!HttpContext.User.IsAdministrator() || ServerId == null)
+            {
+                ServerId = HttpContext.User.GetServerId();
+            }
             return context.Libraries
                     .Where(l => l.ServerId == ServerId)
                     .GroupJoin(
@@ -209,8 +218,7 @@ namespace Jellystat_API_Core.Controllers
         [DefaultGridifyOrder(nameof(Users.Username))]
         public ActionResult<Paging<Users>> GetUsers([FromQuery] GridifyQuery query, string? ServerId)
         {
-            bool isAdmin = HttpContext.User.IsAdministrator();
-            if (!isAdmin || ServerId == null)
+            if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
                 ServerId = HttpContext.User.GetServerId();
             }
@@ -221,8 +229,7 @@ namespace Jellystat_API_Core.Controllers
         [DefaultGridifyOrder(nameof(LibrariesWithStats.Name))]
         public ActionResult<Paging<LibrariesWithStats>> GetLibraries([FromQuery] GridifyQuery query, string? ServerId)
         {
-            bool isAdmin = HttpContext.User.IsAdministrator();
-            if (!isAdmin || ServerId == null)
+            if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
                 ServerId = HttpContext.User.GetServerId();
             }
@@ -297,8 +304,7 @@ namespace Jellystat_API_Core.Controllers
         [DefaultGridifyOrder(nameof(Items.Name))]
         public ActionResult<Paging<ItemsWithStats>> GetLibraryItems([FromQuery] GridifyQuery query, string? ServerId)
         {
-            bool isAdmin = HttpContext.User.IsAdministrator();
-            if (!isAdmin || ServerId == null)
+            if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
                 ServerId = HttpContext.User.GetServerId();
             }
@@ -396,8 +402,7 @@ namespace Jellystat_API_Core.Controllers
                 return BadRequest("Provided Activity list is empty");
             }
 
-            bool isAdmin = HttpContext.User.IsAdministrator();
-            if (!isAdmin || ServerId == null)
+            if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
                 ServerId = HttpContext.User.GetServerId();
             }

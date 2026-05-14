@@ -307,6 +307,8 @@ namespace Jellystat_API_Core.Data
                 entity.HasNoKey();
                 entity.ToView("ItemsWithParentData");
                 entity.Property(e => e.Parent).HasColumnType("jsonb");
+                entity.Property(e => e.MediaStreams).HasColumnType("jsonb");
+                entity.Property(e => e.Genres).HasColumnType("jsonb");
             });
 
 

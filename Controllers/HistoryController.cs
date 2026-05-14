@@ -6,7 +6,6 @@ using Jellystat_API_Core.Data.Schema;
 using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Extensions;
 using Jellystat_API_Core.Models.Jellystat;
-using Jellystat_API_Core.Services.API;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -18,13 +17,10 @@ namespace Jellystat_API_Core.Controllers
     [Route("[controller]")]
     public class HistoryController : Controller
     {
-        private readonly IAPIInstanceManager _apiInstanceManager;
         private readonly ApplicationDbContext context;
 
-        public HistoryController(IAPIInstanceManager apiInstanceManager, ApplicationDbContext context)
+        public HistoryController(ApplicationDbContext context)
         {
-
-            _apiInstanceManager = apiInstanceManager;
             this.context = context;
         }
 
@@ -33,8 +29,7 @@ namespace Jellystat_API_Core.Controllers
         [DefaultGridifyOrder(nameof(Activity.DateCreated), true)]
         public async Task<ActionResult<Paging<ActivityModel>>> GetActivityAsync([FromQuery] GridifyQuery query, string? ServerId, bool GroupResults = true)
         {
-            bool isAdmin = HttpContext.User.IsAdministrator();
-            if (!isAdmin || ServerId == null)
+            if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
                 ServerId = HttpContext.User.GetServerId();
             }

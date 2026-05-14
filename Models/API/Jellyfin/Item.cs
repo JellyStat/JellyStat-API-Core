@@ -14,8 +14,7 @@ namespace Jellystat_API_Core.Models.API.Jellyfin
         public ImageTags? ImageTags { private get; set; }
         public ImageBlurHashes? ImageBlurHashes { private get; set; }
         public override IList<BaseMediaStream> MediaStreams => MediaSources.Where(ms => ms.MediaStreams.IsNotEmpty()).SelectMany(ms => ms.MediaStreams).Cast<BaseMediaStream>().ToList();
-        public override string? Path => MediaSources.Where(ms => ms.Id == Id).FirstOrDefault(defaultValue: null)?.Path ?? "";
-
+        public override string? Path { get; set; }
         public override long Size => MediaSources.Where(ms => ms.Id == Id).FirstOrDefault(defaultValue: null)?.Size ?? 0;
 
         public override long Bitrate => MediaSources.Where(ms => ms.Id == Id).FirstOrDefault(defaultValue: null)?.Bitrate ?? 0;

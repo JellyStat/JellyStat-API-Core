@@ -34,20 +34,16 @@ namespace Jellystat_API_Core.Controllers
         }
 
 
-        private Object generateTokens(string Username, List<Permissions> permissions, string? ServerId)
+        private Object generateTokens(string Username, List<Permissions> permissions, string ServerId)
         {
             var claims = new[]
            {
                 new Claim("username", Username),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                 new Claim("type", "access"),
-                new Claim("permissions", JsonConvert.SerializeObject(permissions.Select(p=>p.PermissionKey).ToList() ) )
+                new Claim("permissions", JsonConvert.SerializeObject(permissions.Select(p=>p.PermissionKey).ToList() ) ),
+                new Claim("serverId", ServerId)
             };
-
-            if (ServerId != null)
-            {
-                claims = claims.Append(new Claim("serverId", ServerId)).ToArray();
-            }
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Global.JwtKey));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -63,13 +59,10 @@ namespace Jellystat_API_Core.Controllers
                 new Claim("username", Username),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                 new Claim("permissions", JsonConvert.SerializeObject(permissions.Select(p=>p.PermissionKey).ToList() ) ),
-                new Claim("type", "refresh")
+                new Claim("type", "refresh"),
+                new Claim("serverId", ServerId)
             };
 
-            if (ServerId != null)
-            {
-                claims = claims.Append(new Claim("serverId", ServerId)).ToArray();
-            }
 
             var refreshToken = new JwtSecurityToken(
                 issuer: Global.JwtIssuer,

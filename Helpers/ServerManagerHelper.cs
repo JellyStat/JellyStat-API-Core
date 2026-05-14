@@ -16,7 +16,7 @@ namespace Jellystat_API_Core.Helpers
         {
             try
             {
-                await Global.APIInstanceManager.RegisterInstanceAsync(server);
+
                 if (await context.Servers.Where(s => s.Id == server.Id).FirstOrDefaultAsync() != null)
                 {
 
@@ -28,6 +28,12 @@ namespace Jellystat_API_Core.Helpers
                         .SetProperty(p => p.Type, server.Type)
                         .SetProperty(p => p.TaskSettings, server.TaskSettings)
                     );
+                }
+                else
+                {
+                    await context.Servers.AddAsync(new Data.Schema.Server { Id = server.Id, Name = server.Name, URL = server.URL, ExternalURL = server.ExternalURL, APIKey = server.APIKey, Type = server.Type, TaskSettings = server.TaskSettings });
+                    await context.SaveChangesAsync();
+                    await Global.APIInstanceManager.RegisterInstanceAsync(server);
                 }
                 return Global.APIInstanceManager.GetInstance(server.Id)?.config;
             }
@@ -52,7 +58,7 @@ namespace Jellystat_API_Core.Helpers
                         info = await api.GetSystemInfo();
                         break;
                     case ServerTypes.Emby:
-                        api = new JellyfinAPI(URL, APIKey);
+                        api = new EmbyAPI(URL, APIKey);
                         info = await api.GetSystemInfo();
                         break;
 

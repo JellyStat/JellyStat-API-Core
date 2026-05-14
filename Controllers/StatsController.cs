@@ -30,8 +30,7 @@ namespace Jellystat_API_Core.Controllers
         [DefaultGridifyPageSize(5)]
         public Paging<ItemsWithStats> GetItemStats([FromQuery] GridifyQuery query, string? ServerId, int days = 30)
         {
-            bool isAdmin = HttpContext.User.IsAdministrator();
-            if (!isAdmin || ServerId == null)
+            if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
                 ServerId = HttpContext.User.GetServerId();
             }
@@ -108,8 +107,7 @@ namespace Jellystat_API_Core.Controllers
         [DefaultGridifyPageSize(5)]
         public Paging<ItemsWithStats> GetMostPopularItems([FromQuery] GridifyQuery query, string? ServerId, int days = 30)
         {
-            bool isAdmin = HttpContext.User.IsAdministrator();
-            if (!isAdmin || ServerId == null)
+            if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
                 ServerId = HttpContext.User.GetServerId();
             }
@@ -191,8 +189,7 @@ namespace Jellystat_API_Core.Controllers
         [DefaultGridifyPageSize(5)]
         public Paging<LibrariesWithStats> GetLibraryStats([FromQuery] GridifyQuery query, string? ServerId, int days = 30)
         {
-            bool isAdmin = HttpContext.User.IsAdministrator();
-            if (!isAdmin || ServerId == null)
+            if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
                 ServerId = HttpContext.User.GetServerId();
             }
@@ -279,8 +276,7 @@ namespace Jellystat_API_Core.Controllers
         [DefaultGridifyPageSize(5)]
         public Paging<ClientsWithStats> GetMostUsedClients([FromQuery] GridifyQuery query, string? ServerId, int days = 30)
         {
-            bool isAdmin = HttpContext.User.IsAdministrator();
-            if (!isAdmin || ServerId == null)
+            if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
                 ServerId = HttpContext.User.GetServerId();
             }
@@ -305,8 +301,7 @@ namespace Jellystat_API_Core.Controllers
         [DefaultGridifyPageSize(5)]
         public Paging<UsersWithStats> GetUserStats([FromQuery] GridifyQuery query, string? ServerId, int days = 30)
         {
-            bool isAdmin = HttpContext.User.IsAdministrator();
-            if (!isAdmin || ServerId == null)
+            if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
                 ServerId = HttpContext.User.GetServerId();
             }
@@ -336,8 +331,7 @@ namespace Jellystat_API_Core.Controllers
         [DefaultGridifyPageSize(5)]
         public Paging<TranscodesWithStats> GetTranscodeStats([FromQuery] GridifyQuery query, string? ServerId, int days = 30)
         {
-            bool isAdmin = HttpContext.User.IsAdministrator();
-            if (!isAdmin || ServerId == null)
+            if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
                 ServerId = HttpContext.User.GetServerId();
             }
