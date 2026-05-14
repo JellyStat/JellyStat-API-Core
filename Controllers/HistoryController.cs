@@ -305,5 +305,23 @@ namespace Jellystat_API_Core.Controllers
                 }
             }
         }
+
+        [HttpGet("UnlinkedActivity", Name = "UnlinkedActivity")]
+        [DefaultGridifyOrder(nameof(Activity.DateCreated), true)]
+        public async Task<ActionResult<Paging<Activity>>> GetUnlinkedActivity([FromQuery] GridifyQuery query, string? ServerId)
+        {
+            if (!HttpContext.User.IsAdministrator() || ServerId == null)
+            {
+                ServerId = HttpContext.User.GetServerId();
+            }
+
+            return context.Activity
+                .Where(a => a.ServerId == ServerId)
+                .Where(a => !context.Items.Any(i => i.Id == a.ItemId && i.ServerId == a.ServerId))
+                .GroupBy(a => a.ItemId)
+                .Select(g => g.OrderBy(x => x.Id).First())
+                .Gridify(query);
+        }
+
     }
 }
