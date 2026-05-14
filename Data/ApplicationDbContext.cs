@@ -32,6 +32,8 @@ namespace Jellystat_API_Core.Data
         {
             base.OnModelCreating(modelBuilder);
 
+            modelBuilder.HasPostgresExtension("pg_trgm");
+
             modelBuilder.Entity<Server>(entity =>
             {
                 entity.HasKey(e => e.Id);

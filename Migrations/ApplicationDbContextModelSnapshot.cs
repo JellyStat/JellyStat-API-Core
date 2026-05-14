@@ -24,6 +24,7 @@ namespace Jellystat_API_Core.Migrations
                 .HasAnnotation("ProductVersion", "9.0.9")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pg_trgm");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("Jellystat_API_Core.Data.Schema.Activity", b =>
@@ -654,9 +655,9 @@ namespace Jellystat_API_Core.Migrations
                     b.Property<long>("Duration")
                         .HasColumnType("bigint");
 
-                    b.PrimitiveCollection<string[]>("Genres")
+                    b.PrimitiveCollection<IList<string>>("Genres")
                         .IsRequired()
-                        .HasColumnType("text[]");
+                        .HasColumnType("jsonb");
 
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -675,6 +676,10 @@ namespace Jellystat_API_Core.Migrations
                     b.Property<string>("LibraryId")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<IList<BaseMediaStream>>("MediaStreams")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
 
                     b.Property<string>("Name")
                         .IsRequired()

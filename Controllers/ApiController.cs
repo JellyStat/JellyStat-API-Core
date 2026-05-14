@@ -374,6 +374,27 @@ namespace Jellystat_API_Core.Controllers
             return _query.Gridify(query);
         }
 
+        [HttpGet("MatchingItems", Name = "MatchingItems")]
+        public ActionResult<Paging<Items>> GetMatchingItems([FromQuery] GridifyQuery query, string Name, string? ServerId)
+        {
+            if (Name.Trim().Length < 3)
+            {
+                return BadRequest("Input needs to be at least 3 characters long");
+            }
+
+            if (!HttpContext.User.IsAdministrator() || ServerId == null)
+            {
+                ServerId = HttpContext.User.GetServerId();
+            }
+
+            double similarityThreshold = 0.4;
+            var _query = context.Items
+                .Where(i => i.ServerId == ServerId && EF.Functions.TrigramsSimilarity(i.Name, Name) > similarityThreshold)
+                .OrderByDescending(i => EF.Functions.TrigramsSimilarity(i.Name, Name));
+
+
+            return _query.Gridify(query);
+        }
 
         //Tasks
         [HttpGet("StartSync", Name = "StartSync")]
