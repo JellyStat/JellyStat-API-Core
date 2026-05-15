@@ -34,7 +34,7 @@ namespace Jellystat_API_Core.Controllers
         }
 
 
-        private Object generateTokens(string Username, List<Permissions> permissions, string ServerId)
+        private Object generateTokens(string Username, List<Permissions> permissions, string? ServerId)
         {
             var claims = new[]
            {
@@ -42,7 +42,7 @@ namespace Jellystat_API_Core.Controllers
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                 new Claim("type", "access"),
                 new Claim("permissions", JsonConvert.SerializeObject(permissions.Select(p=>p.PermissionKey).ToList() ) ),
-                new Claim("serverId", ServerId)
+                new Claim("serverId", ServerId ?? string.Empty)
             };
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Global.JwtKey));
@@ -60,7 +60,7 @@ namespace Jellystat_API_Core.Controllers
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
                 new Claim("permissions", JsonConvert.SerializeObject(permissions.Select(p=>p.PermissionKey).ToList() ) ),
                 new Claim("type", "refresh"),
-                new Claim("serverId", ServerId)
+                new Claim("serverId", ServerId ?? string.Empty)
             };
 
 

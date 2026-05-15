@@ -33,8 +33,9 @@ namespace Jellystat_API_Core.Helpers
                 {
                     await context.Servers.AddAsync(new Data.Schema.Server { Id = server.Id, Name = server.Name, URL = server.URL, ExternalURL = server.ExternalURL, APIKey = server.APIKey, Type = server.Type, TaskSettings = server.TaskSettings });
                     await context.SaveChangesAsync();
-                    await Global.APIInstanceManager.RegisterInstanceAsync(server);
+
                 }
+                await Global.APIInstanceManager.RegisterInstanceAsync(server);
                 return Global.APIInstanceManager.GetInstance(server.Id)?.config;
             }
             catch (Exception ex)

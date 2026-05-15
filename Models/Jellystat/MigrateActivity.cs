@@ -11,7 +11,7 @@ namespace Jellystat_API_Core.Models.Jellystat
         public required string ItemId { get; set; }
 
         public bool Success { get; set; } = true;
-        public string ErrorMessage { get; set; } = "";
+        public string? ErrorMessage { get; set; }
 
 
         [System.Text.Json.Serialization.JsonIgnore]

@@ -5,7 +5,7 @@
 namespace Jellystat_API_Core.Migrations
 {
     /// <inheritdoc />
-    public partial class ItemsWithParentData : Migration
+    public partial class ItemsWithParentDataView : Migration
     {
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
@@ -14,6 +14,7 @@ namespace Jellystat_API_Core.Migrations
                  @"CREATE VIEW ""ItemsWithParentData"" AS 
                           SELECT 
                               i.*,
+                              root_item.""Id"" AS ""RootId"",
                               to_jsonb(root_item) AS ""Parent""
                           FROM public.""Items"" i
                           LEFT JOIN LATERAL (

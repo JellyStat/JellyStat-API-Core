@@ -16,8 +16,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Jellystat_API_Core.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260502231238_ItemsWithParentData")]
-    partial class ItemsWithParentData
+    [Migration("20260515105018_ItemsWithParentDataView")]
+    partial class ItemsWithParentDataView
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)
@@ -27,6 +27,7 @@ namespace Jellystat_API_Core.Migrations
                 .HasAnnotation("ProductVersion", "9.0.9")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pg_trgm");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("Jellystat_API_Core.Data.Schema.Activity", b =>
@@ -83,6 +84,10 @@ namespace Jellystat_API_Core.Migrations
                         .HasDefaultValueSql("'[]'");
 
                     b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("PlayMethod")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -189,6 +194,10 @@ namespace Jellystat_API_Core.Migrations
                         .HasDefaultValueSql("'[]'");
 
                     b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("PlayMethod")
                         .IsRequired()
                         .HasColumnType("text");
 
@@ -649,9 +658,9 @@ namespace Jellystat_API_Core.Migrations
                     b.Property<long>("Duration")
                         .HasColumnType("bigint");
 
-                    b.PrimitiveCollection<string[]>("Genres")
+                    b.PrimitiveCollection<IList<string>>("Genres")
                         .IsRequired()
-                        .HasColumnType("text[]");
+                        .HasColumnType("jsonb");
 
                     b.Property<string>("Id")
                         .HasColumnType("text");
@@ -670,6 +679,10 @@ namespace Jellystat_API_Core.Migrations
                     b.Property<string>("LibraryId")
                         .IsRequired()
                         .HasColumnType("text");
+
+                    b.Property<IList<BaseMediaStream>>("MediaStreams")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -708,83 +721,6 @@ namespace Jellystat_API_Core.Migrations
                     b.ToTable((string)null);
 
                     b.ToView("ItemsWithParentData", (string)null);
-                });
-
-            modelBuilder.Entity("Jellystat_API_Core.Data.Schema.Views.ItemsWithStats", b =>
-                {
-                    b.Property<long>("Bitrate")
-                        .HasColumnType("bigint");
-
-                    b.Property<DateTime?>("DateCreated")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<long>("Duration")
-                        .HasColumnType("bigint");
-
-                    b.PrimitiveCollection<string[]>("Genres")
-                        .IsRequired()
-                        .HasColumnType("text[]");
-
-                    b.Property<string>("Id")
-                        .HasColumnType("text");
-
-                    b.Property<string>("ImageHash")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("ImageTag")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<int?>("Index")
-                        .HasColumnType("integer");
-
-                    b.Property<DateTime?>("LastPlayedDate")
-                        .HasColumnType("timestamp with time zone");
-
-                    b.Property<string>("LibraryId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<string>("ParentId")
-                        .HasColumnType("text");
-
-                    b.Property<int?>("ParentIndex")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("Path")
-                        .HasColumnType("text");
-
-                    b.Property<int>("PlayCount")
-                        .HasColumnType("integer");
-
-                    b.Property<int>("PlayDuration")
-                        .HasColumnType("integer");
-
-                    b.Property<string>("ServerId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
-                    b.Property<long>("Size")
-                        .HasColumnType("bigint");
-
-                    b.Property<int>("Type")
-                        .HasColumnType("integer");
-
-                    b.Property<bool>("archived")
-                        .HasColumnType("boolean");
-
-                    b.HasIndex("LibraryId");
-
-                    b.HasIndex("ServerId");
-
-                    b.ToTable((string)null);
-
-                    b.ToView("ItemsWithStats", (string)null);
                 });
 
             modelBuilder.Entity("Jellystat_API_Core.Data.Schema.ExcludedLibraries", b =>
@@ -924,25 +860,6 @@ namespace Jellystat_API_Core.Migrations
                 });
 
             modelBuilder.Entity("Jellystat_API_Core.Data.Schema.Views.ItemsWithParentData", b =>
-                {
-                    b.HasOne("Jellystat_API_Core.Data.Schema.Libraries", "Library")
-                        .WithMany()
-                        .HasForeignKey("LibraryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.HasOne("Jellystat_API_Core.Data.Schema.Server", "Server")
-                        .WithMany()
-                        .HasForeignKey("ServerId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Library");
-
-                    b.Navigation("Server");
-                });
-
-            modelBuilder.Entity("Jellystat_API_Core.Data.Schema.Views.ItemsWithStats", b =>
                 {
                     b.HasOne("Jellystat_API_Core.Data.Schema.Libraries", "Library")
                         .WithMany()

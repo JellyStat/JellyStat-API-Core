@@ -194,14 +194,17 @@ using (var scope = app.Services.CreateScope())
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     var apiManager = scope.ServiceProvider.GetRequiredService<IAPIInstanceManager>();
 
-
-    if (!await context.Database.CanConnectAsync())
+    try
     {
-        throw new InvalidOperationException("Unable to connect to database");
+        logger.LogInformation("Applying database migrations...");
+        await context.Database.MigrateAsync();
+        logger.LogInformation("Database migrations applied successfully.");
     }
-    logger.LogInformation("Applying database migrations...");
-    await context.Database.MigrateAsync();
-    logger.LogInformation("Database migrations applied successfully.");
+    catch (Exception ex)
+    {
+        logger.LogError(ex, "Failed to apply database migrations. Please ensure the database server is accessible.");
+        throw;
+    }
 
     logger.LogInformation("Fetching Configured Servers");
     List<Jellystat_API_Core.Models.Jellystat.Server> serverConfigs = (await context.Servers.ToListAsync()).Select(s => new Jellystat_API_Core.Models.Jellystat.Server() { Id = s.Id, Name = s.Name, URL = s.URL, ExternalURL = s.ExternalURL, APIKey = s.APIKey, Type = s.Type, TaskSettings = s.TaskSettings }).ToList();

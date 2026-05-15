@@ -2,6 +2,7 @@
 {
     public class ItemsWithParentData : Items
     {
+        public string? RootId { get; set; }
         public Items? Parent { get; set; }
     }
 }

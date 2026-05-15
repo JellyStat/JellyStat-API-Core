@@ -50,6 +50,15 @@ namespace Jellystat_API_Core.Controllers
                 return BadRequest("Invalid URL");
             }
 
+            if (Uri.TryCreate(server.ExternalURL, UriKind.Absolute, out Uri? uriExt))
+            {
+                server.ExternalURL = uriExt.GetLeftPart(UriPartial.Authority);
+            }
+            else
+            {
+                return BadRequest("Invalid External URL");
+            }
+
 
 
             BaseSystemInfo? systemInfo = await serverHelper.GetSystemInfo(server.Type, server.URL, server.APIKey);
@@ -375,7 +384,7 @@ namespace Jellystat_API_Core.Controllers
         }
 
         [HttpGet("MatchingItems", Name = "MatchingItems")]
-        public ActionResult<Paging<Items>> GetMatchingItems([FromQuery] GridifyQuery query, string Name, string? ServerId)
+        public ActionResult<Paging<ItemsWithParentData>> GetMatchingItems([FromQuery] GridifyQuery query, string Name, string? ServerId)
         {
             if (Name.Trim().Length < 3)
             {
@@ -387,8 +396,8 @@ namespace Jellystat_API_Core.Controllers
                 ServerId = HttpContext.User.GetServerId();
             }
 
-            double similarityThreshold = 0.4;
-            var _query = context.Items
+            double similarityThreshold = 0.3;
+            var _query = context.ItemsWithParentData
                 .Where(i => i.ServerId == ServerId && EF.Functions.TrigramsSimilarity(i.Name, Name) > similarityThreshold)
                 .OrderByDescending(i => EF.Functions.TrigramsSimilarity(i.Name, Name));
 

@@ -15,6 +15,9 @@ namespace Jellystat_API_Core.Migrations
         /// <inheritdoc />
         protected override void Up(MigrationBuilder migrationBuilder)
         {
+            migrationBuilder.AlterDatabase()
+                .Annotation("Npgsql:PostgresExtension:pg_trgm", ",,");
+
             migrationBuilder.CreateTable(
                 name: "Activity",
                 columns: table => new
@@ -33,6 +36,7 @@ namespace Jellystat_API_Core.Migrations
                     SeasonId = table.Column<string>(type: "text", nullable: true),
                     Duration = table.Column<long>(type: "bigint", nullable: false, defaultValue: 0L),
                     DirectPlay = table.Column<bool>(type: "boolean", nullable: false, defaultValue: true),
+                    PlayMethod = table.Column<string>(type: "text", nullable: false),
                     MediaStreams = table.Column<IList<BaseMediaStream>>(type: "jsonb", nullable: false, defaultValueSql: "'[]'"),
                     TranscodingInfo = table.Column<BaseTranscodingInfo>(type: "jsonb", nullable: true),
                     Imported = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
@@ -64,6 +68,7 @@ namespace Jellystat_API_Core.Migrations
                     SeasonId = table.Column<string>(type: "text", nullable: true),
                     Duration = table.Column<long>(type: "bigint", nullable: false, defaultValue: 0L),
                     DirectPlay = table.Column<bool>(type: "boolean", nullable: false, defaultValue: true),
+                    PlayMethod = table.Column<string>(type: "text", nullable: false),
                     MediaStreams = table.Column<IList<BaseMediaStream>>(type: "jsonb", nullable: false, defaultValueSql: "'[]'"),
                     TranscodingInfo = table.Column<BaseTranscodingInfo>(type: "jsonb", nullable: true),
                     Imported = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
