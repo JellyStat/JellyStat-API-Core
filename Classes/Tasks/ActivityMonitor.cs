@@ -2,8 +2,10 @@
 using Jellystat_API_Core.Classes.API.@interface;
 using Jellystat_API_Core.Data;
 using Jellystat_API_Core.Data.Schema;
+using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Extensions;
 using Jellystat_API_Core.Models.API.Base;
+using Jellystat_API_Core.Models.WebSocket;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
 
@@ -382,7 +384,12 @@ namespace Jellystat_API_Core.Classes.Tasks
 
             if (sessionsItems.IsNotEmpty())
             {
-                await Global.WebSocketServerService.BroadcastObjectAsync(sessionsItems, api.config.Id);
+                JellystatWebsocketMessage<IList<BaseSessionItem>> message = new JellystatWebsocketMessage<IList<BaseSessionItem>>()
+                {
+                    Type = WebsocketServerTypes.Sessions,
+                    Data = sessionsItems
+                };
+                await Global.WebSocketServerService.BroadcastObjectAsync(message, api.config.Id);
             }
         }
     }

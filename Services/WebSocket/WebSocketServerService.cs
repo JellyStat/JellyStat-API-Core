@@ -1,3 +1,4 @@
+using Jellystat_API_Core.Models.WebSocket;
 using Newtonsoft.Json;
 using System.Collections.Concurrent;
 using System.Net.WebSockets;
@@ -95,9 +96,9 @@ namespace Jellystat_API_Core.Services.WebSocket
             _logger.LogInformation("Broadcast message sent to {Count} clients", tasks.Count);
         }
 
-        public async Task BroadcastObjectAsync(object obj, string? serverId = null)
+        public async Task BroadcastObjectAsync<T>(JellystatWebsocketMessage<T> obj, string? serverId = null)
         {
-            var json = JsonConvert.SerializeObject(obj);
+            var json = JsonConvert.SerializeObject(obj, Global.jsonSettings);
             await BroadcastMessageAsync(json, serverId);
         }
 

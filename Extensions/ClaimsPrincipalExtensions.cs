@@ -52,7 +52,7 @@ namespace Jellystat_API_Core.Extensions
 
             try
             {
-                var permissionKeys = JsonConvert.DeserializeObject<List<string>>(permissionsJson);
+                var permissionKeys = JsonConvert.DeserializeObject<List<string>>(permissionsJson, Global.jsonSettings);
                 if (permissionKeys == null)
                 {
                     return new List<PermissionTypes>();

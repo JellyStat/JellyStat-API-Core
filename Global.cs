@@ -2,6 +2,7 @@ using Jellystat_API_Core.Converters.Newtonsoft;
 using Jellystat_API_Core.Services.API;
 using Jellystat_API_Core.Services.WebSocket;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Serialization;
 
 namespace Jellystat_API_Core
 {

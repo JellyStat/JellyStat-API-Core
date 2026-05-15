@@ -5,7 +5,7 @@ using System.Reflection;
 
 namespace Jellystat_API_Core.Converters.Newtonsoft
 {
-    public class JsonDefaultContractResolver : DefaultContractResolver
+    public class JsonDefaultContractResolver : CamelCasePropertyNamesContractResolver
     {
         protected override JsonProperty CreateProperty(MemberInfo member, MemberSerialization memberSerialization)
         {
