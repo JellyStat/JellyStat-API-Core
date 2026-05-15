@@ -312,11 +312,37 @@ namespace Jellystat_API_Core.Controllers
                 }
             }
 
+            List<string> newValues = activities
+                                    .Where(a => a.hasChanges && a.Success)
+                                    .SelectMany(a => a.Changes)
+                                    .Select(c => c.NewValue)
+                                    .Distinct()
+                                    .ToList();
+
+            HashSet<string> existingItemIds = await context.Items
+                                                    .Where(i => newValues.Contains(i.Id))
+                                                    .Select(i => i.Id)
+                                                    .ToHashSetAsync();
+
+            foreach (var activity in activities.Where(a => a.hasChanges && a.Success))
+            {
+                foreach (var change in activity.Changes)
+                {
+                    if (!existingItemIds.Contains(change.NewValue))
+                    {
+                        activity.Success = false;
+                        activity.ErrorMessage = $"The new value '{change.NewValue}' for '{change.PropertyName}' does not exist in the Items table";
+                        break;
+                    }
+                }
+            }
+
             List<ChangeTracker> changeTrackers = activities
-                                                .Where(a => a.hasChanges)
+                                                .Where(a => a.hasChanges && a.Success)
                                                 .SelectMany(a => a.Changes)
                                                 .DistinctBy(ct => new { ct.PropertyName, ct.OldValue })
                                                 .ToList();
+
 
             using (var transaction = context.Database.BeginTransaction())
             {
