@@ -28,7 +28,7 @@ namespace Jellystat_API_Core.Models.API.Emby
 
         }
 
-        public PlayState? PlayState { private get; set; }
+        public PlayState? PlayState { get; set; }
 
         public override bool Paused
         {

@@ -4,5 +4,7 @@
     {
         public virtual bool IsPaused { get; set; } = false;
         public virtual string PlayMethod { get; set; } = "";
+        public virtual int SubtitleStreamIndex { get; set; }
+        public virtual int AudioStreamIndex { get; set; }
     }
 }

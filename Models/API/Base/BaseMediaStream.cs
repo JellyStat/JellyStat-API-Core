@@ -16,5 +16,6 @@ namespace Jellystat_API_Core.Models.API.Base
         public virtual MediaStreamType Type { get; set; }
         public virtual string? AspectRatio { get; set; }
         public virtual int? Index { get; set; }
+        public virtual int? Channels { get; set; }
     }
 }
