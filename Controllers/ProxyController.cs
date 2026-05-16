@@ -25,6 +25,8 @@ namespace Jellystat_API_Core.Controllers
                 return NotFound("API instance not found for provided Server Id");
             }
 
+            DeviceName = DeviceName.ToLowerInvariant();
+
             var response = await api.httpClient.GetAsync($"/web/assets/img/devices/{DeviceName}.svg");
 
             if (!response.IsSuccessStatusCode)
