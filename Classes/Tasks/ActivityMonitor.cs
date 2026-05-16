@@ -381,16 +381,12 @@ namespace Jellystat_API_Core.Classes.Tasks
         {
             IList<BaseSessionItem> sessionsItems = api.GetSessionData();
 
-
-            if (sessionsItems.IsNotEmpty())
+            JellystatWebsocketMessage<IList<BaseSessionItem>> message = new JellystatWebsocketMessage<IList<BaseSessionItem>>()
             {
-                JellystatWebsocketMessage<IList<BaseSessionItem>> message = new JellystatWebsocketMessage<IList<BaseSessionItem>>()
-                {
-                    Type = WebsocketServerTypes.Sessions,
-                    Data = sessionsItems
-                };
-                await Global.WebSocketServerService.BroadcastObjectAsync(message, api.config.Id);
-            }
+                Type = WebsocketServerTypes.Sessions,
+                Data = sessionsItems
+            };
+            await Global.WebSocketServerService.BroadcastObjectAsync(message, api.config.Id);
         }
     }
 }
