@@ -28,5 +28,7 @@ namespace Jellystat_API_Core.Models.API.Base
         public virtual string? SeriesId { get; set; }
         public virtual string? SeasonId { get; set; }
         public virtual long RuntimeTicks { get; set; } = 0;
+        public virtual int? ParentIndexNumber { get; set; }
+        public virtual int? IndexNumber { get; set; }
     }
 }
