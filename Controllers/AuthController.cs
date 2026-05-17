@@ -80,8 +80,20 @@ namespace Jellystat_API_Core.Controllers
         [HttpGet("Config", Name = "Config")]
         public ActionResult<List<Models.Jellystat.Server>> GetConfig()
         {
+            bool Authorized = HttpContext.User.Identity?.IsAuthenticated == true;
+
             List<iAPI> instances = _apiInstanceManager.GetAllInstances().ToList();
-            return instances.Select(i => i.config).ToList();
+            List<Models.Jellystat.Server> servers = instances.Select(i => i.config).ToList();
+            if (!Authorized)
+            {
+                foreach (Models.Jellystat.Server server in servers)
+                {
+                    server.ExternalURL = "";
+                    server.URL = "";
+                    server.TaskSettings = [];
+                }
+            }
+            return servers;
         }
 
         [HttpGet("/System/Info", Name = "/System/Info")]

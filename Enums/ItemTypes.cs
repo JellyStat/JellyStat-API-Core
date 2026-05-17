@@ -13,6 +13,7 @@ namespace Jellystat_API_Core.Enums
         Episode,
         Folder,
         Trailer,
+        TvChannel,
         Unknown
     }
 }
