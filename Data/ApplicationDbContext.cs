@@ -1,5 +1,6 @@
 using Jellystat_API_Core.Data.Schema;
 using Jellystat_API_Core.Data.Schema.Views;
+using Jellystat_API_Core.Data.Converters;
 using Microsoft.EntityFrameworkCore;
 
 namespace Jellystat_API_Core.Data
@@ -9,6 +10,14 @@ namespace Jellystat_API_Core.Data
         public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options)
             : base(options)
         {
+        }
+
+        protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+        {
+            configurationBuilder.Properties<DateTime>()
+                .HaveConversion<UtcDateTimeConverter>();
+            configurationBuilder.Properties<DateTime?>()
+                .HaveConversion<UtcNullableDateTimeConverter>();
         }
 
         public DbSet<Server> Servers { get; set; }
