@@ -1,6 +1,7 @@
 ﻿using Gridify;
 using Jellystat_API_Core.Attributes;
 using Jellystat_API_Core.Data;
+using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Extensions;
 using Jellystat_API_Core.Models.Jellystat;
 using Jellystat_API_Core.Services.API;
@@ -226,7 +227,7 @@ namespace Jellystat_API_Core.Controllers
                          .Sum() ?? 0),
 
                      Size = (context.Items
-                         .Where(item => item.LibraryId == library.Id)
+                         .Where(item => item.LibraryId == library.Id && (item.Type != ItemTypes.Series && item.Type != ItemTypes.Season))
                          .Select(item => (long?)item.Size)
                          .Sum() ?? 0),
 

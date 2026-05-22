@@ -271,7 +271,7 @@ namespace Jellystat_API_Core.Controllers
                        .Sum() ?? 0),
 
                    Size = (context.Items
-                       .Where(item => item.LibraryId == library.Id)
+                       .Where(item => item.LibraryId == library.Id && (item.Type != ItemTypes.Series && item.Type != ItemTypes.Season))
                        .Select(item => (long?)item.Size)
                        .Sum() ?? 0),
 
