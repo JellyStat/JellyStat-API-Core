@@ -405,22 +405,6 @@ namespace Jellystat_API_Core.Controllers
             return _query.Gridify(query);
         }
 
-        //Tasks
-        [HttpGet("StartSync", Name = "StartSync")]
-        [PermissionAuthorize(PermissionTypes.Administrator)]
-        public async Task<bool> StartSync(string ServerId)
-        {
-
-            iAPI? api = _apiInstanceManager.GetInstance(ServerId);
-            if (api == null)
-            {
-                throw new Exception("API instance not found");
-            }
-
-            await api.syncTask.FullSync();
-
-            return true;
-        }
 
 
         [PermissionAuthorize(PermissionTypes.Administrator)]
