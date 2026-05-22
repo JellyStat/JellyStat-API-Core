@@ -208,7 +208,7 @@ namespace Jellystat_API_Core.Controllers
 
         [HttpDelete("Activity", Name = "Activity")]
         [PermissionAuthorize(PermissionTypes.Administrator)]
-        public async Task<ActionResult> DeleteActivityAsync(string ServerId, List<string> ids)
+        public async Task<ActionResult> DeleteActivityAsync(string ServerId, [FromBody] List<string> ids)
         {
             using (var transaction = context.Database.BeginTransaction())
             {

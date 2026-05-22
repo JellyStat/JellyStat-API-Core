@@ -93,7 +93,6 @@ namespace Jellystat_API_Core.Services.WebSocket
             }
 
             await Task.WhenAll(tasks);
-            _logger.LogInformation("Broadcast message sent to {Count} clients", tasks.Count);
         }
 
         public async Task BroadcastObjectAsync<T>(JellystatWebsocketMessage<T> obj, string? serverId = null)
