@@ -1,6 +1,7 @@
 using Jellystat_API_Core.Classes.API.@interface;
 using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Models.Jellystat;
+using Jellystat_API_Core.Models.WebSocket;
 using Jellystat_API_Core.Services.API;
 using System.Collections.Concurrent;
 using System.Diagnostics;
@@ -17,6 +18,8 @@ namespace Jellystat_API_Core.Services.Tasks
         private readonly CancellationTokenSource _cancellationTokenSource;
         private Task? _processingTask;
         private Task? _schedulingTask;
+        private Task? _broadcastingTask;
+        private readonly ConcurrentDictionary<string, TaskSettings?> _currentRunningTasks;
 
         public TaskSchedulerService(
             ILogger<TaskSchedulerService> logger,
@@ -28,6 +31,44 @@ namespace Jellystat_API_Core.Services.Tasks
             _scheduledTasks = new ConcurrentDictionary<string, List<ScheduledTask>>();
             _queueSemaphore = new SemaphoreSlim(0);
             _cancellationTokenSource = new CancellationTokenSource();
+            _currentRunningTasks = new ConcurrentDictionary<string, TaskSettings?>();
+        }
+
+        private async Task BroadcastLoopAsync(CancellationToken cancellationToken)
+        {
+            _logger.LogInformation("Task scheduler broadcasting loop started. Broadcasting enqueued tasks every 2 seconds.");
+
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                try
+                {
+                    var serverIds = _scheduledTasks.Keys.ToList();
+                    foreach (var serverId in serverIds)
+                    {
+                        try
+                        {
+                            await BroadcastEnqueuedTasksAsync(serverId);
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error broadcasting enqueued tasks for server {ServerId}", serverId);
+                        }
+                    }
+
+                    await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                    _logger.LogInformation("Task scheduler broadcasting loop cancelled.");
+                    break;
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogError(ex, "Unexpected error in broadcasting loop.");
+                }
+            }
+
+            _logger.LogInformation("Task scheduler broadcasting loop stopped.");
         }
 
         public Task EnqueueTaskAsync(Server server, TaskSettings taskSettings)
@@ -70,6 +111,7 @@ namespace Jellystat_API_Core.Services.Tasks
             _logger.LogInformation("Task Scheduler Service is starting.");
             _processingTask = ProcessQueueAsync(_cancellationTokenSource.Token);
             _schedulingTask = ScheduleTasksAsync(_cancellationTokenSource.Token);
+            _broadcastingTask = BroadcastLoopAsync(_cancellationTokenSource.Token);
             return Task.CompletedTask;
         }
 
@@ -87,11 +129,41 @@ namespace Jellystat_API_Core.Services.Tasks
             {
                 await _schedulingTask;
             }
+
+            if (_broadcastingTask != null)
+            {
+                await _broadcastingTask;
+            }
         }
 
         public int GetQueueCount()
         {
             return _taskQueue.Count;
+        }
+
+        public async Task BroadcastEnqueuedTasksAsync(string serverId)
+        {
+            // Snapshot the queue and find any tasks for the specified server
+            var queuedTasks = _taskQueue.ToArray()
+                .Where(q => q.Server != null && q.Server.Id == serverId)
+                .Select(q => q.TaskSettings)
+                .ToList();
+
+            _currentRunningTasks.TryGetValue(serverId, out var currentTask);
+
+            var update = new Models.WebSocket.TaskQueueUpdate()
+            {
+                EnqueuedTasks = queuedTasks,
+                CurrentTask = currentTask
+            };
+
+            var message = new JellystatWebsocketMessage<Models.WebSocket.TaskQueueUpdate>()
+            {
+                Type = WebsocketServerTypes.TaskUpdate,
+                Data = update
+            };
+
+            await Global.WebSocketServerService.BroadcastObjectAsync(message, serverId);
         }
 
         private async Task ScheduleTasksAsync(CancellationToken cancellationToken)
@@ -150,6 +222,16 @@ namespace Jellystat_API_Core.Services.Tasks
                         var (server, taskSettings) = taskItem;
                         _logger.LogInformation($"Processing task {taskSettings.Task} for server {server.Name}");
 
+                        // Mark current running task for this server
+                        try
+                        {
+                            _currentRunningTasks[server.Id] = taskSettings;
+                        }
+                        catch
+                        {
+                            _currentRunningTasks.AddOrUpdate(server.Id, taskSettings, (k, v) => taskSettings);
+                        }
+
                         try
                         {
                             await ExecuteTaskAsync(server, taskSettings);
@@ -157,6 +239,10 @@ namespace Jellystat_API_Core.Services.Tasks
                         catch (Exception ex)
                         {
                             _logger.LogError(ex, $"Error executing task {taskSettings.Task} for server {server.Name}");
+                        }
+                        finally
+                        {
+                            _currentRunningTasks.TryRemove(server.Id, out _);
                         }
 
                         if (_taskQueue.Count > 0)

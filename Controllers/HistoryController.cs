@@ -240,7 +240,7 @@ namespace Jellystat_API_Core.Controllers
 
             var unlinkedIds = context.Activity
            .Where(a => a.ServerId == ServerId)
-           .Where(a => !context.Items.Any(i => i.Id == a.ItemId && i.ServerId == a.ServerId))
+           .Where(a => !context.Items.Any(i => i.Id == a.ItemId && i.ServerId == a.ServerId && !i.archived))
            .GroupBy(a => a.ItemId)
            .Select(g => g.Min(x => x.Id));
 
