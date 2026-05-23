@@ -2,7 +2,9 @@
 using Jellystat_API_Core.Classes.API.@interface;
 using Jellystat_API_Core.Data;
 using Jellystat_API_Core.Enums;
+using Jellystat_API_Core.Models.Jellystat;
 using Jellystat_API_Core.Services.API;
+using Jellystat_API_Core.Services.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
@@ -15,11 +17,13 @@ namespace Jellystat_API_Core.Controllers
     {
         private readonly ApplicationDbContext context;
         private readonly IAPIInstanceManager _apiInstanceManager;
+        private readonly ITaskSchedulerService _taskSchedulerService;
 
-        public TasksController(ApplicationDbContext context, IAPIInstanceManager apiIntanceManager)
+        public TasksController(ApplicationDbContext context, IAPIInstanceManager apiIntanceManager, ITaskSchedulerService taskSchedulerService)
         {
             this.context = context;
             _apiInstanceManager = apiIntanceManager;
+            _taskSchedulerService = taskSchedulerService;
         }
 
 
@@ -35,8 +39,12 @@ namespace Jellystat_API_Core.Controllers
                 return NotFound("API instance not found");
             }
 
-            await api.syncTask.FullSync();
-
+            TaskSettings? task = api.config.TaskSettings.FirstOrDefault(t => t.Task == TaskTypes.FullSync);
+            if (task == null)
+            {
+                return NotFound("Task not found");
+            }
+            await _taskSchedulerService.EnqueueTaskAsync(api.config, task);
             return Ok();
         }
 
@@ -51,7 +59,12 @@ namespace Jellystat_API_Core.Controllers
                 return NotFound("API instance not found");
             }
 
-            await api.syncTask.PartialSync();
+            TaskSettings? task = api.config.TaskSettings.FirstOrDefault(t => t.Task == TaskTypes.PartialSync);
+            if (task == null)
+            {
+                return NotFound("Task not found");
+            }
+            await _taskSchedulerService.EnqueueTaskAsync(api.config, task);
             return Ok();
         }
 
