@@ -128,6 +128,29 @@ namespace Jellystat_API_Core.Controllers
                         x => x.ExcludedUsers.DefaultIfEmpty(),
                         (x, t) => new TrackedUsers
                         {
+                            PlayCount = context.Activity
+                                 .Where(a => a.UserId == x.User.Id)
+                                 .Count(),
+
+                            PlayDuration = (context.Activity
+                                .Where(a => a.UserId == x.User.Id)
+                                .Select(a => (long?)a.Duration)
+                                .Sum() ?? 0),
+
+
+                            LatestActivity = context.Activity
+                                .Where(a => a.UserId == x.User.Id)
+                                .OrderByDescending(a => a.DateCreated)
+                                .Select(a => a)
+                                .FirstOrDefault(),
+
+
+                            LatestActivityDate = context.Activity
+                                .Where(a => a.UserId == x.User.Id)
+                                .OrderByDescending(a => a.DateCreated)
+                                .Select(a => a.DateCreated)
+                                .FirstOrDefault(),
+
                             Id = x.User.Id,
                             Username = x.User.Username,
                             ServerId = x.User.ServerId,
@@ -140,7 +163,7 @@ namespace Jellystat_API_Core.Controllers
 
         [PermissionAuthorize(PermissionTypes.Administrator)]
         [HttpPost("TrackedUsers", Name = "TrackedUsers")]
-        public async Task<ActionResult<List<TrackedUsers>>> SetTrackedUsers([FromBody] List<TrackedUsers> TrackedUsers)
+        public async Task<ActionResult> SetTrackedUsers([FromBody] List<TrackedUsers> TrackedUsers)
         {
 
             using (var transaction = context.Database.BeginTransaction())
@@ -151,7 +174,7 @@ namespace Jellystat_API_Core.Controllers
                     await context.BulkDeleteAsync(TrackedUsers.Where(u => u.Tracked).Select(u => new ExcludedUsers { UserId = u.Id, ServerId = u.ServerId }));
                     await context.BulkInsertOrUpdateAsync(TrackedUsers.Where(u => !u.Tracked).Select(u => new ExcludedUsers { ServerId = u.ServerId, UserId = u.Id }));
                     await transaction.CommitAsync();
-                    return Ok(TrackedUsers);
+                    return Ok();
 
                 }
                 catch (Exception ex)
