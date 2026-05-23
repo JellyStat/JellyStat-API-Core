@@ -151,6 +151,14 @@ namespace Jellystat_API_Core.Controllers
                                 .Select(a => a.DateCreated)
                                 .FirstOrDefault(),
 
+                            Item = context.Items
+                                .Where(it => it.Id == context.Activity
+                                    .Where(a => a.UserId == x.User.Id)
+                                    .OrderByDescending(a => a.DateCreated)
+                                    .Select(a => a.ItemId)
+                                    .FirstOrDefault())
+                                .FirstOrDefault(),
+
                             Id = x.User.Id,
                             Username = x.User.Username,
                             ServerId = x.User.ServerId,

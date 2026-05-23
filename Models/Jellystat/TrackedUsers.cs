@@ -5,6 +5,7 @@ namespace Jellystat_API_Core.Models.Jellystat
 {
     public class TrackedUsers : Users, iBaseStats
     {
+        public Items? Item { get; set; }
         public required bool Tracked { get; set; }
 
         public int? PlayCount { get; set; }
