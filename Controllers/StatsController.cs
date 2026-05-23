@@ -78,6 +78,8 @@ namespace Jellystat_API_Core.Controllers
                                     .Select(a => (DateTime?)a.DateCreated)
                                     .Max(),
 
+                    Library = context.Libraries.Where(l => l.Id == item.LibraryId).FirstOrDefault(),
+
                     // Item fields
                     Parent = item.Parent,
                     Name = item.Name,
@@ -159,6 +161,8 @@ namespace Jellystat_API_Core.Controllers
                                         .Contains(activity.ItemId))
                                     .OrderByDescending(a => a.DateCreated)
                                     .FirstOrDefault(),
+
+                    Library = context.Libraries.Where(l => l.Id == item.LibraryId).FirstOrDefault(),
 
                     // Item fields
                     Parent = item.Parent,

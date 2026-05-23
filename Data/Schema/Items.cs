@@ -31,9 +31,6 @@ namespace Jellystat_API_Core.Data.Schema
         [Newtonsoft.Json.JsonIgnore]
         [System.Text.Json.Serialization.JsonIgnore]
         public Server? Server { get; set; }
-
-        [Newtonsoft.Json.JsonIgnore]
-        [System.Text.Json.Serialization.JsonIgnore]
         public Libraries? Library { get; set; }
     }
 }

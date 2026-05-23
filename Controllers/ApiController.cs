@@ -389,6 +389,8 @@ namespace Jellystat_API_Core.Controllers
                         .Select(activity => activity.DateCreated)
                         .FirstOrDefault(),
 
+                    Library = context.Libraries.Where(l => l.Id == item.LibraryId).FirstOrDefault(),
+
                     // Item fields
                     Parent = item.Parent,
                     Name = item.Name,
