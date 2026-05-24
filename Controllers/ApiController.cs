@@ -314,6 +314,7 @@ namespace Jellystat_API_Core.Controllers
                            Type = group.Key,
                            Count = group.Count()
                        })
+                       .OrderBy(type => type.Type)
                        .ToList(),
 
                    LatestActivity = context.Activity
