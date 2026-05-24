@@ -35,7 +35,8 @@ namespace Jellystat_API_Core.Classes.Tasks
                 Debug.WriteLine($"Starting full sync for server {api.config.Name}");
                 await SyncUsers(context);
                 List<Libraries> libraries = await SyncLibraries(context);
-                await SyncLibraryItems(context, libraries);
+                List<ExcludedLibraries> excludedLibraries = await context.ExcludedLibraries.Where(l => l.ServerId == api.config.Id).ToListAsync();
+                await SyncLibraryItems(context, libraries.Where(l => !excludedLibraries.Any(el => el.LibraryId == l.Id)).ToList());
                 await UpdateFromStaging(context);
                 Debug.WriteLine($"Full sync completed for server {api.config.Name}");
 
@@ -103,9 +104,9 @@ namespace Jellystat_API_Core.Classes.Tasks
 
         private async Task<List<Libraries>> SyncLibraries(ApplicationDbContext context)
         {
-            List<ExcludedLibraries> excludedLibraries = await context.ExcludedLibraries.Where(l => l.ServerId == api.config.Id).ToListAsync();
+            //List<ExcludedLibraries> excludedLibraries = await context.ExcludedLibraries.Where(l => l.ServerId == api.config.Id).ToListAsync();
 
-            List<BaseLibrary> libraries = (await api.GetLibraries()).Where(l => !excludedLibraries.Any(el => el.LibraryId == l.Id)).ToList();
+            List<BaseLibrary> libraries = (await api.GetLibraries()).ToList();
             List<Libraries> existingLibraries = await context.Libraries.Where(l => l.ServerId == api.config.Id).ToListAsync();
 
             List<Libraries> librariesToArchive = existingLibraries.Where(l => !libraries.Any(el => el.Id == l.Id)).ToList();

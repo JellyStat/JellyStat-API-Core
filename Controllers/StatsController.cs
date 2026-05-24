@@ -203,7 +203,7 @@ namespace Jellystat_API_Core.Controllers
                 : DateTime.UtcNow.AddDays(-days);
 
             var _query = context.Libraries
-                 .Where(i => i.ServerId == ServerId)
+                 .Where(i => i.ServerId == ServerId && !context.ExcludedLibraries.Select(el => el.LibraryId).Contains(i.Id))
                  .Select(library => new LibrariesWithStats
                  {
                      PlayCount = context.Activity

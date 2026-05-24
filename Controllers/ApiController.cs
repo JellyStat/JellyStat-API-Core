@@ -275,7 +275,8 @@ namespace Jellystat_API_Core.Controllers
             }
 
             var _query = context.Libraries
-               .Where(i => i.ServerId == ServerId)
+               .Where(l => l.ServerId == ServerId && !context.ExcludedLibraries
+                   .Any(el => el.ServerId == ServerId && el.LibraryId == l.Id))
                .Select(library => new LibrariesWithStats
                {
                    // Stats fields - calculated from activity on items in this library
