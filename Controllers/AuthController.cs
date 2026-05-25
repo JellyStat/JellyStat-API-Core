@@ -277,11 +277,21 @@ namespace Jellystat_API_Core.Controllers
             return Ok(credentials);
         }
 
-        [Authorize]
-        [PermissionAuthorize(PermissionTypes.Administrator)]
+        //[Authorize]
+        //[PermissionAuthorize(PermissionTypes.Administrator)]
         [HttpPost("CreateUser", Name = "CreateUser")]
         public async Task<ActionResult> CreateUser([FromBody] LocalUser user)
         {
+            bool isConfigured = context.LocalUsers.Count() > 0;
+            bool Authorized = HttpContext.User.Identity?.IsAuthenticated == true;
+            bool isAdmin = Authorized && HttpContext.User.IsAdministrator();
+
+            if (isConfigured && !isAdmin)
+            {
+                return Unauthorized();
+            }
+
+
             if (user.Username == null || user.Password == null)
             {
                 return BadRequest("Username and password are required");

@@ -50,13 +50,16 @@ namespace Jellystat_API_Core.Controllers
                 return BadRequest("Invalid URL");
             }
 
-            if (Uri.TryCreate(server.ExternalURL, UriKind.Absolute, out Uri? uriExt))
+            if (server.ExternalURL.IsNotEmpty())
             {
-                server.ExternalURL = uriExt.GetLeftPart(UriPartial.Authority);
-            }
-            else
-            {
-                return BadRequest("Invalid External URL");
+                if (Uri.TryCreate(server.ExternalURL, UriKind.Absolute, out Uri? uriExt))
+                {
+                    server.ExternalURL = uriExt.GetLeftPart(UriPartial.Authority);
+                }
+                else
+                {
+                    return BadRequest("Invalid External URL");
+                }
             }
 
 
