@@ -356,6 +356,129 @@ namespace Jellystat_API_Core.Controllers
                 .Gridify(query);
         }
 
+        [HttpGet("StatsByDay", Name = "StatsByDay")]
+        [DefaultGridifyPageSize(5)]
+        public List<ChartStats> GetStatsByDay(string? ServerId, int days = 30, StatMetric metric = StatMetric.Date)
+        {
+            if (!HttpContext.User.IsAdministrator() || ServerId == null)
+            {
+                ServerId = HttpContext.User.GetServerId();
+            }
+
+            string dateFormat = metric == StatMetric.Date ? "yyyy-MM-dd" : "";
+
+            DateTime cutoffDate = days == 0
+                    ? DateTime.MinValue
+                    : DateTime.UtcNow.AddDays(-days);
+            // Join activity -> items -> libraries, prepare a base projection
+            var baseQuery = context.Activity
+                .Where(activity => activity.DateCreated >= cutoffDate && activity.ServerId == ServerId)
+                .Join(context.Items,
+                      activity => activity.ItemId,
+                      item => item.Id,
+                      (activity, item) => new { activity, item })
+                .Join(context.Libraries,
+                      ai => ai.item.LibraryId,
+                      lib => lib.Id,
+                      (ai, lib) => new { ai.activity, ai.item, lib })
+                .Select(x => new
+                {
+                    DateCreated = x.activity.DateCreated,
+                    LibraryName = x.lib.Name,
+                    Duration = (long?)x.activity.Duration ?? 0L
+                });
+
+            List<dynamic> grouped = null!;
+
+            if (metric == StatMetric.Date)
+            {
+                grouped = baseQuery
+                    .Select(x => new { Key = x.DateCreated.Date, x.LibraryName, x.Duration })
+                    .GroupBy(x => x.Key)
+                    .Select(g => new
+                    {
+                        Date = g.Key,
+                        Libraries = g.GroupBy(x => x.LibraryName)
+                                     .Select(lg => new
+                                     {
+                                         LibraryName = lg.Key,
+                                         ActivityCount = lg.Count(),
+                                         PlayDuration = lg.Sum(y => y.Duration)
+                                     })
+                                     .ToList()
+                    })
+                    .AsEnumerable()
+                    .Select(a => (dynamic)a)
+                    .ToList();
+            }
+            else if (metric == StatMetric.Day)
+            {
+                grouped = baseQuery
+                    .Select(x => new { Key = x.DateCreated.DayOfWeek, x.LibraryName, x.Duration })
+                    .GroupBy(x => x.Key)
+                    .Select(g => new
+                    {
+                        Date = g.Key,
+                        Libraries = g.GroupBy(x => x.LibraryName)
+                                     .Select(lg => new
+                                     {
+                                         LibraryName = lg.Key,
+                                         ActivityCount = lg.Count(),
+                                         PlayDuration = lg.Sum(y => y.Duration)
+                                     })
+                                     .ToList()
+                    })
+                    .AsEnumerable()
+                    .Select(a => (dynamic)a)
+                    .ToList();
+            }
+            else // Hour
+            {
+                grouped = baseQuery
+                    .Select(x => new { Key = x.DateCreated.Hour, x.LibraryName, x.Duration })
+                    .GroupBy(x => x.Key)
+                    .Select(g => new
+                    {
+                        Date = g.Key,
+                        Libraries = g.GroupBy(x => x.LibraryName)
+                                     .Select(lg => new
+                                     {
+                                         LibraryName = lg.Key,
+                                         ActivityCount = lg.Count(),
+                                         PlayDuration = lg.Sum(y => y.Duration)
+                                     })
+                                     .ToList()
+                    })
+                    .AsEnumerable()
+                    .Select(a => (dynamic)a)
+                    .ToList();
+            }
+
+            // Map to ChartStats model: Key = date, Stats = list of ChartStat (Legend, Count, PlayDuration)
+            var result = new List<ChartStats>();
+            foreach (var day in grouped)
+            {
+                var cs = new ChartStats
+                {
+                    Key = day.Date.ToString(dateFormat)
+                };
+
+                foreach (var lib in day.Libraries)
+                {
+                    cs.Stats.Add(new ChartStat
+                    {
+                        Legend = lib.LibraryName ?? "Unknown",
+                        Count = lib.ActivityCount,
+                        PlayDuration = lib.PlayDuration
+                    });
+                }
+
+                result.Add(cs);
+            }
+
+            return result;
+        }
+
     }
 
 }
