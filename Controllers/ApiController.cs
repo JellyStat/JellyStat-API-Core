@@ -179,9 +179,58 @@ namespace Jellystat_API_Core.Controllers
 
                 try
                 {
-                    await context.BulkDeleteAsync(TrackedUsers.Where(u => u.Tracked).Select(u => new ExcludedUsers { UserId = u.Id, ServerId = u.ServerId }));
-                    await context.BulkInsertOrUpdateAsync(TrackedUsers.Where(u => !u.Tracked).Select(u => new ExcludedUsers { ServerId = u.ServerId, UserId = u.Id }));
+                    List<ExcludedUsers> addToList = TrackedUsers.Where(u => !u.Tracked).Select(u => new ExcludedUsers { UserId = u.Id, ServerId = u.ServerId }).ToList();
+                    List<ExcludedUsers> removeFromList = TrackedUsers.Where(u => u.Tracked).Select(u => new ExcludedUsers { UserId = u.Id, ServerId = u.ServerId }).ToList();
+
+                    if (removeFromList.IsNotEmpty())
+                    {
+                        await context.BulkDeleteAsync(TrackedUsers.Where(u => u.Tracked).Select(u => new ExcludedUsers { UserId = u.Id, ServerId = u.ServerId }));
+                    }
+                    if (addToList.IsNotEmpty())
+                    {
+                        await context.BulkInsertOrUpdateAsync(TrackedUsers.Where(u => !u.Tracked).Select(u => new ExcludedUsers { ServerId = u.ServerId, UserId = u.Id }));
+                    }
                     await transaction.CommitAsync();
+
+                    List<string> uniqueServerIds = TrackedUsers
+                        .Select(t => t.ServerId)
+                        .Where(s => !string.IsNullOrEmpty(s))
+                        .Distinct()
+                        .ToList();
+
+                    foreach (var serverId in uniqueServerIds)
+                    {
+                        iAPI? api = _apiInstanceManager.GetInstance(serverId);
+                        if (api == null) continue;
+
+                        List<ExcludedUsers> exUsers = api.excludedUsers ?? new List<ExcludedUsers>();
+
+                        // Remove users that should no longer be excluded for this server
+                        var removeIds = removeFromList
+                            .Where(r => r.ServerId == serverId)
+                            .Select(r => r.UserId)
+                            .ToHashSet();
+
+                        if (removeIds.Count > 0)
+                        {
+                            exUsers.RemoveAll(e => removeIds.Contains(e.UserId));
+                        }
+
+                        // Add users that should be excluded but are not present yet
+                        var existingIds = exUsers.Select(e => e.UserId).ToHashSet();
+                        var toAdd = addToList
+                            .Where(a => a.ServerId == serverId && !existingIds.Contains(a.UserId))
+                            .ToList();
+
+                        if (toAdd.Count > 0)
+                        {
+                            exUsers.AddRange(toAdd);
+                        }
+
+                        // Ensure the api instance has the updated reference
+                        api.excludedUsers = exUsers;
+                    }
+
                     return Ok();
 
                 }
@@ -238,10 +287,57 @@ namespace Jellystat_API_Core.Controllers
 
                 try
                 {
-                    await context.BulkDeleteAsync(TrackedLibraries.Where(u => u.Tracked).Select(u => new ExcludedLibraries { LibraryId = u.Id, ServerId = u.ServerId }));
-                    await context.BulkInsertOrUpdateAsync(TrackedLibraries.Where(u => !u.Tracked).Select(u => new ExcludedLibraries { ServerId = u.ServerId, LibraryId = u.Id }));
+                    List<ExcludedLibraries> addToList = TrackedLibraries.Where(u => !u.Tracked).Select(u => new ExcludedLibraries { LibraryId = u.Id, ServerId = u.ServerId }).ToList();
+                    List<ExcludedLibraries> removeFromList = TrackedLibraries.Where(u => u.Tracked).Select(u => new ExcludedLibraries { LibraryId = u.Id, ServerId = u.ServerId }).ToList();
+
+                    if (removeFromList.IsNotEmpty())
+                    {
+                        await context.BulkDeleteAsync(removeFromList);
+                    }
+                    if (addToList.IsNotEmpty())
+                    {
+                        await context.BulkInsertOrUpdateAsync(addToList);
+                    }
+
                     await transaction.CommitAsync();
-                    return Ok(TrackedLibraries);
+
+                    List<string> uniqueServerIds = TrackedLibraries
+                        .Select(t => t.ServerId)
+                        .Where(s => !string.IsNullOrEmpty(s))
+                        .Distinct()
+                        .ToList();
+
+                    foreach (var serverId in uniqueServerIds)
+                    {
+                        iAPI? api = _apiInstanceManager.GetInstance(serverId);
+                        if (api == null) continue;
+
+                        List<ExcludedLibraries> exLibs = api.excludedLibraries ?? new List<ExcludedLibraries>();
+
+                        var removeIds = removeFromList
+                            .Where(r => r.ServerId == serverId)
+                            .Select(r => r.LibraryId)
+                            .ToHashSet();
+
+                        if (removeIds.Count > 0)
+                        {
+                            exLibs.RemoveAll(e => removeIds.Contains(e.LibraryId));
+                        }
+
+                        var existingIds = exLibs.Select(e => e.LibraryId).ToHashSet();
+                        var toAdd = addToList
+                            .Where(a => a.ServerId == serverId && !existingIds.Contains(a.LibraryId))
+                            .ToList();
+
+                        if (toAdd.Count > 0)
+                        {
+                            exLibs.AddRange(toAdd);
+                        }
+
+                        api.excludedLibraries = exLibs;
+                    }
+
+                    return Ok();
 
                 }
                 catch (Exception ex)
