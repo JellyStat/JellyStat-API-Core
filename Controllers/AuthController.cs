@@ -83,14 +83,20 @@ namespace Jellystat_API_Core.Controllers
             bool Authorized = HttpContext.User.Identity?.IsAuthenticated == true;
 
             List<iAPI> instances = _apiInstanceManager.GetAllInstances().ToList();
-            List<Models.Jellystat.Server> servers = instances.Select(i => i.config).ToList();
+            // Deep-clone the server configs so changes to the returned list won't affect the original instances
+            List<Models.Jellystat.Server> servers = instances
+                .Select(i => JsonConvert.DeserializeObject<Models.Jellystat.Server>(JsonConvert.SerializeObject(i.config)))
+                .Where(s => s != null)
+                .Select(s => s!)
+                .ToList();
+
             if (!Authorized)
             {
                 foreach (Models.Jellystat.Server server in servers)
                 {
-                    server.ExternalURL = "";
-                    server.URL = "";
-                    server.TaskSettings = [];
+                    server.ExternalURL = string.Empty;
+                    server.URL = string.Empty;
+                    server.TaskSettings = new List<TaskSettings>();
                 }
             }
             return servers;
