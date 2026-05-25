@@ -358,7 +358,9 @@ namespace Jellystat_API_Core.Controllers
             {
                 ServerId = HttpContext.User.GetServerId();
             }
-            return context.Users.Where(u => u.ServerId == ServerId).Gridify(query);
+
+            return context.Users.Where(u => u.ServerId == ServerId && !context.ExcludedUsers
+                   .Any(el => el.ServerId == ServerId && el.UserId == u.Id)).Gridify(query);
         }
 
         [HttpGet("Libraries", Name = "Libraries")]

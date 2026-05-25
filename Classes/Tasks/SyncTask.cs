@@ -71,9 +71,8 @@ namespace Jellystat_API_Core.Classes.Tasks
 
         private async Task SyncUsers(ApplicationDbContext context)
         {
-            List<ExcludedUsers> excludedUsers = await context.ExcludedUsers.Where(u => u.ServerId == api.config.Id).ToListAsync();
 
-            IList<BaseUser> users = (await api.GetUsers()).Where(u => !excludedUsers.Any(eu => eu.UserId == u.Id)).ToList();
+            IList<BaseUser> users = (await api.GetUsers()).ToList();
             List<Users> existingUsers = await context.Users.Where(u => u.ServerId == api.config.Id).ToListAsync();
 
 
