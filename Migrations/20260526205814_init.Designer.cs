@@ -16,7 +16,7 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Jellystat_API_Core.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260515105003_init")]
+    [Migration("20260526205814_init")]
     partial class init
     {
         /// <inheritdoc />
@@ -275,6 +275,12 @@ namespace Jellystat_API_Core.Migrations
                         .HasColumnType("bigint")
                         .HasDefaultValue(0L);
 
+                    b.Property<string>("Codec")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("");
+
                     b.Property<DateTime?>("DateCreated")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -329,6 +335,12 @@ namespace Jellystat_API_Core.Migrations
                         .HasColumnType("integer");
 
                     b.Property<string>("Path")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("");
+
+                    b.Property<string>("Resolution")
+                        .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasColumnType("text")
                         .HasDefaultValue("");
@@ -394,6 +406,12 @@ namespace Jellystat_API_Core.Migrations
                         .HasColumnType("bigint")
                         .HasDefaultValue(0L);
 
+                    b.Property<string>("Codec")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("");
+
                     b.Property<DateTime?>("DateCreated")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("timestamp with time zone")
@@ -448,6 +466,12 @@ namespace Jellystat_API_Core.Migrations
                         .HasColumnType("integer");
 
                     b.Property<string>("Path")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("");
+
+                    b.Property<string>("Resolution")
+                        .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasColumnType("text")
                         .HasDefaultValue("");
@@ -652,6 +676,10 @@ namespace Jellystat_API_Core.Migrations
                     b.Property<long>("Bitrate")
                         .HasColumnType("bigint");
 
+                    b.Property<string>("Codec")
+                        .IsRequired()
+                        .HasColumnType("text");
+
                     b.Property<DateTime?>("DateCreated")
                         .HasColumnType("timestamp with time zone");
 
@@ -699,6 +727,13 @@ namespace Jellystat_API_Core.Migrations
                         .HasColumnType("integer");
 
                     b.Property<string>("Path")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Resolution")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("RootId")
                         .HasColumnType("text");
 
                     b.Property<string>("ServerId")

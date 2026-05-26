@@ -77,7 +77,8 @@ namespace Jellystat_API_Core.Controllers
                               a.Container,
                               a.IpAddress,
                               a.RuntimeTicks,
-                              LibraryId = i.LibraryId // Joined field
+                              LibraryId = i.LibraryId,
+
                           });
 
                 // 3. Apply Gridify

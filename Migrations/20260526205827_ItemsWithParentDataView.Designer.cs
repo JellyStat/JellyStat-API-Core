@@ -16,8 +16,8 @@ using Npgsql.EntityFrameworkCore.PostgreSQL.Metadata;
 namespace Jellystat_API_Core.Migrations
 {
     [DbContext(typeof(ApplicationDbContext))]
-    [Migration("20260526201535_addCodecAndResoultionToItems")]
-    partial class addCodecAndResoultionToItems
+    [Migration("20260526205827_ItemsWithParentDataView")]
+    partial class ItemsWithParentDataView
     {
         /// <inheritdoc />
         protected override void BuildTargetModel(ModelBuilder modelBuilder)

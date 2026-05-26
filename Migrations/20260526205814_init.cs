@@ -243,7 +243,9 @@ namespace Jellystat_API_Core.Migrations
                     ParentId = table.Column<string>(type: "text", nullable: true, defaultValue: ""),
                     ParentIndex = table.Column<int>(type: "integer", nullable: true),
                     Index = table.Column<int>(type: "integer", nullable: true),
-                    archived = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false)
+                    archived = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
+                    Codec = table.Column<string>(type: "text", nullable: false, defaultValue: ""),
+                    Resolution = table.Column<string>(type: "text", nullable: false, defaultValue: "")
                 },
                 constraints: table =>
                 {
@@ -283,7 +285,9 @@ namespace Jellystat_API_Core.Migrations
                     ParentId = table.Column<string>(type: "text", nullable: true, defaultValue: ""),
                     ParentIndex = table.Column<int>(type: "integer", nullable: true),
                     Index = table.Column<int>(type: "integer", nullable: true),
-                    archived = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false)
+                    archived = table.Column<bool>(type: "boolean", nullable: false, defaultValue: false),
+                    Codec = table.Column<string>(type: "text", nullable: false, defaultValue: ""),
+                    Resolution = table.Column<string>(type: "text", nullable: false, defaultValue: "")
                 },
                 constraints: table =>
                 {

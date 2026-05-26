@@ -513,7 +513,9 @@ namespace Jellystat_API_Core.Controllers
                     ParentId = item.ParentId,
                     ParentIndex = item.ParentIndex,
                     Index = item.Index,
-                    archived = item.archived
+                    archived = item.archived,
+                    Codec = item.Codec,
+                    Resolution = item.Resolution
                 });
 
             return _query.Gridify(query);
