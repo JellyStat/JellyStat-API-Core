@@ -57,7 +57,8 @@
             }
 
             // 5. Explicitly return "Unknown" if it falls below the minimum threshold (240p)
-            return $"Unknown {width}x{height} - effectiveWidth {effectiveWidth}";
+            //return $"Unknown {width}x{height} - effectiveWidth {effectiveWidth}";
+            return "SD";
         }
 
         /// <summary>
