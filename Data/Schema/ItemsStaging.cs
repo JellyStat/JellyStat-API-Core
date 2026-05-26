@@ -28,6 +28,9 @@ namespace Jellystat_API_Core.Data.Schema
 
         public bool archived { get; set; } = false;
 
+        public string Codec { get; set; } = "";
+        public string Resolution { get; set; } = "";
+
 
         public Server? Server { get; set; }
 

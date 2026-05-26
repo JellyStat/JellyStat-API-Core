@@ -1,6 +1,6 @@
+using Jellystat_API_Core.Data.Converters;
 using Jellystat_API_Core.Data.Schema;
 using Jellystat_API_Core.Data.Schema.Views;
-using Jellystat_API_Core.Data.Converters;
 using Microsoft.EntityFrameworkCore;
 
 namespace Jellystat_API_Core.Data
@@ -162,6 +162,8 @@ namespace Jellystat_API_Core.Data
                 entity.Property(e => e.ParentIndex);
                 entity.Property(e => e.Index);
                 entity.Property(e => e.archived).HasDefaultValue(false);
+                entity.Property(e => e.Codec).HasDefaultValue("");
+                entity.Property(e => e.Resolution).HasDefaultValue("");
 
             });
 
@@ -196,6 +198,8 @@ namespace Jellystat_API_Core.Data
                 entity.Property(e => e.ParentIndex);
                 entity.Property(e => e.Index);
                 entity.Property(e => e.archived).HasDefaultValue(false);
+                entity.Property(e => e.Codec).HasDefaultValue("");
+                entity.Property(e => e.Resolution).HasDefaultValue("");
 
             });
 

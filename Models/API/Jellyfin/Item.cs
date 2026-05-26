@@ -1,5 +1,6 @@
 ﻿using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Extensions;
+using Jellystat_API_Core.Helpers;
 using Jellystat_API_Core.Models.API.Base;
 
 namespace Jellystat_API_Core.Models.API.Jellyfin
@@ -27,6 +28,23 @@ namespace Jellystat_API_Core.Models.API.Jellyfin
         public override int? ParentIndex => Type == ItemTypes.Episode ? ParentIndexNumber : null;
         public override int? Index => Type == ItemTypes.Season || Type == ItemTypes.Episode ? IndexNumber : null;
         public override long? RunTimeTicks => MediaSources.Where(ms => ms.Id == Id).FirstOrDefault(defaultValue: null)?.RunTimeTicks ?? 0;
+        public override string Codec => MediaStreams.Where(ms => ms.Type == MediaStreamType.Video).FirstOrDefault(defaultValue: null)?.Codec ?? "";
+        public override string Resolution
+        {
+            get
+            {
+                string resolution = "";
+                BaseMediaStream? videoStream = MediaStreams.Where(ms => ms.Type == MediaStreamType.Video).FirstOrDefault(defaultValue: null);
+                if (videoStream == null) return resolution;
+
+                int width = videoStream.Width ?? 0;
+                int height = videoStream.Height ?? 0;
+                string? aspectRatio = videoStream.AspectRatio;
+
+                resolution = VideoMetadataParser.GetResolutionLabel(width, height, aspectRatio);
+                return resolution;
+            }
+        }
 
 
 

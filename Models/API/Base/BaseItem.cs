@@ -26,6 +26,9 @@ namespace Jellystat_API_Core.Models.API.Base
         public virtual int? ParentIndex { get; set; }
         public virtual int? Index { get; set; }
 
+        public virtual string Codec { get; set; } = "";
+        public virtual string Resolution { get; set; } = "";
+
 
     }
 }

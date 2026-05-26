@@ -203,7 +203,9 @@ namespace Jellystat_API_Core.Classes.Tasks
                                 Bitrate = i.Bitrate,
                                 ParentId = i.ParentId,
                                 ParentIndex = i.ParentIndex,
-                                Index = i.Index
+                                Index = i.Index,
+                                Codec = i.Codec,
+                                Resolution = i.Resolution,
                             }));
 
                             index += items.Count;
@@ -276,7 +278,10 @@ namespace Jellystat_API_Core.Classes.Tasks
                         .SetProperty(p => p.target.ParentIndex, p => p.source.ParentIndex)
                         .SetProperty(p => p.target.Index, p => p.source.Index)
                         .SetProperty(p => p.target.DateCreated, p => p.source.DateCreated)
-                        .SetProperty(p => p.target.archived, false));
+                        .SetProperty(p => p.target.archived, false)
+                        .SetProperty(p => p.target.Codec, p => p.source.Codec)
+                        .SetProperty(p => p.target.Resolution, p => p.source.Resolution)
+                        );
 
                     // Insert new items using AddRangeAsync with IQueryable
                     var newItemsQuery = context.ItemsStaging
@@ -301,7 +306,9 @@ namespace Jellystat_API_Core.Classes.Tasks
                             ParentIndex = s.ParentIndex,
                             Index = s.Index,
                             DateCreated = s.DateCreated,
-                            archived = false
+                            archived = false,
+                            Codec = s.Codec,
+                            Resolution = s.Resolution,
                         });
 
                     await context.Items.AddRangeAsync(newItemsQuery);
