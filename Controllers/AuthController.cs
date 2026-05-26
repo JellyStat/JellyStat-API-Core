@@ -4,6 +4,7 @@ using Jellystat_API_Core.Data;
 using Jellystat_API_Core.Data.Schema;
 using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Extensions;
+using Jellystat_API_Core.Helpers;
 using Jellystat_API_Core.Models.Jellystat;
 using Jellystat_API_Core.Services.API;
 using Microsoft.AspNetCore.Authorization;
@@ -282,7 +283,7 @@ namespace Jellystat_API_Core.Controllers
         [HttpPost("CreateUser", Name = "CreateUser")]
         public async Task<ActionResult> CreateUser([FromBody] LocalUser user)
         {
-            bool isConfigured = context.LocalUsers.Count() > 0;
+            bool isConfigured = Global.IsConfigured;
             bool Authorized = HttpContext.User.Identity?.IsAuthenticated == true;
             bool isAdmin = Authorized && HttpContext.User.IsAdministrator();
 
@@ -316,6 +317,10 @@ namespace Jellystat_API_Core.Controllers
                     var credentials = generateTokens(user.Username, permissions, null);
 
                     await transaction.CommitAsync();
+                    if (!isConfigured)
+                    {
+                        await new ConfigurationHelper().CheckIsConfiguredAsync(context);
+                    }
                     return Ok(credentials);
 
                 }

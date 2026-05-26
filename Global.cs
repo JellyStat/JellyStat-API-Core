@@ -2,7 +2,6 @@ using Jellystat_API_Core.Converters.Newtonsoft;
 using Jellystat_API_Core.Services.API;
 using Jellystat_API_Core.Services.WebSocket;
 using Newtonsoft.Json;
-using Newtonsoft.Json.Serialization;
 
 namespace Jellystat_API_Core
 {
@@ -34,5 +33,7 @@ namespace Jellystat_API_Core
         public static string JwtIssuer = "Jellystat";
 
         public static string UserAgent = "JellystatAPI/1.0.0";
+
+        public static bool IsConfigured = false;
     }
 }

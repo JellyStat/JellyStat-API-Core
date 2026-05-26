@@ -4,6 +4,7 @@ using Jellystat_API_Core.Converters;
 using Jellystat_API_Core.Data;
 using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Extensions;
+using Jellystat_API_Core.Helpers;
 using Jellystat_API_Core.Services.API;
 using Jellystat_API_Core.Services.Tasks;
 using Jellystat_API_Core.Services.WebSocket;
@@ -178,6 +179,7 @@ using (var scope = app.Services.CreateScope())
     Global.WebSocketClientService = scope.ServiceProvider.GetRequiredService<IWebSocketClientService>();
     Global.APIInstanceManager = scope.ServiceProvider.GetRequiredService<IAPIInstanceManager>();
     Global.WebSocketServerService = scope.ServiceProvider.GetRequiredService<IWebSocketServerService>();
+
 }
 
 //Global.ServiceProvider = app.Services;
@@ -236,6 +238,9 @@ using (var scope = app.Services.CreateScope())
     {
         await context.SaveChangesAsync();
     }
+
+
+    await new ConfigurationHelper().CheckIsConfiguredAsync(context);
 
 }
 //}

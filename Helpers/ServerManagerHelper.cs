@@ -36,6 +36,10 @@ namespace Jellystat_API_Core.Helpers
 
                 }
                 await Global.APIInstanceManager.RegisterInstanceAsync(server);
+                if (!Global.IsConfigured)
+                {
+                    await new ConfigurationHelper().CheckIsConfiguredAsync(context);
+                }
                 return Global.APIInstanceManager.GetInstance(server.Id)?.config;
             }
             catch (Exception ex)

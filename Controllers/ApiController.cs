@@ -35,10 +35,18 @@ namespace Jellystat_API_Core.Controllers
         }
 
 
-        [PermissionAuthorize(PermissionTypes.Administrator)]
+        [AllowAnonymous]
         [HttpPost("UpdateConfig", Name = "UpdateConfig")]
         public async Task<ActionResult<Models.Jellystat.Server?>> AddOrUpdateServer([FromBody] AddServer server)
         {
+            bool isConfigured = Global.IsConfigured;
+            bool Authorized = HttpContext.User.Identity?.IsAuthenticated == true;
+            bool isAdmin = Authorized && HttpContext.User.IsAdministrator();
+
+            if (isConfigured && !isAdmin)
+            {
+                return Unauthorized();
+            }
             ServerManagerHelper serverHelper = new ServerManagerHelper();
 
             if (Uri.TryCreate(server.URL, UriKind.Absolute, out Uri? uri))
