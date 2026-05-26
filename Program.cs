@@ -26,7 +26,7 @@ string? dbPassword = builder.Configuration["DB_PASSWORD"];
 double CompletionThreshold = builder.Configuration.GetValue<double?>("COMPLETION_THRESHOLD_PERCENTAGE") ?? Global.CompletionThreshold;
 int NewWatchThresholdHours = builder.Configuration.GetValue<int?>("NEW_WATCH_EVENT_THRESHOLD_HOURS") ?? Global.NewWatchThresholdHours;
 int MinimumDurationThreshold = builder.Configuration.GetValue<int?>("MINIMUM_SECONDS_TO_INCLUDE_PLAYBACK") ?? Global.MinimumDurationThreshold;
-string UiURI = builder.Configuration["UI_URI"] ?? "http://localhost:5020";
+string UiURI = builder.Configuration["UI_URI"] ?? "";
 
 
 var jwtKey = builder.Configuration["JWT_KEY"] ?? Global.JwtKey;
@@ -152,7 +152,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("DefaultCors", policy =>
     {
-        if (builder.Environment.IsDevelopment())
+        if (builder.Environment.IsDevelopment() || !string.IsNullOrEmpty(UiURI))
         {
             policy.AllowAnyOrigin()
                   .AllowAnyHeader()
