@@ -85,8 +85,11 @@ namespace Jellystat_API_Core.Controllers
 
             List<iAPI> instances = _apiInstanceManager.GetAllInstances().ToList();
             // Deep-clone the server configs so changes to the returned list won't affect the original instances
+            // Use ObjectCreationHandling.Replace so existing collection initializers on the model aren't populated into
+            // (which would cause duplicate TaskSettings entries) — instead the collections are replaced with the deserialized ones.
+            var jsonSettings = new JsonSerializerSettings { ObjectCreationHandling = ObjectCreationHandling.Replace };
             List<Models.Jellystat.Server> servers = instances
-                .Select(i => JsonConvert.DeserializeObject<Models.Jellystat.Server>(JsonConvert.SerializeObject(i.config)))
+                .Select(i => JsonConvert.DeserializeObject<Models.Jellystat.Server>(JsonConvert.SerializeObject(i.config), jsonSettings))
                 .Where(s => s != null)
                 .Select(s => s!)
                 .ToList();

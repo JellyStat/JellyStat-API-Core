@@ -23,7 +23,8 @@ namespace Jellystat_API_Core.Classes.Tasks
         public override bool IsRunning => _monitoringTask != null && !_monitoringTask.IsCompleted;
 
         private List<ActivityStaging> watchdogData { get; set; } = [];
-        private List<Data.Schema.Activity> latestActivityCache { get; set; } = [];
+        //private List<Data.Schema.Activity> latestActivityCache { get; set; } = [];
+        private IList<BaseSessionItem> LastSessionData = [];
 
         private IServiceScopeFactory _serviceScopeFactory { get; set; }
 
@@ -39,11 +40,13 @@ namespace Jellystat_API_Core.Classes.Tasks
 
         public async Task initDataAsync()
         {
-            using (var scope = _serviceScopeFactory.CreateScope())
-            {
-                ApplicationDbContext context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                watchdogData = await context.ActivityStaging.Where(a => a.ServerId == api.config.Id).ToListAsync();
-            }
+            //using (var scope = _serviceScopeFactory.CreateScope())
+            //{
+            //    ApplicationDbContext context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+            //    //watchdogData = await context.ActivityStaging.Where(a => a.ServerId == api.config.Id).ToListAsync();
+            //    watchdogData = [];
+            //}
+            watchdogData = [];
         }
 
         public void Start()
@@ -54,6 +57,7 @@ namespace Jellystat_API_Core.Classes.Tasks
                     return;
 
                 _cancellationTokenSource = new CancellationTokenSource();
+                watchdogData = [];
                 _monitoringTask = Task.Run(() => MonitoringLoopAsync(_cancellationTokenSource.Token));
             }
         }
@@ -138,7 +142,32 @@ namespace Jellystat_API_Core.Classes.Tasks
                 if (dataToInsert.IsNotEmpty())
                 {
 
-                    await context.BulkInsertOrUpdateAsync(dataToInsert.Select(s => new ActivityStaging
+                    //await context.BulkInsertOrUpdateAsync(dataToInsert.Select(s => new ActivityStaging
+                    //{
+                    //    ServerId = s.ServerId,
+                    //    Name = s.NowPlayingItem!.Name,
+                    //    SeriesName = s.NowPlayingItem!.SeriesName,
+                    //    UserId = s.UserId,
+                    //    UserName = s.UserName,
+                    //    Client = s.Client,
+                    //    Device = s.DeviceName,
+                    //    DeviceId = s.DeviceId,
+                    //    ItemId = s.NowPlayingItem!.Id,
+                    //    SeriesId = s.NowPlayingItem!.SeriesId,
+                    //    SeasonId = s.NowPlayingItem!.SeasonId,
+                    //    Duration = 0,
+                    //    DirectPlay = s.IsDirectPlay,
+                    //    PlayMethod = s.PlayMethod,
+                    //    MediaStreams = s.NowPlayingItem!.MediaStreams,
+                    //    TranscodingInfo = s.TranscodingInfo,
+                    //    Container = s.NowPlayingItem!.Container,
+                    //    IpAddress = s.IPAddress,
+                    //    IsPaused = s.IsPaused,
+                    //    RuntimeTicks = s.NowPlayingItem!.RuntimeTicks
+
+                    //}));
+
+                    watchdogData.AddRange(dataToInsert.Select(s => new ActivityStaging
                     {
                         ServerId = s.ServerId,
                         Name = s.NowPlayingItem!.Name,
@@ -161,9 +190,9 @@ namespace Jellystat_API_Core.Classes.Tasks
                         IsPaused = s.IsPaused,
                         RuntimeTicks = s.NowPlayingItem!.RuntimeTicks
 
-                    }));
+                    }).ToList());
 
-                    await context.SaveChangesAsync();
+                    //await context.SaveChangesAsync();
 
 
                 }
@@ -171,6 +200,8 @@ namespace Jellystat_API_Core.Classes.Tasks
 
                 int updateCount = await UpdateWatchdogDataAsync(sessionData, context);
 
+
+                if (dataToRemove.IsEmpty()) return;
 
                 // Update duration for items that were playing before stopped (duration is only updated on pause)
                 DateTime endTime = DateTime.UtcNow;
@@ -262,16 +293,14 @@ namespace Jellystat_API_Core.Classes.Tasks
 
                 }
 
-                if (dataToRemove.IsNotEmpty())
-                {
-                    await context.BulkDeleteAsync(dataToRemove);
-                }
+                //if (dataToRemove.IsNotEmpty())
+                //{
+                //    await context.BulkDeleteAsync(dataToRemove);
+                //}
 
 
-                if (dataToRemove.IsNotEmpty() || dataToInsert.IsNotEmpty())
-                {
-                    watchdogData = await context.ActivityStaging.Where(a => a.ServerId == api.config.Id).ToListAsync();
-                }
+                watchdogData = watchdogData.Where(wd => !dataToRemove.Any(d => d.UserId == wd.UserId && d.DeviceId == wd.DeviceId && d.ItemId == wd.ItemId)).ToList();
+
 
                 if (dataToRemove.IsNotEmpty() || dataToInsert.IsNotEmpty() || updateCount > 0)
                 {
@@ -328,21 +357,21 @@ namespace Jellystat_API_Core.Classes.Tasks
                 }
             }
 
-            if (changesCount > 0)
-            {
-                try
-                {
-                    await context.SaveChangesAsync();
-                }
-                catch (DbUpdateConcurrencyException ex)
-                {
-                    Debug.WriteLine($"[ActivityMonitor] Concurrency exception updating watchdog data: {ex.Message}. Records may have been modified/deleted by another process. Continuing...");
-                    foreach (var entry in ex.Entries)
-                    {
-                        entry.State = EntityState.Detached;
-                    }
-                }
-            }
+            //if (changesCount > 0)
+            //{
+            //    try
+            //    {
+            //        await context.SaveChangesAsync();
+            //    }
+            //    catch (DbUpdateConcurrencyException ex)
+            //    {
+            //        Debug.WriteLine($"[ActivityMonitor] Concurrency exception updating watchdog data: {ex.Message}. Records may have been modified/deleted by another process. Continuing...");
+            //        foreach (var entry in ex.Entries)
+            //        {
+            //            entry.State = EntityState.Detached;
+            //        }
+            //    }
+            //}
             return changesCount;
         }
 
@@ -357,10 +386,10 @@ namespace Jellystat_API_Core.Classes.Tasks
         public async Task<List<Data.Schema.Activity>> GetLatestActivity(ApplicationDbContext context, bool refresh = false)
         {
 
-            if (!refresh && latestActivityCache.IsNotEmpty() && !latestActivityCache.Any(a => a.DateCreated > DateTime.UtcNow.AddHours(-Global.NewWatchThresholdHours)))
-            {
-                return latestActivityCache;
-            }
+            //if (!refresh && latestActivityCache.IsNotEmpty() && !latestActivityCache.Any(a => a.DateCreated > DateTime.UtcNow.AddHours(-Global.NewWatchThresholdHours)))
+            //{
+            //    return latestActivityCache;
+            //}
 
             var cutoffTime = DateTime.UtcNow.AddHours(-Global.NewWatchThresholdHours);
 
@@ -371,8 +400,8 @@ namespace Jellystat_API_Core.Classes.Tasks
         .Select(g => g.OrderByDescending(a => a.DateCreated).First())
         .ToListAsync();
 
-            latestActivityCache = results.Where(a => a.CompletionPercentage < Global.CompletionThreshold).OrderByDescending(a => a.DateCreated).ToList();
-            return results;
+            //latestActivityCache = results.Where(a => a.CompletionPercentage < Global.CompletionThreshold).OrderByDescending(a => a.DateCreated).ToList();
+            return results.Where(a => a.CompletionPercentage < Global.CompletionThreshold).OrderByDescending(a => a.DateCreated).ToList();
 
 
         }
@@ -380,6 +409,11 @@ namespace Jellystat_API_Core.Classes.Tasks
         public async Task BroadcastSessions()
         {
             IList<BaseSessionItem> sessionsItems = api.GetSessionData();
+            if (sessionsItems == LastSessionData)
+            {
+                return;
+            }
+            LastSessionData = sessionsItems;
 
             JellystatWebsocketMessage<IList<BaseSessionItem>> message = new JellystatWebsocketMessage<IList<BaseSessionItem>>()
             {
