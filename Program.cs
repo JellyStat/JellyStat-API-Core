@@ -240,7 +240,7 @@ using (var scope = app.Services.CreateScope())
     }
 
 
-    await new ConfigurationHelper().CheckIsConfiguredAsync(context);
+    await ConfigurationHelper.CheckIsConfiguredAsync(context);
 
 }
 //}

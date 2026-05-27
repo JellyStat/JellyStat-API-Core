@@ -3,11 +3,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace Jellystat_API_Core.Helpers
 {
-    public class ConfigurationHelper
+    public static class ConfigurationHelper
     {
-        public async Task CheckIsConfiguredAsync(ApplicationDbContext context)
+        public static async Task CheckIsConfiguredAsync(ApplicationDbContext context)
         {
-            bool isConfigured = await context.LocalUsers.CountAsync() > 0 && await context.Servers.CountAsync() > 0;
+            bool isConfigured = await context.LocalUsers.AnyAsync() && await context.Servers.AnyAsync();
             Global.IsConfigured = isConfigured;
         }
     }

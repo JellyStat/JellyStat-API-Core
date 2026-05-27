@@ -319,7 +319,7 @@ namespace Jellystat_API_Core.Controllers
                     await transaction.CommitAsync();
                     if (!isConfigured)
                     {
-                        await new ConfigurationHelper().CheckIsConfiguredAsync(context);
+                        await ConfigurationHelper.CheckIsConfiguredAsync(context);
                     }
                     return Ok(credentials);
 
