@@ -1,7 +1,7 @@
 ﻿using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Extensions;
-using Jellystat_API_Core.Helpers;
 using Jellystat_API_Core.Models.API.Base;
+using System.Text.RegularExpressions;
 
 namespace Jellystat_API_Core.Models.API.Emby
 {
@@ -36,13 +36,16 @@ namespace Jellystat_API_Core.Models.API.Emby
             {
                 string resolution = "";
                 BaseMediaStream? videoStream = MediaStreams.Where(ms => ms.Type == MediaStreamType.Video).FirstOrDefault(defaultValue: null);
-                if (videoStream == null) return resolution;
+                string? displayTitle = videoStream?.DisplayTitle;
+                if (string.IsNullOrWhiteSpace(displayTitle)) return resolution;
 
-                int width = videoStream.Width ?? 0;
-                int height = videoStream.Height ?? 0;
-                string? aspectRatio = videoStream.AspectRatio;
+                List<string> displayTitleParts = Regex.Replace(displayTitle, @"[()]", "").Split(" ").Where(p => p != "-").ToList();
 
-                resolution = VideoMetadataParser.GetResolutionLabel(width, height, aspectRatio);
+                string strictPattern = @"^\d+[iIpPkK]$";
+                resolution = displayTitleParts.Where(input =>
+                                                    !string.IsNullOrEmpty(input) &&
+                                                     Regex.IsMatch(input, strictPattern)
+                                                ).FirstOrDefault("");
                 return resolution;
             }
         }

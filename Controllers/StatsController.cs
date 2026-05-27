@@ -360,7 +360,7 @@ namespace Jellystat_API_Core.Controllers
                 .Gridify(query);
         }
 
-        [HttpGet("StatsByDay", Name = "StatsByDay")]
+        [HttpGet("StatTrends", Name = "StatTrends")]
         [DefaultGridifyPageSize(5)]
         public List<ChartStats> GetStatsByDay(string? ServerId, int days = 30, StatMetric metric = StatMetric.Date)
         {
@@ -481,6 +481,60 @@ namespace Jellystat_API_Core.Controllers
             }
 
             return result;
+        }
+
+        [HttpGet("CodecStats", Name = "CodecStats")]
+        public List<CountModel<string>> GetCodecStats(string? ServerId)
+        {
+            if (!HttpContext.User.IsAdministrator() || ServerId == null)
+            {
+                ServerId = HttpContext.User.GetServerId();
+            }
+
+            List<ItemTypes> excludedTypes = new List<ItemTypes>() {
+                 ItemTypes.Series,
+                 ItemTypes.Season,
+                 ItemTypes.Unknown,
+                 ItemTypes.Trailer
+            };
+
+            return context.Items
+                .Where(item => !excludedTypes.Contains(item.Type) && item.ServerId == ServerId)
+                .GroupBy(item => item.Codec)
+                .Select(group => new CountModel<string>
+                {
+                    Name = group.Key,
+                    Count = group.Count(),
+
+                })
+                .ToList();
+        }
+
+        [HttpGet("ResolutionStats", Name = "ResolutionStats")]
+        public List<CountModel<string>> GetResolutionStats(string? ServerId)
+        {
+            if (!HttpContext.User.IsAdministrator() || ServerId == null)
+            {
+                ServerId = HttpContext.User.GetServerId();
+            }
+
+            List<ItemTypes> excludedTypes = new List<ItemTypes>() {
+                 ItemTypes.Series,
+                 ItemTypes.Season,
+                 ItemTypes.Unknown,
+                 ItemTypes.Trailer
+            };
+
+            return context.Items
+                .Where(item => !excludedTypes.Contains(item.Type) && item.ServerId == ServerId)
+                .GroupBy(item => item.Resolution)
+                .Select(group => new CountModel<string>
+                {
+                    Name = group.Key,
+                    Count = group.Count(),
+
+                })
+                .ToList();
         }
 
     }
