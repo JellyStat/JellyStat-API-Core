@@ -18,6 +18,7 @@ namespace Jellystat_API_Core.Classes.Tasks
         private CancellationTokenSource? _cancellationTokenSource;
         private Task? _monitoringTask;
         private readonly object _lock = new();
+        private volatile bool _isStopping = false;
 
         public int IntervalMilliseconds { get; set; } = 1000;
         public override bool IsRunning => _monitoringTask != null && !_monitoringTask.IsCompleted;
@@ -33,27 +34,13 @@ namespace Jellystat_API_Core.Classes.Tasks
             this.api = api;
             this.IntervalMilliseconds = intervalMilliseconds;
             _serviceScopeFactory = serviceScopeFactory;
-            initDataAsync().Wait();
-
-
-        }
-
-        public async Task initDataAsync()
-        {
-            //using (var scope = _serviceScopeFactory.CreateScope())
-            //{
-            //    ApplicationDbContext context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-            //    //watchdogData = await context.ActivityStaging.Where(a => a.ServerId == api.config.Id).ToListAsync();
-            //    watchdogData = [];
-            //}
-            watchdogData = [];
         }
 
         public void Start()
         {
             lock (_lock)
             {
-                if (IsRunning)
+                if (IsRunning || _isStopping)
                     return;
 
                 _cancellationTokenSource = new CancellationTokenSource();
@@ -65,22 +52,43 @@ namespace Jellystat_API_Core.Classes.Tasks
         public async Task StopAsync()
         {
             Task? taskToWait;
-
             lock (_lock)
             {
                 if (_cancellationTokenSource == null || _monitoringTask == null)
                     return;
 
+                _isStopping = true;
                 _cancellationTokenSource.Cancel();
                 taskToWait = _monitoringTask;
             }
 
+            List<ActivityStaging> dataToFlush = new List<ActivityStaging>();
+
             try
             {
-                await taskToWait;
-            }
-            catch (OperationCanceledException)
-            {
+                try
+                {
+                    await taskToWait;
+                }
+                catch (OperationCanceledException)
+                {
+                    // monitoring task was cancelled - continue to flush data
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"[ActivityMonitor] StopAsync: monitoring task faulted: {ex.Message}");
+                }
+
+                lock (_lock)
+                {
+                    dataToFlush = watchdogData.ToList();
+                    watchdogData.Clear();
+                }
+
+                if (dataToFlush.IsNotEmpty())
+                {
+                    await ProcessActivityData(dataToFlush);
+                }
             }
             finally
             {
@@ -89,6 +97,7 @@ namespace Jellystat_API_Core.Classes.Tasks
                     _cancellationTokenSource?.Dispose();
                     _cancellationTokenSource = null;
                     _monitoringTask = null;
+                    _isStopping = false;
                 }
             }
         }
@@ -125,87 +134,75 @@ namespace Jellystat_API_Core.Classes.Tasks
 
         private async Task ExecuteMonitoringTaskAsync()
         {
+
+
+            List<ActivityStaging> dataToRemove = ProcessWatchDogData();
+
+            await ProcessActivityData(dataToRemove);
+
+        }
+
+        ///////////////////
+        private List<ActivityStaging> ProcessWatchDogData()
+        {
+            List<ExcludedUsers> excludedUsers = api.excludedUsers;
+            List<BaseSessionItem> sessionData = api.GetSessionData().Where(s => !excludedUsers.Any(eu => eu.UserId == s.UserId && eu.ServerId == s.ServerId)).ToList();
+
+            if (sessionData.IsEmpty() && watchdogData.IsEmpty())
+            {
+                return new List<ActivityStaging>();
+            }
+            List<BaseSessionItem> dataToInsert = GetSessionsNotInWatchDog(sessionData, watchdogData);
+            List<ActivityStaging> dataToRemove = GetWatchDogNotInSessions(sessionData, watchdogData);
+
+            if (dataToInsert.IsNotEmpty())
+            {
+
+                watchdogData.AddRange(dataToInsert.Select(s => new ActivityStaging
+                {
+                    ServerId = s.ServerId,
+                    Name = s.NowPlayingItem!.Name,
+                    SeriesName = s.NowPlayingItem!.SeriesName,
+                    UserId = s.UserId,
+                    UserName = s.UserName,
+                    Client = s.Client,
+                    Device = s.DeviceName,
+                    DeviceId = s.DeviceId,
+                    ItemId = s.NowPlayingItem!.Id,
+                    SeriesId = s.NowPlayingItem!.SeriesId,
+                    SeasonId = s.NowPlayingItem!.SeasonId,
+                    Duration = 0,
+                    DirectPlay = s.IsDirectPlay,
+                    PlayMethod = s.PlayMethod,
+                    MediaStreams = s.NowPlayingItem!.MediaStreams,
+                    TranscodingInfo = s.TranscodingInfo,
+                    Container = s.NowPlayingItem!.Container,
+                    IpAddress = s.IPAddress,
+                    IsPaused = s.IsPaused,
+                    RuntimeTicks = s.NowPlayingItem!.RuntimeTicks
+
+                }).ToList());
+
+            }
+
+
+            UpdateWatchdogData(sessionData);
+
+            return dataToRemove;
+        }
+
+
+        private async Task ProcessActivityData(List<ActivityStaging> activityData)
+        {
+            if (activityData.IsEmpty()) return;
             using (var scope = _serviceScopeFactory.CreateScope())
             {
+
                 ApplicationDbContext context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-
-                List<ExcludedUsers> excludedUsers = api.excludedUsers;
-                List<BaseSessionItem> sessionData = api.GetSessionData().Where(s => !excludedUsers.Any(eu => eu.UserId == s.UserId && eu.ServerId == s.ServerId)).ToList();
-
-                if (sessionData.IsEmpty() && watchdogData.IsEmpty())
-                {
-                    return;
-                }
-                List<BaseSessionItem> dataToInsert = GetSessionsNotInWatchDog(sessionData, watchdogData);
-                List<ActivityStaging> dataToRemove = GetWatchDogNotInSessions(sessionData, watchdogData);
-
-                if (dataToInsert.IsNotEmpty())
-                {
-
-                    //await context.BulkInsertOrUpdateAsync(dataToInsert.Select(s => new ActivityStaging
-                    //{
-                    //    ServerId = s.ServerId,
-                    //    Name = s.NowPlayingItem!.Name,
-                    //    SeriesName = s.NowPlayingItem!.SeriesName,
-                    //    UserId = s.UserId,
-                    //    UserName = s.UserName,
-                    //    Client = s.Client,
-                    //    Device = s.DeviceName,
-                    //    DeviceId = s.DeviceId,
-                    //    ItemId = s.NowPlayingItem!.Id,
-                    //    SeriesId = s.NowPlayingItem!.SeriesId,
-                    //    SeasonId = s.NowPlayingItem!.SeasonId,
-                    //    Duration = 0,
-                    //    DirectPlay = s.IsDirectPlay,
-                    //    PlayMethod = s.PlayMethod,
-                    //    MediaStreams = s.NowPlayingItem!.MediaStreams,
-                    //    TranscodingInfo = s.TranscodingInfo,
-                    //    Container = s.NowPlayingItem!.Container,
-                    //    IpAddress = s.IPAddress,
-                    //    IsPaused = s.IsPaused,
-                    //    RuntimeTicks = s.NowPlayingItem!.RuntimeTicks
-
-                    //}));
-
-                    watchdogData.AddRange(dataToInsert.Select(s => new ActivityStaging
-                    {
-                        ServerId = s.ServerId,
-                        Name = s.NowPlayingItem!.Name,
-                        SeriesName = s.NowPlayingItem!.SeriesName,
-                        UserId = s.UserId,
-                        UserName = s.UserName,
-                        Client = s.Client,
-                        Device = s.DeviceName,
-                        DeviceId = s.DeviceId,
-                        ItemId = s.NowPlayingItem!.Id,
-                        SeriesId = s.NowPlayingItem!.SeriesId,
-                        SeasonId = s.NowPlayingItem!.SeasonId,
-                        Duration = 0,
-                        DirectPlay = s.IsDirectPlay,
-                        PlayMethod = s.PlayMethod,
-                        MediaStreams = s.NowPlayingItem!.MediaStreams,
-                        TranscodingInfo = s.TranscodingInfo,
-                        Container = s.NowPlayingItem!.Container,
-                        IpAddress = s.IPAddress,
-                        IsPaused = s.IsPaused,
-                        RuntimeTicks = s.NowPlayingItem!.RuntimeTicks
-
-                    }).ToList());
-
-                    //await context.SaveChangesAsync();
-
-
-                }
-
-
-                int updateCount = await UpdateWatchdogDataAsync(sessionData, context);
-
-
-                if (dataToRemove.IsEmpty()) return;
 
                 // Update duration for items that were playing before stopped (duration is only updated on pause)
                 DateTime endTime = DateTime.UtcNow;
-                foreach (ActivityStaging playback in dataToRemove)
+                foreach (ActivityStaging playback in activityData)
                 {
                     if (!playback.IsPaused)
                     {
@@ -215,10 +212,7 @@ namespace Jellystat_API_Core.Classes.Tasks
                     }
                 }
 
-
-                List<ActivityStaging> playbackToInsert = dataToRemove.Where(d => d.Duration > Global.MinimumDurationThreshold).ToList();
-
-
+                List<ActivityStaging> playbackToInsert = activityData.Where(d => d.Duration > Global.MinimumDurationThreshold).ToList();
 
                 //Do update existing from Activity logic here
 
@@ -293,25 +287,11 @@ namespace Jellystat_API_Core.Classes.Tasks
 
                 }
 
-                //if (dataToRemove.IsNotEmpty())
-                //{
-                //    await context.BulkDeleteAsync(dataToRemove);
-                //}
 
-
-                watchdogData = watchdogData.Where(wd => !dataToRemove.Any(d => d.UserId == wd.UserId && d.DeviceId == wd.DeviceId && d.ItemId == wd.ItemId)).ToList();
-
-
-                if (dataToRemove.IsNotEmpty() || dataToInsert.IsNotEmpty() || updateCount > 0)
-                {
-                    Debug.WriteLine("[ActivityMonitor] Monitoring task completed. Sessions: " + sessionData.Count + ", Watchdog: " + watchdogData.Count + ", To Insert: " + dataToInsert.Count + ", To Update: " + updateCount + ", To Remove: " + dataToRemove.Count);
-                }
-
-
-                // Implement your monitoring logic here
-                await Task.CompletedTask;
+                watchdogData = watchdogData.Where(wd => !activityData.Any(d => d.UserId == wd.UserId && d.DeviceId == wd.DeviceId && d.ItemId == wd.ItemId)).ToList();
             }
         }
+        ///////////////////
 
         private List<BaseSessionItem> GetSessionsNotInWatchDog(List<BaseSessionItem> sessionData, List<ActivityStaging> watchdogData)
         {
@@ -329,10 +309,8 @@ namespace Jellystat_API_Core.Classes.Tasks
             return newSessionData;
         }
 
-        private async Task<int> UpdateWatchdogDataAsync(List<BaseSessionItem> sessionData, ApplicationDbContext context)
+        private void UpdateWatchdogData(List<BaseSessionItem> sessionData)
         {
-            int changesCount = 0;
-
             foreach (ActivityStaging item in watchdogData)
             {
                 BaseSessionItem? sessionItem = sessionData.FirstOrDefault(s => s.UserId == item.UserId && s.DeviceId == item.DeviceId && s.NowPlayingItem!.Id == item.ItemId);
@@ -352,27 +330,8 @@ namespace Jellystat_API_Core.Classes.Tasks
                     {
                         item.DateCreated = DateTime.UtcNow;
                     }
-
-                    changesCount++;
                 }
             }
-
-            //if (changesCount > 0)
-            //{
-            //    try
-            //    {
-            //        await context.SaveChangesAsync();
-            //    }
-            //    catch (DbUpdateConcurrencyException ex)
-            //    {
-            //        Debug.WriteLine($"[ActivityMonitor] Concurrency exception updating watchdog data: {ex.Message}. Records may have been modified/deleted by another process. Continuing...");
-            //        foreach (var entry in ex.Entries)
-            //        {
-            //            entry.State = EntityState.Detached;
-            //        }
-            //    }
-            //}
-            return changesCount;
         }
 
         private List<ActivityStaging> GetWatchDogNotInSessions(List<BaseSessionItem> sessionData, List<ActivityStaging> watchdogData)
@@ -386,24 +345,16 @@ namespace Jellystat_API_Core.Classes.Tasks
         public async Task<List<Data.Schema.Activity>> GetLatestActivity(ApplicationDbContext context, bool refresh = false)
         {
 
-            //if (!refresh && latestActivityCache.IsNotEmpty() && !latestActivityCache.Any(a => a.DateCreated > DateTime.UtcNow.AddHours(-Global.NewWatchThresholdHours)))
-            //{
-            //    return latestActivityCache;
-            //}
-
             var cutoffTime = DateTime.UtcNow.AddHours(-Global.NewWatchThresholdHours);
 
 
             List<Data.Schema.Activity> results = await context.Activity
-        .Where(a => a.DateCreated > cutoffTime && a.ServerId == api.config.Id && a.RuntimeTicks > 0)
-        .GroupBy(a => new { a.UserId, a.ItemId })
-        .Select(g => g.OrderByDescending(a => a.DateCreated).First())
-        .ToListAsync();
+            .Where(a => a.DateCreated > cutoffTime && a.ServerId == api.config.Id && a.RuntimeTicks > 0)
+            .GroupBy(a => new { a.UserId, a.ItemId })
+            .Select(g => g.OrderByDescending(a => a.DateCreated).First())
+            .ToListAsync();
 
-            //latestActivityCache = results.Where(a => a.CompletionPercentage < Global.CompletionThreshold).OrderByDescending(a => a.DateCreated).ToList();
             return results.Where(a => a.CompletionPercentage < Global.CompletionThreshold).OrderByDescending(a => a.DateCreated).ToList();
-
-
         }
 
         public async Task BroadcastSessions()
