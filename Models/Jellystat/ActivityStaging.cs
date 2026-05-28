@@ -1,6 +1,6 @@
 ﻿using Jellystat_API_Core.Models.API.Base;
 
-namespace Jellystat_API_Core.Data.Schema
+namespace Jellystat_API_Core.Models.Jellystat
 {
     public class ActivityStaging
     {

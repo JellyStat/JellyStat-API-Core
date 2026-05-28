@@ -5,6 +5,7 @@ using Jellystat_API_Core.Data.Schema;
 using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Extensions;
 using Jellystat_API_Core.Models.API.Base;
+using Jellystat_API_Core.Models.Jellystat;
 using Jellystat_API_Core.Models.WebSocket;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
@@ -24,7 +25,6 @@ namespace Jellystat_API_Core.Classes.Tasks
         public override bool IsRunning => _monitoringTask != null && !_monitoringTask.IsCompleted;
 
         private List<ActivityStaging> watchdogData { get; set; } = [];
-        //private List<Data.Schema.Activity> latestActivityCache { get; set; } = [];
         private IList<BaseSessionItem> LastSessionData = [];
 
         private IServiceScopeFactory _serviceScopeFactory { get; set; }

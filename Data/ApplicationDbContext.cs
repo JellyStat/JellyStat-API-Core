@@ -30,7 +30,6 @@ namespace Jellystat_API_Core.Data
         public DbSet<ItemsStaging> ItemsStaging { get; set; }
 
         public DbSet<Activity> Activity { get; set; }
-        public DbSet<ActivityStaging> ActivityStaging { get; set; }
         public DbSet<Permissions> Permissions { get; set; }
         public DbSet<UserPermissions> UserPermissions { get; set; }
         public DbSet<ItemsWithParentData> ItemsWithParentData { get; set; }
@@ -232,36 +231,6 @@ namespace Jellystat_API_Core.Data
 
             });
 
-            modelBuilder.Entity<ActivityStaging>(entity =>
-            {
-
-                entity.HasKey(e => e.Id);
-                entity.Property(e => e.Id).HasDefaultValueSql("gen_random_uuid()");
-                entity.Property(e => e.ServerId).IsRequired();
-                entity.Property(e => e.Name).IsRequired();
-                entity.Property(e => e.SeriesId);
-                entity.Property(e => e.UserId).IsRequired();
-                entity.Property(e => e.UserName).IsRequired();
-                entity.Property(e => e.Client);
-                entity.Property(e => e.Device);
-                entity.Property(e => e.DeviceId);
-                entity.Property(e => e.ItemId).IsRequired();
-                entity.Property(e => e.SeriesId);
-                entity.Property(e => e.SeasonId);
-                entity.Property(e => e.Duration).HasDefaultValue(0);
-                entity.Property(e => e.DirectPlay).HasDefaultValue(true);
-                entity.Property(e => e.MediaStreams).HasColumnType("jsonb").HasDefaultValueSql("'[]'");
-                entity.Property(e => e.TranscodingInfo).HasColumnType("jsonb");
-                entity.Property(e => e.Imported).HasDefaultValue(false);
-                entity.Property(e => e.DateCreated).HasDefaultValueSql("CURRENT_TIMESTAMP");
-                entity.Property(e => e.LastPaused).HasDefaultValueSql("CURRENT_TIMESTAMP");
-                entity.Property(e => e.Container);
-                entity.Property(e => e.IpAddress).IsRequired();
-                entity.Property(e => e.IsPaused).HasDefaultValue(false);
-                entity.Property(e => e.RuntimeTicks).HasDefaultValue(0);
-                entity.Property(e => e.PlayMethod);
-
-            });
 
             modelBuilder.Entity<Permissions>(entity =>
             {
