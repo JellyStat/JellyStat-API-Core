@@ -167,25 +167,16 @@ builder.Services.AddCors(options =>
 var app = builder.Build();
 
 // Initialize Global static references
-// Note: Creates a new scope-based instance for the static reference
-// This should be used carefully as it bypasses normal DI lifecycle
 using (var scope = app.Services.CreateScope())
 {
-    //Global.Database = scope.ServiceProvider.GetRequiredService<iDatabaseRepository>();
     Global.WebSocketClientService = scope.ServiceProvider.GetRequiredService<IWebSocketClientService>();
     Global.APIInstanceManager = scope.ServiceProvider.GetRequiredService<IAPIInstanceManager>();
     Global.WebSocketServerService = scope.ServiceProvider.GetRequiredService<IWebSocketServerService>();
 
 }
 
-//Global.ServiceProvider = app.Services;
 
-
-
-// Apply migrations automatically in development (optional)
-// Comment out if you prefer to run migrations manually
-//if (app.Environment.IsDevelopment())
-//{
+// Apply migrations automatically
 using (var scope = app.Services.CreateScope())
 {
     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
@@ -239,13 +230,6 @@ using (var scope = app.Services.CreateScope())
     await ConfigurationHelper.CheckIsConfiguredAsync(context);
 
 }
-//}
-
-// Configure the HTTP request pipeline.
-//if (app.Environment.IsDevelopment())
-//{
-//    app.MapOpenApi();
-//}
 
 app.MapOpenApi();
 app.UseSwaggerUI(options =>
@@ -254,8 +238,6 @@ app.UseSwaggerUI(options =>
 });
 
 app.MapScalarApiReference();
-
-app.MapGet("/", () => "Hello world!");
 
 // Enable WebSocket support
 app.UseWebSockets();
@@ -267,6 +249,12 @@ app.UseCors("DefaultCors");
 app.UseAuthentication();
 
 app.UseAuthorization();
+
+
+// Server wwwroot
+app.UseDefaultFiles();
+app.UseStaticFiles();
+///
 
 app.MapControllers();
 
