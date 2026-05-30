@@ -43,7 +43,7 @@ if (jwtKey.Length < 32)
     throw new InvalidOperationException("JWT key must be at least 32 characters (256 bits) for HS256.");
 }
 
-if ((dbHost == null || dbUsername == null || dbPassword == null) && !builder.Environment.IsDevelopment())
+if ((dbHost == null || dbUsername == null || dbPassword == null))
 {
     throw new InvalidOperationException("Database configuration is incomplete. Please set DB_HOST, DB_USERNAME, and DB_PASSWORD environment variables.");
 }
@@ -56,11 +56,6 @@ Global.JwtKey = jwtKey;
 
 
 var connectionString = $"Host={dbHost};Port={dbPort};Database={dbName};Username={dbUsername};Password={dbPassword}";
-
-if (builder.Environment.IsDevelopment())
-{
-    connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? connectionString;
-}
 
 // Configure Npgsql to use System.Text.Json with dynamic JSON support
 var jsonOptions = new JsonSerializerOptions
