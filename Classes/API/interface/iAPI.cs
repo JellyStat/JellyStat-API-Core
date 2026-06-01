@@ -43,5 +43,7 @@ namespace Jellystat_API_Core.Classes.API.@interface
 
         public Task<bool> AuthenticateByUsername(string username, string password);
 
+        public Task<HttpResponseMessage> GetDeviceImage(string icon, Uri? iconUrl = null);
+
     }
 }

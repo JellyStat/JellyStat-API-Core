@@ -322,6 +322,16 @@ namespace Jellystat_API_Core.Classes.API
                 return false;
             }
         }
+        public async Task<HttpResponseMessage> GetDeviceImage(string icon, Uri? iconUrl = null)
+        {
+            if (iconUrl != null)
+            {
+                return await httpClient.GetAsync(iconUrl);
+            }
+
+            //TODO: this needs to be changed
+            return await httpClient.GetAsync($"/web/assets/img/devices/{icon}");
+        }
 
 
     }

@@ -17,7 +17,7 @@ namespace Jellystat_API_Core.Controllers
         }
 
         [HttpGet("Images/Devices", Name = "Images/Devices")]
-        public async Task<ActionResult> ProxyDeviceImageRequest(string ServerId, string DeviceName)
+        public async Task<ActionResult> ProxyDeviceImageRequest(string ServerId, string icon, string? iconUrl)
         {
             iAPI? api = _apiInstanceManager.GetInstance(ServerId);
             if (api == null)
@@ -25,9 +25,11 @@ namespace Jellystat_API_Core.Controllers
                 return NotFound("API instance not found for provided Server Id");
             }
 
-            DeviceName = DeviceName.ToLowerInvariant();
+            icon = icon.ToLowerInvariant();
 
-            var response = await api.httpClient.GetAsync($"/web/assets/img/devices/{DeviceName}.svg");
+            Uri? iconUri = iconUrl != null ? (Uri.TryCreate(iconUrl, UriKind.RelativeOrAbsolute, out var result) ? result : null) : null;
+
+            var response = await api.GetDeviceImage(icon, iconUri);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -35,7 +37,8 @@ namespace Jellystat_API_Core.Controllers
             }
 
             var content = await response.Content.ReadAsByteArrayAsync();
-            return File(content, "image/svg+xml");
+            var contentType = response.Content.Headers.ContentType?.MediaType ?? "image/svg+xml";
+            return File(content, contentType);
         }
 
         [HttpGet("Images/Items/Backdrop", Name = "Images/Items/Backdrop")]
