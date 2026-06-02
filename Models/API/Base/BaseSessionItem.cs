@@ -20,6 +20,7 @@
         public virtual string PlayMethod { get; set; }
         public virtual string IPAddress { get; set; } = "";
         public virtual DateTime? LastPausedDate { get; set; }
+        public virtual string? DeviceIconUrl { get; set; }
 
 
     }

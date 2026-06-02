@@ -61,6 +61,7 @@ namespace Jellystat_API_Core.Models.API.Jellyfin
         public string? UserPrimaryImageTag { private get; set; }
 
         public override string? UserImageTag { get => UserPrimaryImageTag; set => UserPrimaryImageTag = value; }
+        public SessionCapabilities? Capabilities { set => DeviceIconUrl = value?.IconUrl; }
 
 
     }

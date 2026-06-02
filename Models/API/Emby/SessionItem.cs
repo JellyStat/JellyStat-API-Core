@@ -63,6 +63,8 @@ namespace Jellystat_API_Core.Models.API.Emby
 
         public override string? UserImageTag { get => UserPrimaryImageTag; set => UserPrimaryImageTag = value; }
 
+        public string? AppIconUrl { set => DeviceIconUrl = value; }
+
 
 
     }
