@@ -331,5 +331,19 @@ namespace Jellystat_API_Core.Classes.API
             }
             return await httpClient.GetAsync($"/web/assets/img/devices/{icon}");
         }
+        public async Task<HttpResponseMessage> GetBackdropImage(string Id, int Width = 800, int Quality = 100, int Blur = 0)
+        {
+            return await httpClient.GetAsync($"/Items/{Id}/Images/Backdrop?fillWidth={Width}&quality={Quality}&blur={Blur}");
+        }
+
+        public async Task<HttpResponseMessage> GetItemImage(string Id, int Width = 800, int Quality = 100, int Blur = 0)
+        {
+            return await httpClient.GetAsync($"/Items/{Id}/Images/Primary?fillWidth={Width}&quality={Quality}&blur={Blur}");
+        }
+
+        public async Task<HttpResponseMessage> GetUserImage(string Id, int Width = 800, int Quality = 100, int Blur = 0)
+        {
+            return await httpClient.GetAsync($"/Users/{Id}/Images/Primary?fillWidth={Width}&quality={Quality}&blur={Blur}");
+        }
     }
 }

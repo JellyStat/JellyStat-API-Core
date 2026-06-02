@@ -50,7 +50,7 @@ namespace Jellystat_API_Core.Controllers
                 return NotFound("API instance not found for provided Server Id");
             }
 
-            var response = await api.httpClient.GetAsync($"/Items/{Id}/Images/Backdrop?fillWidth={Width}&quality={Quality}&blur={Blur}");
+            var response = await api.GetBackdropImage(Id, Width, Quality, Blur);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -72,7 +72,7 @@ namespace Jellystat_API_Core.Controllers
                 return NotFound("API instance not found for provided Server Id");
             }
 
-            var response = await api.httpClient.GetAsync($"/Items/{Id}/Images/Primary?fillWidth={Width}&quality={Quality}&blur={Blur}");
+            var response = await api.GetItemImage(Id, Width, Quality, Blur);
 
             if (!response.IsSuccessStatusCode)
             {
@@ -93,7 +93,7 @@ namespace Jellystat_API_Core.Controllers
                 return NotFound("API instance not found for provided Server Id");
             }
 
-            var response = await api.httpClient.GetAsync($"/Users/{Id}/Images/Primary?fillWidth={Width}&quality={Quality}&blur={Blur}");
+            var response = await api.GetUserImage(Id, Width, Quality, Blur);
 
             if (!response.IsSuccessStatusCode)
             {
