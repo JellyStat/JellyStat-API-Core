@@ -29,6 +29,7 @@ double CompletionThreshold = builder.Configuration.GetValue<double?>("COMPLETION
 int NewWatchThresholdHours = builder.Configuration.GetValue<int?>("NEW_WATCH_EVENT_THRESHOLD_HOURS") ?? Global.NewWatchThresholdHours;
 int MinimumDurationThreshold = builder.Configuration.GetValue<int?>("MINIMUM_SECONDS_TO_INCLUDE_PLAYBACK") ?? Global.MinimumDurationThreshold;
 string UiURI = builder.Configuration["UI_URI"] ?? "";
+bool AllowUnauthenticatedPasswordReset = builder.Configuration.GetValue<bool?>("ALLOW_UNAUTHENTICATED_PASSWORD_RESET") ?? Global.AllowUnauthenticatedPasswordReset;
 
 
 var jwtKey = builder.Configuration["JWT_KEY"] ?? Global.JwtKey;
@@ -53,6 +54,8 @@ Global.NewWatchThresholdHours = NewWatchThresholdHours;
 Global.MinimumDurationThreshold = MinimumDurationThreshold;
 
 Global.JwtKey = jwtKey;
+
+Global.AllowUnauthenticatedPasswordReset = AllowUnauthenticatedPasswordReset;
 
 
 var connectionString = $"Host={dbHost};Port={dbPort};Database={dbName};Username={dbUsername};Password={dbPassword}";

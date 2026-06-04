@@ -35,5 +35,7 @@ namespace Jellystat_API_Core
         public static string UserAgent = "JellystatAPI/1.0.0";
 
         public static bool IsConfigured = false;
+        public static bool AllowUnauthenticatedPasswordReset = false;
+
     }
 }

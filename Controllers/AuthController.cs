@@ -1,5 +1,4 @@
-﻿using Jellystat_API_Core.Attributes;
-using Jellystat_API_Core.Classes.API.@interface;
+﻿using Jellystat_API_Core.Classes.API.@interface;
 using Jellystat_API_Core.Data;
 using Jellystat_API_Core.Data.Schema;
 using Jellystat_API_Core.Enums;
@@ -243,11 +242,19 @@ namespace Jellystat_API_Core.Controllers
             return Ok(remoteCredentials);
         }
 
-        [Authorize]
-        [PermissionAuthorize(PermissionTypes.Administrator)]
+        //[Authorize]
+        //[PermissionAuthorize(PermissionTypes.Administrator)]
         [HttpPost("UpdateUser", Name = "UpdateUser")]
         public async Task<ActionResult> UpdateUser([FromBody] LocalUser user)
         {
+            bool Authorized = HttpContext.User.Identity?.IsAuthenticated == true;
+            bool isAdmin = Authorized && HttpContext.User.IsAdministrator();
+
+            if (!isAdmin && !Global.AllowUnauthenticatedPasswordReset)
+            {
+                return Unauthorized();
+            }
+
             LocalUsers? dbuser = null;
             if (user.OldUsername != null)
             {
@@ -265,6 +272,16 @@ namespace Jellystat_API_Core.Controllers
 
                 if (dbuser == null || !BCrypt.Net.BCrypt.Verify(user.OldPassword, dbuser.Password))
                     return Unauthorized("Invalid Username or password");
+
+                dbuser.Password = BCrypt.Net.BCrypt.HashPassword(user.Password);
+                await context.SaveChangesAsync();
+            }
+            else if (Global.AllowUnauthenticatedPasswordReset && user.Password != null)
+            {
+                dbuser = await context.LocalUsers.Where(u => u.Username == user.Username).FirstOrDefaultAsync();
+
+                if (dbuser == null)
+                    return NotFound("User not found");
 
                 dbuser.Password = BCrypt.Net.BCrypt.HashPassword(user.Password);
                 await context.SaveChangesAsync();
