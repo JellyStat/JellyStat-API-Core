@@ -30,7 +30,7 @@ jobs:
         - name: Checkout UI Repository
           uses: actions/checkout@v4
           with:
-            repository: 'JellyStat/Jellystat-UI'
+            repository: jellystat/jellystat-ui
             ref: 'main'
             token: ${{ secrets.GITHUB_TOKEN }} # This will now work!
 
