@@ -23,6 +23,8 @@ env:
 jobs:
   fetch-ui-repo:
       runs-on: ubuntu-latest
+      permissions:
+       contents: read # Allows the default GITHUB_TOKEN to read other accessible repos
       steps:
         # 1. Checkout the UI repository instead of the current one
         - name: Checkout UI Repository
