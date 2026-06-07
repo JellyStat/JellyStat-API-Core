@@ -43,7 +43,7 @@ namespace Jellystat_API_Core.Classes.API.@interface
 
         public Task<bool> AuthenticateByUsername(string username, string password);
 
-        public Task<HttpResponseMessage> GetDeviceImage(string icon, Uri? iconUrl = null);
+        public Task<HttpResponseMessage> GetDeviceImage(string? icon, Uri? iconUrl = null);
         public Task<HttpResponseMessage> GetBackdropImage(string Id, int Width = 800, int Quality = 100, int Blur = 0);
         public Task<HttpResponseMessage> GetItemImage(string Id, int Width = 800, int Quality = 100, int Blur = 0);
         public Task<HttpResponseMessage> GetUserImage(string Id, int Width = 800, int Quality = 100, int Blur = 0);

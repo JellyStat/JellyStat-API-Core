@@ -17,15 +17,13 @@ namespace Jellystat_API_Core.Controllers
         }
 
         [HttpGet("Images/Devices", Name = "Images/Devices")]
-        public async Task<ActionResult> ProxyDeviceImageRequest(string ServerId, string icon, string? iconUrl)
+        public async Task<ActionResult> ProxyDeviceImageRequest(string ServerId, string? icon, string? iconUrl)
         {
             iAPI? api = _apiInstanceManager.GetInstance(ServerId);
             if (api == null)
             {
                 return NotFound("API instance not found for provided Server Id");
             }
-
-            icon = icon.ToLowerInvariant();
 
             Uri? iconUri = iconUrl != null ? (Uri.TryCreate(iconUrl, UriKind.RelativeOrAbsolute, out var result) ? result : null) : null;
 
