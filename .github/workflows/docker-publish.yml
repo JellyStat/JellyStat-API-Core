@@ -31,10 +31,11 @@ jobs:
       # 1. Fetch the latest versioned release artifact from the UI repo
       - name: Download Latest Versioned UI Asset
         run: |
+          set -euo pipefail
           mkdir -p wwwroot
           
           echo "Fetching the latest release tag name from UI repo..."
-          LATEST_TAG=$(gh release list -R jellystat/jellystat-ui --limit 1 | awk '{print $1}')
+          LATEST_TAG=$(gh api repos/jellystat/jellystat-ui/releases/latest --jq '.tag_name')
           
           if [ -z "$LATEST_TAG" ]; then
             echo "Error: No releases found in jellystat/jellystat-ui!"
