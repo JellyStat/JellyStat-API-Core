@@ -4,7 +4,7 @@ using Jellystat_API_Core.Models.Jellystat.Interfaces;
 
 namespace Jellystat_API_Core.Models.Jellystat
 {
-    public class ItemsWithStats : ItemsWithParentData, iBaseStats
+    public class ItemsWithStats : ItemsWithParentData, iStatsWithActivity
     {
         public int? PlayCount { get; set; }
         public long? PlayDuration { get; set; }

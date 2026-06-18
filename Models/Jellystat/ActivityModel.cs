@@ -10,10 +10,5 @@ namespace Jellystat_API_Core.Models.Jellystat
         public List<ActivityModel>? GroupedResults { get; set; }
         public int? PlayCount { get; set; }
         public long? PlayDuration { get; set; }
-
-        [System.Text.Json.Serialization.JsonIgnore]
-        public Activity? LatestActivity { get; set; }
-        [System.Text.Json.Serialization.JsonIgnore]
-        public DateTime? LatestActivityDate { get; set; }
     }
 }

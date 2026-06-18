@@ -537,6 +537,44 @@ namespace Jellystat_API_Core.Controllers
                 .ToList();
         }
 
+        [HttpGet("GenreStats", Name = "GenreStats")]
+        [DefaultGridifyOrder(nameof(GenreStats.PlayCount), true)]
+        [DefaultGridifyPageSize(5)]
+        public IQueryable<GenreStats> GetGenreStats([FromQuery] GridifyQuery query, string? ServerId)
+        {
+            if (!HttpContext.User.IsAdministrator() || ServerId == null)
+            {
+                ServerId = HttpContext.User.GetServerId();
+            }
+
+            return context.Activity
+                  .Where(a => a.ServerId == ServerId)
+                  .Join(
+                      context.Items,
+                      activity => activity.ItemId,
+                      item => item.Id,
+                      (activity, item) => new { activity, item })
+                  .ApplyFiltering(query)
+                  .Select(x => new
+                  {
+                      x.activity.Duration,
+                      x.item.Genres
+                  })
+                  .AsEnumerable()
+                  .Where(x => x.Genres.Count > 0)
+                  .SelectMany(
+                      x => x.Genres,
+                      (x, genre) => new { Genre = genre, x.Duration })
+                  .GroupBy(x => x.Genre)
+                  .Select(g => new GenreStats
+                  {
+                      Name = g.Key,
+                      PlayCount = g.Count(),
+                      PlayDuration = g.Sum(x => (long?)x.Duration) ?? 0
+                  })
+                  .AsQueryable();
+        }
+
     }
 
 }

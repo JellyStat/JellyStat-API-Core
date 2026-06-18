@@ -3,7 +3,7 @@ using Jellystat_API_Core.Models.Jellystat.Interfaces;
 
 namespace Jellystat_API_Core.Models.Jellystat
 {
-    public class UsersWithStats : Users, iBaseStats
+    public class UsersWithStats : Users, iStatsWithActivity
     {
         public int? PlayCount { get; set; }
         public long? PlayDuration { get; set; }

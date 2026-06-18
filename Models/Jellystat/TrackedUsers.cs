@@ -3,7 +3,7 @@ using Jellystat_API_Core.Models.Jellystat.Interfaces;
 
 namespace Jellystat_API_Core.Models.Jellystat
 {
-    public class TrackedUsers : Users, iBaseStats
+    public class TrackedUsers : Users, iStatsWithActivity
     {
         public Items? Item { get; set; }
         public required bool Tracked { get; set; }
