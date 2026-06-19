@@ -27,7 +27,7 @@ namespace Jellystat_API_Core.Controllers
 
         [HttpGet("Activity", Name = "Activity")]
         [DefaultGridifyOrder(nameof(Activity.DateCreated), true)]
-        public async Task<ActionResult<Paging<ActivityModel>>> GetActivityAsync([FromQuery] GridifyQuery query, string? ServerId, bool GroupResults = true)
+        public Paging<ActivityModel> GetActivityAsync([FromQuery] GridifyQuery query, string? ServerId, bool GroupResults = true)
         {
             if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
@@ -36,140 +36,77 @@ namespace Jellystat_API_Core.Controllers
             if (GroupResults)
             {
 
-                // 1. Get the IDs of the latest record for each group (Server-Side)
-                // We use a subquery to find the specific ID that corresponds to the Max DateCreated
                 var latestIdsQuery = context.Activity
-                    .Where(a => a.ServerId == ServerId)
-                    .GroupBy(a => new { a.UserId, a.ItemId })
-                    .Select(g => g.OrderByDescending(x => x.DateCreated)
-                                  .Select(x => x.Id)
-                                  .FirstOrDefault());
+              .Where(a => a.ServerId == ServerId)
+              .GroupBy(a => new { a.UserId, a.ItemId })
+              .Select(g => g.OrderByDescending(x => x.DateCreated)
+                            .Select(x => x.Id)
+                            .FirstOrDefault());
 
-                // 2. Build the query for the entities (Server-Side)
-                // latestIdsQuery is still just an IQueryable of strings, so Gridify won't break
-                var flatQuery = context.Activity
-                    .Where(a => latestIdsQuery.Contains(a.Id))
-                    .Join(context.Items,
-                          activity => activity.ItemId,
-                          item => item.Id,
-                          (a, i) => new
-                          {
-                              // Include all fields you want to be able to filter/sort by
-                              a.Id,
-                              a.ServerId,
-                              a.Name,
-                              a.SeriesName,
-                              a.UserId,
-                              a.UserName,
-                              a.Client,
-                              a.Device,
-                              a.DeviceId,
-                              a.ItemId,
-                              a.SeriesId,
-                              a.SeasonId,
-                              a.Duration,
-                              a.DirectPlay,
-                              a.PlayMethod,
-                              a.MediaStreams,
-                              a.TranscodingInfo,
-                              a.Imported,
-                              a.DateCreated,
-                              a.Container,
-                              a.IpAddress,
-                              a.RuntimeTicks,
-                              LibraryId = i.LibraryId,
-
-                          });
-
-                // 3. Apply Gridify
-                // This handles all filtering/sorting on raw Activity fields
-                var pagedActivities = flatQuery.Gridify(query);
-
-                if (pagedActivities.Count == 0)
-                    return new Paging<ActivityModel>(0, new List<ActivityModel>());
-
-                // 4. Batch fetch history and items for the current page
-                var pageActivities = pagedActivities.Data.ToList();
-                var userIds = pageActivities.Select(a => a.UserId).Distinct().ToList();
-                var itemIds = pageActivities.Select(a => a.ItemId).Distinct().ToList();
-
-                var allHistory = await context.Activity
-                    .AsNoTracking()
-                    .Where(a => a.ServerId == ServerId && userIds.Contains(a.UserId) && itemIds.Contains(a.ItemId))
-                    .ToListAsync();
-
-                var itemsDict = await context.Items
-                    .AsNoTracking()
-                    .Where(i => itemIds.Contains(i.Id))
-                    .ToDictionaryAsync(i => i.Id);
-
-                // 5. Final Mapping
-                var resultData = pageActivities.Select(activity =>
-                {
-                    var history = allHistory
-                        .Where(h => h.UserId == activity.UserId && h.ItemId == activity.ItemId)
-                        .OrderByDescending(h => h.DateCreated)
-                        .ToList();
-
-                    itemsDict.TryGetValue(activity.ItemId, out var item);
-
-                    return new ActivityModel
-                    {
-                        Id = activity.Id,
-                        ServerId = ServerId,
-                        Name = activity.Name,
-                        SeriesName = activity.SeriesName,
-                        UserId = activity.UserId,
-                        UserName = activity.UserName,
-                        Client = activity.Client,
-                        Device = activity.Device,
-                        DeviceId = activity.DeviceId,
-                        ItemId = activity.ItemId,
-                        SeriesId = activity.SeriesId,
-                        SeasonId = activity.SeasonId,
-                        Duration = activity.Duration,
-                        DirectPlay = activity.DirectPlay,
-                        PlayMethod = activity.PlayMethod,
-                        DateCreated = activity.DateCreated,
-                        Container = activity.Container,
-                        IpAddress = activity.IpAddress,
-                        RuntimeTicks = activity.RuntimeTicks,
-                        Item = item,
-                        LibraryId = item?.LibraryId ?? "N/A",
-                        PlayCount = history.Count,
-                        PlayDuration = history.Sum(h => h.Duration),
-                        GroupedResults = history.Select(h => new ActivityModel
-                        {
-                            Id = h.Id,
-                            ServerId = ServerId,
-                            Name = h.Name,
-                            SeriesName = h.SeriesName,
-                            UserId = h.UserId,
-                            UserName = h.UserName,
-                            Client = h.Client,
-                            Device = h.Device,
-                            DeviceId = h.DeviceId,
-                            ItemId = h.ItemId,
-                            SeriesId = h.SeriesId,
-                            SeasonId = h.SeasonId,
-                            Duration = h.Duration,
-                            DirectPlay = h.DirectPlay,
-                            PlayMethod = h.PlayMethod,
-                            DateCreated = h.DateCreated,
-                            Container = h.Container,
-                            IpAddress = h.IpAddress,
-                            RuntimeTicks = h.RuntimeTicks,
-                            Item = item,
-                            LibraryId = item?.LibraryId ?? "N/A",
-                            PlayCount = 1,
-                            PlayDuration = h.Duration,
-                        }).ToList()
-                    };
-                }).ToList();
-
-                return new Paging<ActivityModel>(pagedActivities.Count, resultData);
-
+                return context.Activity
+                                .Where(a => latestIdsQuery.Contains(a.Id))
+                                .Join(context.Items,
+                                      activity => activity.ItemId,
+                                      item => item.Id,
+                                      (activity, item) => new { activity, item })
+                                .Select(x => new ActivityModel
+                                {
+                                    Id = x.activity.Id,
+                                    ServerId = x.activity.ServerId,
+                                    Name = x.activity.Name,
+                                    SeriesName = x.activity.SeriesName,
+                                    UserId = x.activity.UserId,
+                                    UserName = x.activity.UserName,
+                                    Client = x.activity.Client,
+                                    Device = x.activity.Device,
+                                    DeviceId = x.activity.DeviceId,
+                                    ItemId = x.activity.ItemId,
+                                    SeriesId = x.activity.SeriesId,
+                                    SeasonId = x.activity.SeasonId,
+                                    Duration = x.activity.Duration,
+                                    DirectPlay = x.activity.DirectPlay,
+                                    PlayMethod = x.activity.PlayMethod,
+                                    MediaStreams = x.activity.MediaStreams,
+                                    TranscodingInfo = x.activity.TranscodingInfo,
+                                    Imported = x.activity.Imported,
+                                    DateCreated = x.activity.DateCreated,
+                                    Container = x.activity.Container,
+                                    IpAddress = x.activity.IpAddress,
+                                    RuntimeTicks = x.activity.RuntimeTicks,
+                                    LibraryId = x.item.LibraryId,
+                                    Item = x.item,
+                                    PlayCount = context.Activity.Count(a => a.ItemId == x.activity.ItemId && a.UserId == x.activity.UserId),
+                                    PlayDuration = context.Activity.Where(a => a.ItemId == x.activity.ItemId && a.UserId == x.activity.UserId).Sum(a => a.Duration),
+                                    GroupedResults = context.Activity.Where(a => a.ItemId == x.activity.ItemId && a.UserId == x.activity.UserId).Select(h => new ActivityModel
+                                    {
+                                        Id = h.Id,
+                                        ServerId = ServerId,
+                                        Name = h.Name,
+                                        SeriesName = h.SeriesName,
+                                        UserId = h.UserId,
+                                        UserName = h.UserName,
+                                        Client = h.Client,
+                                        Device = h.Device,
+                                        DeviceId = h.DeviceId,
+                                        ItemId = h.ItemId,
+                                        SeriesId = h.SeriesId,
+                                        SeasonId = h.SeasonId,
+                                        Duration = h.Duration,
+                                        DirectPlay = h.DirectPlay,
+                                        PlayMethod = h.PlayMethod,
+                                        DateCreated = h.DateCreated,
+                                        Container = h.Container,
+                                        IpAddress = h.IpAddress,
+                                        RuntimeTicks = h.RuntimeTicks,
+                                        Item = x.item,
+                                        LibraryId = x.item.LibraryId,
+                                        PlayCount = 1,
+                                        PlayDuration = h.Duration,
+                                    }).ToList()
+                                })
+                                .Gridify(query);
             }
+
             return context.Activity.Where(a => a.ServerId == ServerId)
                     .Join(context.Items,
                              activity => activity.ItemId,
@@ -205,7 +142,192 @@ namespace Jellystat_API_Core.Controllers
                         PlayCount = 1
                     })
                 .Gridify(query);
+
+
         }
+
+
+        //[HttpGet("Activity", Name = "Activity")]
+        //[DefaultGridifyOrder(nameof(Activity.DateCreated), true)]
+        //public async Task<ActionResult<Paging<ActivityModel>>> GetActivityAsync([FromQuery] GridifyQuery query, string? ServerId, bool GroupResults = true)
+        //{
+        //    if (!HttpContext.User.IsAdministrator() || ServerId == null)
+        //    {
+        //        ServerId = HttpContext.User.GetServerId();
+        //    }
+        //    if (GroupResults)
+        //    {
+
+        //        // 1. Get the IDs of the latest record for each group (Server-Side)
+        //        // We use a subquery to find the specific ID that corresponds to the Max DateCreated
+        //        var latestIdsQuery = context.Activity
+        //            .Where(a => a.ServerId == ServerId)
+        //            .GroupBy(a => new { a.UserId, a.ItemId })
+        //            .Select(g => g.OrderByDescending(x => x.DateCreated)
+        //                          .Select(x => x.Id)
+        //                          .FirstOrDefault());
+
+        //        // 2. Build the query for the entities (Server-Side)
+        //        // latestIdsQuery is still just an IQueryable of strings, so Gridify won't break
+        //        var flatQuery = context.Activity
+        //            .Where(a => latestIdsQuery.Contains(a.Id))
+        //            .Join(context.Items,
+        //                  activity => activity.ItemId,
+        //                  item => item.Id,
+        //                  (a, i) => new
+        //                  {
+        //                      // Include all fields you want to be able to filter/sort by
+        //                      a.Id,
+        //                      a.ServerId,
+        //                      a.Name,
+        //                      a.SeriesName,
+        //                      a.UserId,
+        //                      a.UserName,
+        //                      a.Client,
+        //                      a.Device,
+        //                      a.DeviceId,
+        //                      a.ItemId,
+        //                      a.SeriesId,
+        //                      a.SeasonId,
+        //                      a.Duration,
+        //                      a.DirectPlay,
+        //                      a.PlayMethod,
+        //                      a.MediaStreams,
+        //                      a.TranscodingInfo,
+        //                      a.Imported,
+        //                      a.DateCreated,
+        //                      a.Container,
+        //                      a.IpAddress,
+        //                      a.RuntimeTicks,
+        //                      LibraryId = i.LibraryId,
+
+        //                  });
+
+        //        // 3. Apply Gridify
+        //        // This handles all filtering/sorting on raw Activity fields
+        //        var pagedActivities = flatQuery.Gridify(query);
+
+        //        if (pagedActivities.Count == 0)
+        //            return new Paging<ActivityModel>(0, new List<ActivityModel>());
+
+        //        // 4. Batch fetch history and items for the current page
+        //        var pageActivities = pagedActivities.Data.ToList();
+        //        var userIds = pageActivities.Select(a => a.UserId).Distinct().ToList();
+        //        var itemIds = pageActivities.Select(a => a.ItemId).Distinct().ToList();
+
+        //        var allHistory = await context.Activity
+        //            .AsNoTracking()
+        //            .Where(a => a.ServerId == ServerId && userIds.Contains(a.UserId) && itemIds.Contains(a.ItemId))
+        //            .ToListAsync();
+
+        //        var itemsDict = await context.Items
+        //            .AsNoTracking()
+        //            .Where(i => itemIds.Contains(i.Id))
+        //            .ToDictionaryAsync(i => i.Id);
+
+        //        // 5. Final Mapping
+        //        var resultData = pageActivities.Select(activity =>
+        //        {
+        //            var history = allHistory
+        //                .Where(h => h.UserId == activity.UserId && h.ItemId == activity.ItemId)
+        //                .OrderByDescending(h => h.DateCreated)
+        //                .ToList();
+
+        //            itemsDict.TryGetValue(activity.ItemId, out var item);
+
+        //            return new ActivityModel
+        //            {
+        //                Id = activity.Id,
+        //                ServerId = ServerId,
+        //                Name = activity.Name,
+        //                SeriesName = activity.SeriesName,
+        //                UserId = activity.UserId,
+        //                UserName = activity.UserName,
+        //                Client = activity.Client,
+        //                Device = activity.Device,
+        //                DeviceId = activity.DeviceId,
+        //                ItemId = activity.ItemId,
+        //                SeriesId = activity.SeriesId,
+        //                SeasonId = activity.SeasonId,
+        //                Duration = activity.Duration,
+        //                DirectPlay = activity.DirectPlay,
+        //                PlayMethod = activity.PlayMethod,
+        //                DateCreated = activity.DateCreated,
+        //                Container = activity.Container,
+        //                IpAddress = activity.IpAddress,
+        //                RuntimeTicks = activity.RuntimeTicks,
+        //                Item = item,
+        //                LibraryId = item?.LibraryId ?? "N/A",
+        //                PlayCount = history.Count,
+        //                PlayDuration = history.Sum(h => h.Duration),
+        //                GroupedResults = history.Select(h => new ActivityModel
+        //                {
+        //                    Id = h.Id,
+        //                    ServerId = ServerId,
+        //                    Name = h.Name,
+        //                    SeriesName = h.SeriesName,
+        //                    UserId = h.UserId,
+        //                    UserName = h.UserName,
+        //                    Client = h.Client,
+        //                    Device = h.Device,
+        //                    DeviceId = h.DeviceId,
+        //                    ItemId = h.ItemId,
+        //                    SeriesId = h.SeriesId,
+        //                    SeasonId = h.SeasonId,
+        //                    Duration = h.Duration,
+        //                    DirectPlay = h.DirectPlay,
+        //                    PlayMethod = h.PlayMethod,
+        //                    DateCreated = h.DateCreated,
+        //                    Container = h.Container,
+        //                    IpAddress = h.IpAddress,
+        //                    RuntimeTicks = h.RuntimeTicks,
+        //                    Item = item,
+        //                    LibraryId = item?.LibraryId ?? "N/A",
+        //                    PlayCount = 1,
+        //                    PlayDuration = h.Duration,
+        //                }).ToList()
+        //            };
+        //        }).ToList();
+
+        //        return new Paging<ActivityModel>(pagedActivities.Count, resultData);
+
+        //    }
+        //    return context.Activity.Where(a => a.ServerId == ServerId)
+        //            .Join(context.Items,
+        //                     activity => activity.ItemId,
+        //                     item => item.Id,
+        //                     (activity, item) => new { activity, item })
+        //            .Select(a => new ActivityModel
+        //            {
+        //                Id = a.activity.Id,
+        //                ServerId = a.activity.ServerId,
+        //                Name = a.activity.Name,
+        //                SeriesName = a.activity.SeriesName,
+        //                UserId = a.activity.UserId,
+        //                UserName = a.activity.UserName,
+        //                Client = a.activity.Client,
+        //                Device = a.activity.Device,
+        //                DeviceId = a.activity.DeviceId,
+        //                ItemId = a.activity.ItemId,
+        //                SeriesId = a.activity.SeriesId,
+        //                SeasonId = a.activity.SeasonId,
+        //                Duration = a.activity.Duration,
+        //                DirectPlay = a.activity.DirectPlay,
+        //                PlayMethod = a.activity.PlayMethod,
+        //                MediaStreams = a.activity.MediaStreams,
+        //                TranscodingInfo = a.activity.TranscodingInfo,
+        //                Imported = a.activity.Imported,
+        //                DateCreated = a.activity.DateCreated,
+        //                Container = a.activity.Container,
+        //                IpAddress = a.activity.IpAddress,
+        //                RuntimeTicks = a.activity.RuntimeTicks,
+        //                LibraryId = a.item.LibraryId,
+        //                Item = a.item,
+        //                PlayDuration = a.activity.Duration,
+        //                PlayCount = 1
+        //            })
+        //        .Gridify(query);
+        //}
 
         [HttpDelete("Activity", Name = "Activity")]
         [PermissionAuthorize(PermissionTypes.Administrator)]
