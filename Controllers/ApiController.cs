@@ -544,7 +544,7 @@ namespace Jellystat_API_Core.Controllers
 
             double similarityThreshold = 0.3;
             var _query = context.ItemsWithParentData
-                .Where(i => i.ServerId == ServerId && EF.Functions.TrigramsSimilarity(i.Name, Name) > similarityThreshold)
+                .Where(i => i.ServerId == ServerId && EF.Functions.TrigramsSimilarity(i.Name, Name) > similarityThreshold && i.archived != true)
                 .OrderByDescending(i => EF.Functions.TrigramsSimilarity(i.Name, Name));
 
 
