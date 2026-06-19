@@ -572,6 +572,7 @@ namespace Jellystat_API_Core.Controllers
                       PlayCount = g.Count(),
                       PlayDuration = g.Sum(x => (long?)x.Duration) ?? 0
                   })
+                  .OrderBy(x => x.Name)
                   .AsQueryable();
         }
 
