@@ -81,9 +81,17 @@ namespace Jellystat_API_Core.Services.Tasks
 
         public Task RegisterServerAsync(Server server)
         {
+            RegisterTasksAsync(server);
+            return Task.CompletedTask;
+        }
+
+        public Task RegisterTasksAsync(Server server, List<TaskSettings>? tasks = null)
+        {
+            tasks ??= server.TaskSettings;
+
             var scheduledTasks = new List<ScheduledTask>();
 
-            foreach (var taskSettings in server.TaskSettings)
+            foreach (var taskSettings in tasks)
             {
                 if (taskSettings.Enabled)
                 {

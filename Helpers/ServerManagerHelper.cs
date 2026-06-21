@@ -77,5 +77,22 @@ namespace Jellystat_API_Core.Helpers
                 return null;
             }
         }
+
+        public async Task<bool> UpdateTasksInDatabase(string ServerId, TaskSettings[] taskSettings, ApplicationDbContext context)
+        {
+            try
+            {
+                await context.Servers.Where(s => s.Id == ServerId).ExecuteUpdateAsync(s => s
+                      .SetProperty(p => p.TaskSettings, taskSettings.ToList())
+                  );
+                await context.SaveChangesAsync();
+                return true;
+
+            }
+            catch (Exception ex)
+            {
+                return false;
+            }
+        }
     }
 }

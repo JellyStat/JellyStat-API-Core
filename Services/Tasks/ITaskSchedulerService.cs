@@ -10,5 +10,7 @@ namespace Jellystat_API_Core.Services.Tasks
         Task StartAsync(CancellationToken cancellationToken);
         Task StopAsync(CancellationToken cancellationToken);
         int GetQueueCount();
+
+        Task RegisterTasksAsync(Server server, List<TaskSettings>? tasks = null);
     }
 }

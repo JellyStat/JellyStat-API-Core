@@ -2,6 +2,7 @@
 using Jellystat_API_Core.Classes.API.@interface;
 using Jellystat_API_Core.Data;
 using Jellystat_API_Core.Enums;
+using Jellystat_API_Core.Helpers;
 using Jellystat_API_Core.Models.Jellystat;
 using Jellystat_API_Core.Services.API;
 using Jellystat_API_Core.Services.Tasks;
@@ -67,6 +68,39 @@ namespace Jellystat_API_Core.Controllers
             await _taskSchedulerService.EnqueueTaskAsync(api.config, task);
             return Ok();
         }
+
+
+        [HttpPost("UpdateTask", Name = "UpdateTask")]
+        [PermissionAuthorize(PermissionTypes.Administrator)]
+        public async Task<ActionResult> UpdateTask(string ServerId, [FromBody] TaskSettings taskSetting)
+        {
+
+            iAPI? api = _apiInstanceManager.GetInstance(ServerId);
+            if (api == null)
+            {
+                return NotFound("API instance not found");
+            }
+
+            TaskSettings[] taskSettings = api.config.TaskSettings.ToArray();
+
+            TaskSettings? task = taskSettings.FirstOrDefault(t => t.Task == taskSetting.Task);
+            if (task == null)
+            {
+                return NotFound("Task not found");
+            }
+
+            task.IntervalMinutes = taskSetting.IntervalMinutes;
+            task.Enabled = taskSetting.Enabled;
+            ServerManagerHelper serverHelper = new ServerManagerHelper();
+            bool success = await serverHelper.UpdateTasksInDatabase(ServerId, taskSettings, context);
+            if (success)
+            {
+                await _taskSchedulerService.RegisterTasksAsync(api.config, taskSettings.ToList());
+                return Ok();
+            }
+            return BadRequest("Failed to update task");
+        }
+
 
     }
 }
