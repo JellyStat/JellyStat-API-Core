@@ -77,7 +77,22 @@ namespace Jellystat_API_Core.Controllers
                                     Item = x.item,
                                     PlayCount = context.Activity.Count(a => a.ItemId == x.activity.ItemId && a.UserId == x.activity.UserId),
                                     PlayDuration = context.Activity.Where(a => a.ItemId == x.activity.ItemId && a.UserId == x.activity.UserId).Sum(a => a.Duration),
-                                    FullName = x.activity.SeriesName != null ? $"{x.activity.SeriesName} : S{(x.item.ParentIndex.HasValue ? x.item.ParentIndex.ToString() : "??").PadLeft(2, '0')}E{(x.item.Index.HasValue ? x.item.Index.ToString() : "??").PadLeft(2, '0')} - {x.activity.Name}" : x.activity.Name,
+                                    FullName = x.activity.SeriesName == null
+                                                ? x.activity.Name
+                                                : x.activity.SeriesName + " : S" +
+                                                  (x.item.ParentIndex == null
+                                                      ? "??"
+                                                      : x.item.ParentIndex < 10
+                                                          ? "0" + Convert.ToString(x.item.ParentIndex)
+                                                          : Convert.ToString(x.item.ParentIndex)) +
+                                                  "E" +
+                                                  (x.item.Index == null
+                                                      ? "??"
+                                                      : x.item.Index < 10
+                                                          ? "0" + Convert.ToString(x.item.Index)
+                                                          : Convert.ToString(x.item.Index)) +
+                                                  " - " +
+                                                  x.activity.Name,
                                     GroupedResults = context.Activity.Where(a => a.ItemId == x.activity.ItemId && a.UserId == x.activity.UserId).Select(h => new ActivityModel
                                     {
                                         Id = h.Id,
@@ -103,8 +118,22 @@ namespace Jellystat_API_Core.Controllers
                                         LibraryId = x.item.LibraryId,
                                         PlayCount = 1,
                                         PlayDuration = h.Duration,
-                                        FullName = h.SeriesName != null ? $"{h.SeriesName} : S{(x.item.ParentIndex.HasValue ? x.item.ParentIndex.ToString() : "??").PadLeft(2, '0')}E{(x.item.Index.HasValue ? x.item.Index.ToString() : "??").PadLeft(2, '0')} - {h.Name}" : h.Name,
-
+                                        FullName = h.SeriesName == null
+                                                ? h.Name
+                                                : h.SeriesName + " : S" +
+                                                  (x.item.ParentIndex == null
+                                                      ? "??"
+                                                      : x.item.ParentIndex < 10
+                                                          ? "0" + Convert.ToString(x.item.ParentIndex)
+                                                          : Convert.ToString(x.item.ParentIndex)) +
+                                                  "E" +
+                                                  (x.item.Index == null
+                                                      ? "??"
+                                                      : x.item.Index < 10
+                                                          ? "0" + Convert.ToString(x.item.Index)
+                                                          : Convert.ToString(x.item.Index)) +
+                                                  " - " +
+                                                  h.Name,
                                     }).ToList()
                                 })
                                 .Gridify(query);
@@ -143,8 +172,22 @@ namespace Jellystat_API_Core.Controllers
                         Item = a.item,
                         PlayDuration = a.activity.Duration,
                         PlayCount = 1,
-                        FullName = a.activity.SeriesName != null ? $"{a.activity.SeriesName} : S{(a.item.ParentIndex.HasValue ? a.item.ParentIndex.ToString() : "??").PadLeft(2, '0')}E{(a.item.Index.HasValue ? a.item.Index.ToString() : "??").PadLeft(2, '0')} - {a.activity.Name}" : a.activity.Name,
-
+                        FullName = a.activity.SeriesName == null
+                                                ? a.activity.Name
+                                                : a.activity.SeriesName + " : S" +
+                                                  (a.item.ParentIndex == null
+                                                      ? "??"
+                                                      : a.item.ParentIndex < 10
+                                                          ? "0" + Convert.ToString(a.item.ParentIndex)
+                                                          : Convert.ToString(a.item.ParentIndex)) +
+                                                  "E" +
+                                                  (a.item.Index == null
+                                                      ? "??"
+                                                      : a.item.Index < 10
+                                                          ? "0" + Convert.ToString(a.item.Index)
+                                                          : Convert.ToString(a.item.Index)) +
+                                                  " - " +
+                                                  a.activity.Name,
                     })
                 .Gridify(query);
 
