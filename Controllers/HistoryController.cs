@@ -77,6 +77,7 @@ namespace Jellystat_API_Core.Controllers
                                     Item = x.item,
                                     PlayCount = context.Activity.Count(a => a.ItemId == x.activity.ItemId && a.UserId == x.activity.UserId),
                                     PlayDuration = context.Activity.Where(a => a.ItemId == x.activity.ItemId && a.UserId == x.activity.UserId).Sum(a => a.Duration),
+                                    FullName = x.activity.SeriesName != null ? $"{x.activity.SeriesName} : S{(x.item.ParentIndex.ToString() ?? "??").PadLeft(2, '0')}E{(x.item.Index.ToString() ?? "??").PadLeft(2, '0')} - {x.activity.Name}" : x.activity.Name,
                                     GroupedResults = context.Activity.Where(a => a.ItemId == x.activity.ItemId && a.UserId == x.activity.UserId).Select(h => new ActivityModel
                                     {
                                         Id = h.Id,
@@ -102,6 +103,8 @@ namespace Jellystat_API_Core.Controllers
                                         LibraryId = x.item.LibraryId,
                                         PlayCount = 1,
                                         PlayDuration = h.Duration,
+                                        FullName = h.SeriesName != null ? $"{h.SeriesName} : S{(x.item.ParentIndex.ToString() ?? "??").PadLeft(2, '0')}E{(x.item.Index.ToString() ?? "??").PadLeft(2, '0')} - {h.Name}" : h.Name,
+
                                     }).ToList()
                                 })
                                 .Gridify(query);
@@ -139,7 +142,9 @@ namespace Jellystat_API_Core.Controllers
                         LibraryId = a.item.LibraryId,
                         Item = a.item,
                         PlayDuration = a.activity.Duration,
-                        PlayCount = 1
+                        PlayCount = 1,
+                        FullName = a.activity.SeriesName != null ? $"{a.activity.SeriesName} : S{(a.item.ParentIndex.ToString() ?? "??").PadLeft(2, '0')}E{(a.item.Index.ToString() ?? "??").PadLeft(2, '0')} - {a.activity.Name}" : a.activity.Name,
+
                     })
                 .Gridify(query);
 
