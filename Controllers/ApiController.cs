@@ -625,5 +625,28 @@ namespace Jellystat_API_Core.Controllers
 
         }
 
+        [HttpGet("AllowRemoteAuth", Name = "AllowRemoteAuth")]
+        [PermissionAuthorize(PermissionTypes.Administrator)]
+        public async Task<ActionResult<bool>> ToggleAllowRemoteAuth(string ServerId)
+        {
+            var server = await context.Servers.FirstOrDefaultAsync(s => s.Id == ServerId);
+            if (server == null)
+            {
+                return NotFound("Server not found");
+            }
+
+            server.AllowRemoteAuth = !server.AllowRemoteAuth;
+            await context.SaveChangesAsync();
+
+            iAPI? instance = _apiInstanceManager.GetInstance(ServerId);
+
+            if (instance != null)
+            {
+                instance.config.AllowRemoteAuth = server.AllowRemoteAuth;
+            }
+
+            return Ok(server.AllowRemoteAuth);
+        }
+
     }
 }

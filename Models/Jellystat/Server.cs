@@ -23,6 +23,8 @@ namespace Jellystat_API_Core.Models.Jellystat
             new TaskSettings(TaskTypes.PartialSync, (1 * 60)),
         };
 
+        public bool AllowRemoteAuth { get; set; } = false;
+
         [Newtonsoft.Json.JsonIgnore]
         [System.Text.Json.Serialization.JsonIgnore]
         public WebSocketClientConfig WebSocketConfig => new WebSocketClientConfig

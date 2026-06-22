@@ -495,6 +495,9 @@ namespace Jellystat_API_Core.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
+                    b.Property<bool>("AllowRemoteAuth")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("ExternalURL")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
