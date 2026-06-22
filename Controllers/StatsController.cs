@@ -39,70 +39,62 @@ namespace Jellystat_API_Core.Controllers
                     ? DateTime.MinValue
                     : DateTime.UtcNow.AddDays(-days);
             var _query = context.ItemsWithParentData
-                .Where(i => i.ServerId == ServerId)
-                .Select(item => new ItemsWithStats
-                {
-                    // Stats fields - calculated from descendant activity via ItemsPath
-                    PlayCount = context.ItemsPath
-                        .Where(path => path.AncestorId == item.Id)
-                        .Join(context.Activity,
-                              path => path.DescendantId,
-                              activity => activity.ItemId,
-                              (path, activity) => activity)
-                        .Where(activity => activity.DateCreated >= cutoffDate)
-                        .Count(),
+                         .Where(i => i.ServerId == ServerId)
+                         .GroupJoin(context.ItemsPath,
+                             item => item.Id,
+                             path => path.AncestorId,
+                             (item, paths) => new { item, paths })
+                         .SelectMany(
+                             x => x.paths,
+                             (x, path) => new { x.item, path })
+                         .GroupJoin(context.Activity.Where(a => a.DateCreated >= cutoffDate),
+                             x => x.path.DescendantId,
+                             activity => activity.ItemId,
+                             (x, activities) => new { x.item, activities })
+                         .GroupBy(
+                             x => x.item,
+                             (item, group) => new ItemsWithStats
+                             {
+                                 Id = item.Id,
+                                 ServerId = item.ServerId,
+                                 LibraryId = item.LibraryId,
+                                 ParentId = item.ParentId,
+                                 Parent = item.Parent,
+                                 Name = item.Name,
+                                 DateCreated = item.DateCreated,
+                                 MediaStreams = item.MediaStreams,
+                                 Duration = item.Duration,
+                                 Type = item.Type,
+                                 ImageTag = item.ImageTag,
+                                 ImageHash = item.ImageHash,
+                                 Genres = item.Genres,
+                                 Path = item.Path,
+                                 Size = item.Size,
+                                 Bitrate = item.Bitrate,
+                                 ParentIndex = item.ParentIndex,
+                                 Index = item.Index,
+                                 archived = item.archived,
+                                 Codec = item.Codec,
+                                 Resolution = item.Resolution,
 
-                    PlayDuration = (context.ItemsPath
-                        .Where(path => path.AncestorId == item.Id)
-                        .Join(context.Activity,
-                              path => path.DescendantId,
-                              activity => activity.ItemId,
-                              (path, activity) => activity)
-                        .Where(activity => activity.DateCreated >= cutoffDate)
-                        .Select(activity => (long?)activity.Duration)
-                        .Sum() ?? 0),
+                                 Library = context.Libraries.FirstOrDefault(l => l.Id == item.LibraryId),
+                                 PlayCount = group
+                                     .SelectMany(g => g.activities)
+                                     .Count(),
 
-                    LatestActivity = context.Activity
-                                    .Where(activity => context.ItemsPath
-                                        .Where(path => path.AncestorId == item.Id)
-                                        .Select(path => path.DescendantId)
-                                        .Contains(activity.ItemId))
-                                    .OrderByDescending(a => a.DateCreated)
-                                    .FirstOrDefault(),
+                                 PlayDuration = group
+                                     .SelectMany(g => g.activities)
+                                     .Sum(a => (long?)a.Duration) ?? 0,
 
-                    LatestActivityDate = context.Activity
-                                    .Where(activity => context.ItemsPath
-                                        .Where(path => path.AncestorId == item.Id)
-                                        .Select(path => path.DescendantId)
-                                        .Contains(activity.ItemId))
-                                    .Select(a => (DateTime?)a.DateCreated)
-                                    .Max(),
+                                 LatestActivityDate = group
+                                     .SelectMany(g => g.activities)
+                                     .Max(a => (DateTime?)a.DateCreated),
 
-                    Library = context.Libraries.Where(l => l.Id == item.LibraryId).FirstOrDefault(),
-
-                    // Item fields
-                    Parent = item.Parent,
-                    Name = item.Name,
-                    ServerId = item.ServerId,
-                    Id = item.Id,
-                    LibraryId = item.LibraryId,
-                    DateCreated = item.DateCreated,
-                    MediaStreams = item.MediaStreams,
-                    Duration = item.Duration,
-                    Type = item.Type,
-                    ImageTag = item.ImageTag,
-                    ImageHash = item.ImageHash,
-                    Genres = item.Genres,
-                    Path = item.Path,
-                    Size = item.Size,
-                    Bitrate = item.Bitrate,
-                    ParentId = item.ParentId,
-                    ParentIndex = item.ParentIndex,
-                    Index = item.Index,
-                    archived = item.archived,
-                    Codec = item.Codec,
-                    Resolution = item.Resolution
-                });
+                                 LatestActivity = group
+                                     .SelectMany(g => g.activities)
+                                     .OrderByDescending(a => a.DateCreated)
+                                     .FirstOrDefault()
+                             });
 
             return _query.Gridify(query);
         }
@@ -120,75 +112,65 @@ namespace Jellystat_API_Core.Controllers
                     ? DateTime.MinValue
                     : DateTime.UtcNow.AddDays(-days);
             var _query = context.ItemsWithParentData
-                .Where(i => i.ServerId == ServerId)
-                .Select(item => new ItemsWithStats
-                {
-                    // Stats fields - calculated from descendant activity via ItemsPath
-                    // PlayCount represents unique user count
-                    PlayCount = context.ItemsPath
-                        .Where(path => path.AncestorId == item.Id)
-                        .Join(context.Activity,
-                              path => path.DescendantId,
-                              activity => activity.ItemId,
-                              (path, activity) => activity)
-                        .Where(activity => activity.DateCreated >= cutoffDate)
-                        .Select(activity => activity.UserId)
-                        .Distinct()
-                        .Count(),
+                        .Where(i => i.ServerId == ServerId)
+                        .GroupJoin(context.ItemsPath,
+                            item => item.Id,
+                            path => path.AncestorId,
+                            (item, paths) => new { item, paths })
+                        .SelectMany(
+                            x => x.paths,
+                            (x, path) => new { x.item, path })
+                        .GroupJoin(context.Activity.Where(a => a.DateCreated >= cutoffDate),
+                            x => x.path.DescendantId,
+                            activity => activity.ItemId,
+                            (x, activities) => new { x.item, activities })
+                        .GroupBy(
+                            x => x.item,
+                            (item, group) => new ItemsWithStats
+                            {
+                                Id = item.Id,
+                                ServerId = item.ServerId,
+                                LibraryId = item.LibraryId,
+                                ParentId = item.ParentId,
+                                Parent = item.Parent,
+                                Name = item.Name,
+                                DateCreated = item.DateCreated,
+                                MediaStreams = item.MediaStreams,
+                                Duration = item.Duration,
+                                Type = item.Type,
+                                ImageTag = item.ImageTag,
+                                ImageHash = item.ImageHash,
+                                Genres = item.Genres,
+                                Path = item.Path,
+                                Size = item.Size,
+                                Bitrate = item.Bitrate,
+                                ParentIndex = item.ParentIndex,
+                                Index = item.Index,
+                                archived = item.archived,
+                                Codec = item.Codec,
+                                Resolution = item.Resolution,
 
-                    PlayDuration = (context.ItemsPath
-                        .Where(path => path.AncestorId == item.Id)
-                        .Join(context.Activity,
-                              path => path.DescendantId,
-                              activity => activity.ItemId,
-                              (path, activity) => activity)
-                        .Where(activity => activity.DateCreated >= cutoffDate)
-                        .Select(activity => (long?)activity.Duration)
-                        .Sum() ?? 0),
+                                Library = context.Libraries.FirstOrDefault(l => l.Id == item.LibraryId),
 
-                    LatestActivityDate = context.ItemsPath
-                        .Where(path => path.AncestorId == item.Id)
-                        .Join(context.Activity,
-                              path => path.DescendantId,
-                              activity => activity.ItemId,
-                              (path, activity) => activity)
-                        .Where(activity => activity.DateCreated >= cutoffDate)
-                        .Select(activity => (DateTime?)activity.DateCreated)
-                        .Max(),
+                                PlayCount = group
+                                    .SelectMany(g => g.activities)
+                                    .Select(a => a.UserId)
+                                    .Distinct()
+                                    .Count(),
 
-                    LatestActivity = context.Activity
-                                    .Where(activity => context.ItemsPath
-                                        .Where(path => path.AncestorId == item.Id)
-                                        .Select(path => path.DescendantId)
-                                        .Contains(activity.ItemId))
+                                PlayDuration = group
+                                    .SelectMany(g => g.activities)
+                                    .Sum(a => (long?)a.Duration) ?? 0,
+
+                                LatestActivityDate = group
+                                    .SelectMany(g => g.activities)
+                                    .Max(a => (DateTime?)a.DateCreated),
+
+                                LatestActivity = group
+                                    .SelectMany(g => g.activities)
                                     .OrderByDescending(a => a.DateCreated)
-                                    .FirstOrDefault(),
-
-                    Library = context.Libraries.Where(l => l.Id == item.LibraryId).FirstOrDefault(),
-
-                    // Item fields
-                    Parent = item.Parent,
-                    Name = item.Name,
-                    ServerId = item.ServerId,
-                    Id = item.Id,
-                    LibraryId = item.LibraryId,
-                    DateCreated = item.DateCreated,
-                    MediaStreams = item.MediaStreams,
-                    Duration = item.Duration,
-                    Type = item.Type,
-                    ImageTag = item.ImageTag,
-                    ImageHash = item.ImageHash,
-                    Genres = item.Genres,
-                    Path = item.Path,
-                    Size = item.Size,
-                    Bitrate = item.Bitrate,
-                    ParentId = item.ParentId,
-                    ParentIndex = item.ParentIndex,
-                    Index = item.Index,
-                    archived = item.archived,
-                    Codec = item.Codec,
-                    Resolution = item.Resolution
-                });
+                                    .FirstOrDefault()
+                            });
 
             return _query.Gridify(query);
         }
