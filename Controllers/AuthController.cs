@@ -173,6 +173,11 @@ namespace Jellystat_API_Core.Controllers
                     return Unauthorized("Invalid server ID");
                 }
 
+                if (instance.config.AllowRemoteAuth == false)
+                {
+                    return Unauthorized("Remote authentication is not allowed for this server");
+                }
+
                 bool authTrue = await instance.AuthenticateByUsername(loginModel.Username, loginModel.Password);
 
                 if (!authTrue)
