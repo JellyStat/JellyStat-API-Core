@@ -154,7 +154,7 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("DefaultCors", policy =>
     {
-        if (builder.Environment.IsDevelopment() || !string.IsNullOrEmpty(UiURI))
+        if (builder.Environment.IsDevelopment() || string.IsNullOrEmpty(UiURI))
         {
             policy.AllowAnyOrigin()
                   .AllowAnyHeader()
