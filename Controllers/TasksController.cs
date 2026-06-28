@@ -29,9 +29,9 @@ namespace Jellystat_API_Core.Controllers
 
 
         //Tasks
-        [HttpGet("StartSync", Name = "StartSync")]
+        [HttpGet("StartTask", Name = "StartTask")]
         [PermissionAuthorize(PermissionTypes.Administrator)]
-        public async Task<ActionResult> StartSync(string ServerId)
+        public async Task<ActionResult> StartTask(string ServerId, TaskTypes Task)
         {
 
             iAPI? api = _apiInstanceManager.GetInstance(ServerId);
@@ -40,27 +40,7 @@ namespace Jellystat_API_Core.Controllers
                 return NotFound("API instance not found");
             }
 
-            TaskSettings? task = api.config.TaskSettings.FirstOrDefault(t => t.Task == TaskTypes.FullSync);
-            if (task == null)
-            {
-                return NotFound("Task not found");
-            }
-            await _taskSchedulerService.EnqueueTaskAsync(api.config, task);
-            return Ok();
-        }
-
-        [HttpGet("StartPartialSync", Name = "StartPartialSync")]
-        [PermissionAuthorize(PermissionTypes.Administrator)]
-        public async Task<ActionResult> StartPartialSync(string ServerId)
-        {
-
-            iAPI? api = _apiInstanceManager.GetInstance(ServerId);
-            if (api == null)
-            {
-                return NotFound("API instance not found");
-            }
-
-            TaskSettings? task = api.config.TaskSettings.FirstOrDefault(t => t.Task == TaskTypes.PartialSync);
+            TaskSettings? task = api.config.TaskSettings.FirstOrDefault(t => t.Task == Task);
             if (task == null)
             {
                 return NotFound("Task not found");

@@ -149,7 +149,7 @@ namespace Jellystat_API_Core.Services.Tasks
             return _taskQueue.Count;
         }
 
-        public async Task BroadcastEnqueuedTasksAsync(string serverId)
+        private async Task BroadcastEnqueuedTasksAsync(string serverId)
         {
             // Snapshot the queue and find any tasks for the specified server
             var queuedTasks = _taskQueue.ToArray()
