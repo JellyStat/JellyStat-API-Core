@@ -648,5 +648,17 @@ namespace Jellystat_API_Core.Controllers
             return Ok(server.AllowRemoteAuth);
         }
 
+        [HttpGet("Logs", Name = "Logs")]
+        [DefaultGridifyOrder(nameof(Logs.DateCreated), true)]
+        public ActionResult<Paging<Logs>> GetLogs([FromQuery] GridifyQuery query, string? ServerId)
+        {
+            if (!HttpContext.User.IsAdministrator() || ServerId == null)
+            {
+                ServerId = HttpContext.User.GetServerId();
+            }
+
+            return context.Logs.Where(l => l.ServerId == ServerId).Gridify(query);
+        }
+
     }
 }

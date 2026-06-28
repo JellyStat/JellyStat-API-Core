@@ -7,6 +7,7 @@
         Sessions,
         TaskStart,
         TaskUpdate,
+        TaskLogUpdate,
         TaskEnd
     }
 }

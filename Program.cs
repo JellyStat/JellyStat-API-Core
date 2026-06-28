@@ -6,6 +6,7 @@ using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Extensions;
 using Jellystat_API_Core.Helpers;
 using Jellystat_API_Core.Services.API;
+using Jellystat_API_Core.Services.TaskLogging;
 using Jellystat_API_Core.Services.Tasks;
 using Jellystat_API_Core.Services.WebSocket;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -83,6 +84,7 @@ builder.Services.AddDbContext<ApplicationDbContext>(options =>
 // Register repositories
 
 builder.Services.AddMemoryCache();
+builder.Services.AddSingleton<ITaskLogging, TaskLogging>();
 builder.Services.AddSingleton<ITaskSchedulerService, TaskSchedulerService>();
 builder.Services.AddHostedService<TaskSchedulerHostedService>();
 builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler>();

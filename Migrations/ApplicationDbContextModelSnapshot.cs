@@ -460,6 +460,42 @@ namespace Jellystat_API_Core.Migrations
                     b.ToTable("LocalUsers");
                 });
 
+            modelBuilder.Entity("Jellystat_API_Core.Data.Schema.Logs", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("DateCreated")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("timestamp with time zone")
+                        .HasDefaultValueSql("CURRENT_TIMESTAMP");
+
+                    b.Property<float>("Duration")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("real")
+                        .HasDefaultValue(0f);
+
+                    b.PrimitiveCollection<List<string>>("Messages")
+                        .IsRequired()
+                        .HasColumnType("jsonb");
+
+                    b.Property<string>("ServerId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool?>("Success")
+                        .HasColumnType("boolean");
+
+                    b.Property<int>("Task")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ServerId");
+
+                    b.ToTable("Logs");
+                });
+
             modelBuilder.Entity("Jellystat_API_Core.Data.Schema.Permissions", b =>
                 {
                     b.Property<int>("Id")
@@ -749,6 +785,17 @@ namespace Jellystat_API_Core.Migrations
                 });
 
             modelBuilder.Entity("Jellystat_API_Core.Data.Schema.Libraries", b =>
+                {
+                    b.HasOne("Jellystat_API_Core.Data.Schema.Server", "Server")
+                        .WithMany()
+                        .HasForeignKey("ServerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Server");
+                });
+
+            modelBuilder.Entity("Jellystat_API_Core.Data.Schema.Logs", b =>
                 {
                     b.HasOne("Jellystat_API_Core.Data.Schema.Server", "Server")
                         .WithMany()

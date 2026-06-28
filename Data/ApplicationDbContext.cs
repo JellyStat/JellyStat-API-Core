@@ -34,6 +34,7 @@ namespace Jellystat_API_Core.Data
         public DbSet<UserPermissions> UserPermissions { get; set; }
         public DbSet<ItemsWithParentData> ItemsWithParentData { get; set; }
         public DbSet<ItemsPath> ItemsPath { get; set; }
+        public DbSet<Logs> Logs { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -300,6 +301,21 @@ namespace Jellystat_API_Core.Data
                 .HasIndex(a => a.ItemId)
                 .IncludeProperties(a => a.Duration)
                 .HasDatabaseName("idx_activity_item_lookup");
+
+            modelBuilder.Entity<Logs>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Task).IsRequired();
+                entity.Property(e => e.DateCreated).HasDefaultValueSql("CURRENT_TIMESTAMP");
+                entity.Property(e => e.Duration).HasDefaultValue(0);
+                entity.Property(e => e.Messages).HasColumnType("jsonb");
+                entity.Property(e => e.Success).HasDefaultValue(null);
+                entity.Property(e => e.ServerId).IsRequired();
+                entity.HasOne(e => e.Server)
+                             .WithMany()
+                             .HasForeignKey(e => e.ServerId)
+                             .OnDelete(DeleteBehavior.Cascade);
+            });
 
 
         }

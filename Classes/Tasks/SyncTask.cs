@@ -4,6 +4,7 @@ using Jellystat_API_Core.Data;
 using Jellystat_API_Core.Data.Schema;
 using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Models.API.Base;
+using Jellystat_API_Core.Services.TaskLogging;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
 
@@ -32,13 +33,16 @@ namespace Jellystat_API_Core.Classes.Tasks
             using (var scope = _serviceScopeFactory.CreateScope())
             {
                 var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                Debug.WriteLine($"Starting full sync for server {api.config.Name}");
-                await SyncUsers(context);
-                List<Libraries> libraries = await SyncLibraries(context);
+                var loggingService = scope.ServiceProvider.GetRequiredService<ITaskLogging>();
+                Logs log = await loggingService.CreateLogAsync(TaskTypes.FullSync, api.config.Id);
+                await loggingService.AddMessageAsync(log, $"Starting full sync for server {api.config.Name}");
+                await SyncUsers(context, log, loggingService);
+                List<Libraries> libraries = await SyncLibraries(context, log, loggingService);
                 List<ExcludedLibraries> excludedLibraries = await context.ExcludedLibraries.Where(l => l.ServerId == api.config.Id).ToListAsync();
-                await SyncLibraryItems(context, libraries.Where(l => !excludedLibraries.Any(el => el.LibraryId == l.Id)).ToList());
-                await UpdateFromStaging(context);
-                Debug.WriteLine($"Full sync completed for server {api.config.Name}");
+                await SyncLibraryItems(context, libraries.Where(l => !excludedLibraries.Any(el => el.LibraryId == l.Id)).ToList(), log, loggingService);
+                await UpdateFromStaging(context, log, loggingService);
+                await loggingService.AddMessageAsync(log, $"Full sync completed for server {api.config.Name}");
+                await loggingService.SuccessAsync(log);
 
                 context.ChangeTracker.Clear();
             }
@@ -56,23 +60,26 @@ namespace Jellystat_API_Core.Classes.Tasks
             using (var scope = _serviceScopeFactory.CreateScope())
             {
                 var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
-                Debug.WriteLine($"Starting Partial sync for server {api.config.Name}");
-                await SyncUsers(context);
-                List<Libraries> libraries = await SyncLibraries(context);
-                await SyncLibraryItems(context, libraries, 1);
-
-                await UpdateFromStaging(context, false);
-                Debug.WriteLine($"Partial sync completed for server {api.config.Name}");
+                var loggingService = scope.ServiceProvider.GetRequiredService<ITaskLogging>();
+                Logs log = await loggingService.CreateLogAsync(TaskTypes.PartialSync, api.config.Id);
+                await loggingService.AddMessageAsync(log, $"Starting partial sync for server {api.config.Name}");
+                await SyncUsers(context, log, loggingService);
+                List<Libraries> libraries = await SyncLibraries(context, log, loggingService);
+                await SyncLibraryItems(context, libraries, log, loggingService, 1);
+                await UpdateFromStaging(context, log, loggingService, false);
+                await loggingService.AddMessageAsync(log, $"Partial sync completed for server {api.config.Name}");
+                await loggingService.SuccessAsync(log);
 
                 context.ChangeTracker.Clear();
             }
             IsRunning = false;
         }
 
-        private async Task SyncUsers(ApplicationDbContext context)
+        private async Task SyncUsers(ApplicationDbContext context, Logs log, ITaskLogging loggingService)
         {
 
             IList<BaseUser> users = (await api.GetUsers()).ToList();
+            await loggingService.AddMessageAsync(log, $"Fetching Users");
             List<Users> existingUsers = await context.Users.Where(u => u.ServerId == api.config.Id).ToListAsync();
 
 
@@ -87,6 +94,10 @@ namespace Jellystat_API_Core.Classes.Tasks
                 existingUser.Username = user.Name;
                 existingUser.ImageTag = user.ImageTag;
             }
+            if (usersToUpdate.Any())
+            {
+                await loggingService.AddMessageAsync(log, $"Updating {usersToUpdate.Count} users");
+            }
 
             await context.BulkInsertAsync(usersToAdd.Select(u => new Users
             {
@@ -96,16 +107,29 @@ namespace Jellystat_API_Core.Classes.Tasks
                 ImageTag = u.ImageTag
             }));
 
+            if (usersToAdd.Any())
+            {
+                await loggingService.AddMessageAsync(log, $"Added {usersToAdd.Count} users");
+            }
+
             await context.BulkDeleteAsync(usersToRemove);
+
+            if (usersToRemove.Any())
+            {
+                await loggingService.AddMessageAsync(log, $"Removed {usersToRemove.Count} users");
+            }
+
+
             await context.SaveChangesAsync();
-            Debug.WriteLine($"Synced users for server {api.config.Name}: {usersToAdd.Count} added, {usersToRemove.Count} removed, {usersToUpdate.Count} updated.");
+
+            await loggingService.AddMessageAsync(log, $"Synced users for server {api.config.Name}");
         }
 
-        private async Task<List<Libraries>> SyncLibraries(ApplicationDbContext context)
+        private async Task<List<Libraries>> SyncLibraries(ApplicationDbContext context, Logs log, ITaskLogging loggingService)
         {
-            //List<ExcludedLibraries> excludedLibraries = await context.ExcludedLibraries.Where(l => l.ServerId == api.config.Id).ToListAsync();
-
+            await loggingService.AddMessageAsync(log, $"Fetching Libraries");
             List<BaseLibrary> libraries = (await api.GetLibraries()).ToList();
+            await loggingService.AddMessageAsync(log, $"Fetched {libraries.Count} libraries");
             List<Libraries> existingLibraries = await context.Libraries.Where(l => l.ServerId == api.config.Id).ToListAsync();
 
             List<Libraries> librariesToArchive = existingLibraries.Where(l => !libraries.Any(el => el.Id == l.Id)).ToList();
@@ -133,6 +157,11 @@ namespace Jellystat_API_Core.Classes.Tasks
                 archived = l.archived
             }));
 
+            if (librariesToAdd.Any())
+            {
+                await loggingService.AddMessageAsync(log, $"Added {librariesToAdd.Count} libraries");
+            }
+
             await context.BulkUpdateAsync(librariesToUpdate.Select(l => new Libraries
             {
                 Id = l.Id,
@@ -144,14 +173,25 @@ namespace Jellystat_API_Core.Classes.Tasks
                 archived = l.archived
             }));
 
+
+            if (librariesToUpdate.Any())
+            {
+                await loggingService.AddMessageAsync(log, $"Updating {librariesToUpdate.Count} libraries");
+            }
+
             foreach (Libraries library in librariesToArchive)
             {
                 library.archived = true;
             }
 
+            if (librariesToArchive.Any())
+            {
+                await loggingService.AddMessageAsync(log, $"Archived {librariesToArchive.Count} libraries");
+            }
+
             await context.SaveChangesAsync();
 
-            Debug.WriteLine($"Synced libraries for server {api.config.Name}: {librariesToAdd.Count} added, {librariesToArchive.Count} archived, {librariesToUpdate.Count} updated.");
+            await loggingService.AddMessageAsync(log, $"Synced libraries for server {api.config.Name}");
 
             return libraries.Select(l => new Libraries
             {
@@ -165,8 +205,9 @@ namespace Jellystat_API_Core.Classes.Tasks
             }).ToList();
         }
 
-        private async Task SyncLibraryItems(ApplicationDbContext context, List<Libraries> libraries, int limit = 0)
+        private async Task SyncLibraryItems(ApplicationDbContext context, List<Libraries> libraries, Logs log, ITaskLogging loggingService, int limit = 0)
         {
+            await loggingService.AddMessageAsync(log, $"Starting library items sync for server {api.config.Name}");
             await context.ItemsStaging.ExecuteDeleteAsync();
             foreach (Libraries library in libraries)
             {
@@ -181,10 +222,10 @@ namespace Jellystat_API_Core.Classes.Tasks
 
                     try
                     {
+                        await loggingService.AddMessageAsync(log, $"Fetching items for library {library.Name} (id: {library.Id})");
                         while ((items = await api.GetItemsFromParentId(library.Id, null, index)).Count > 0 && (limit > 0 ? limitCounter-- > 0 : true))
                         {
                             total += items.Count;
-                            Debug.WriteLine($"Fetched {items.Count} items from library {library.Name} (total: {total})");
                             await context.BulkInsertAsync(items.Select(i => new ItemsStaging
                             {
                                 Id = i.Id,
@@ -213,6 +254,8 @@ namespace Jellystat_API_Core.Classes.Tasks
                             await Task.Delay(100); // small delay to reduce load on server and database
                         }
 
+                        await loggingService.AddMessageAsync(log, $"Finished library items sync for library {library.Name} (total: {total})");
+
                         // Commit if everything is successful
                         await transaction.CommitAsync();
 
@@ -220,13 +263,15 @@ namespace Jellystat_API_Core.Classes.Tasks
                     catch (Exception)
                     {
                         await transaction.RollbackAsync();
+                        await loggingService.AddMessageAsync(log, $"Error during library items sync for library {library.Name}.");
                     }
                 }
             }
 
         }
-        private async Task UpdateFromStaging(ApplicationDbContext context, bool performArchiveStep = true)
+        private async Task UpdateFromStaging(ApplicationDbContext context, Logs log, ITaskLogging loggingService, bool performArchiveStep = true)
         {
+            await loggingService.AddMessageAsync(log, $"Starting update from staging for server {api.config.Name}");
             using (var transaction = context.Database.BeginTransaction())
             {
                 try
@@ -283,6 +328,8 @@ namespace Jellystat_API_Core.Classes.Tasks
                         .SetProperty(p => p.target.Resolution, p => p.source.Resolution)
                         );
 
+                    await loggingService.AddMessageAsync(log, $"Updated {updatedCount} existing items from staging for server {api.config.Name}");
+
                     // Insert new items using AddRangeAsync with IQueryable
                     var newItemsQuery = context.ItemsStaging
                         .AsNoTracking()
@@ -313,6 +360,7 @@ namespace Jellystat_API_Core.Classes.Tasks
 
                     await context.Items.AddRangeAsync(newItemsQuery);
                     int insertedCount = await context.SaveChangesAsync();
+                    await loggingService.AddMessageAsync(log, $"Inserted {insertedCount} new items from staging for server {api.config.Name}");
 
                     int archivedCount = 0;
                     if (performArchiveStep)
@@ -323,6 +371,8 @@ namespace Jellystat_API_Core.Classes.Tasks
                                         !context.ItemsStaging.Any(s => s.Id == i.Id && s.ServerId == serverId))
                             .ExecuteUpdateAsync(setters => setters.SetProperty(i => i.archived, true));
                     }
+
+                    await loggingService.AddMessageAsync(log, $"Archived {archivedCount} items not present in staging for server {api.config.Name}");
 
                     // Clean up staging
                     await context.ItemsStaging
@@ -355,6 +405,7 @@ namespace Jellystat_API_Core.Classes.Tasks
 
 
 
+
                     // Update Activity table with Names from Items
                     int activityUpdatedCount = await context.Activity
                         .Where(a => a.ServerId == serverId)
@@ -370,8 +421,7 @@ namespace Jellystat_API_Core.Classes.Tasks
                                     .FirstOrDefault() ?? a.SeriesName
                                 : a.SeriesName));
 
-                    Debug.WriteLine($"Synced items: {insertedCount} inserted, {updatedCount} updated, {archivedCount} archived (pure EF, zero materialization)");
-                    Debug.WriteLine($"Updated {activityUpdatedCount} activity records with item names");
+                    await loggingService.AddMessageAsync(log, $"Updated {activityUpdatedCount} activity records with new item names for server {api.config.Name}");
 
                     await transaction.CommitAsync();
                 }
