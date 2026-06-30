@@ -1,8 +1,10 @@
 using Jellystat_API_Core.Classes.API.@interface;
+using Jellystat_API_Core.Data;
 using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Models.Jellystat;
 using Jellystat_API_Core.Models.WebSocket;
 using Jellystat_API_Core.Services.API;
+using Microsoft.EntityFrameworkCore;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 
@@ -20,10 +22,11 @@ namespace Jellystat_API_Core.Services.Tasks
         private Task? _schedulingTask;
         private Task? _broadcastingTask;
         private readonly ConcurrentDictionary<string, TaskSettings?> _currentRunningTasks;
+        private readonly IServiceScopeFactory _serviceScopeFactory;
 
         public TaskSchedulerService(
             ILogger<TaskSchedulerService> logger,
-            IServiceProvider serviceProvider)
+            IServiceProvider serviceProvider, IServiceScopeFactory serviceScopeFactory)
         {
             _logger = logger;
             _serviceProvider = serviceProvider;
@@ -32,6 +35,7 @@ namespace Jellystat_API_Core.Services.Tasks
             _queueSemaphore = new SemaphoreSlim(0);
             _cancellationTokenSource = new CancellationTokenSource();
             _currentRunningTasks = new ConcurrentDictionary<string, TaskSettings?>();
+            _serviceScopeFactory = serviceScopeFactory;
         }
 
         private async Task BroadcastLoopAsync(CancellationToken cancellationToken)
@@ -79,30 +83,52 @@ namespace Jellystat_API_Core.Services.Tasks
             return Task.CompletedTask;
         }
 
-        public Task RegisterServerAsync(Server server)
+        public async Task RegisterServerAsync(Server server)
         {
-            RegisterTasksAsync(server);
-            return Task.CompletedTask;
+            await RegisterTasksAsync(server);
         }
 
-        public Task RegisterTasksAsync(Server server, List<TaskSettings>? tasks = null)
+        public async Task RegisterTasksAsync(Server server, List<TaskSettings>? tasks = null)
         {
             tasks ??= server.TaskSettings;
 
             var scheduledTasks = new List<ScheduledTask>();
+
+            List<Data.Schema.Logs?> latestExecutions = [];
+
+            using (var scope = _serviceScopeFactory.CreateScope())
+            {
+                var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
+                _currentRunningTasks.TryGetValue(server.Id, out var currentTask);
+                if (currentTask == null)
+                {
+                    await context.Logs.Where(log => log.ServerId == server.Id && log.Success == null).ExecuteUpdateAsync(log => log.SetProperty(l => l.Success, false));
+                }
+
+                latestExecutions = await context.Logs
+                    .Where(log => log.ServerId == server.Id)
+                    .GroupBy(log => log.Task)
+                    .Select(group => group.OrderByDescending(log => log.DateCreated).FirstOrDefault())
+                    .ToListAsync() ?? [];
+            }
 
             foreach (var taskSettings in tasks)
             {
                 if (taskSettings.Enabled)
                 {
                     var scheduledTask = new ScheduledTask(server, taskSettings);
+                    Data.Schema.Logs? latestLog = latestExecutions.FirstOrDefault(log => log?.Task == taskSettings.Task);
+                    if (latestLog != null)
+                    {
+                        scheduledTask.LastExecutionTime = latestLog.DateCreated;
+                        scheduledTask.NextExecutionTime = latestLog.DateCreated.AddMinutes(taskSettings.IntervalMinutes);
+                    }
                     scheduledTasks.Add(scheduledTask);
                     _logger.LogInformation($"Registered task {taskSettings.Task} for server {server.Name} with interval {taskSettings.IntervalMinutes} minutes");
                 }
             }
 
             _scheduledTasks.AddOrUpdate(server.Id, scheduledTasks, (key, existing) => scheduledTasks);
-            return Task.CompletedTask;
         }
 
         public Task UnregisterServerAsync(string serverId)
