@@ -21,7 +21,7 @@ namespace Jellystat_API_Core.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.9")
+                .HasAnnotation("ProductVersion", "9.0.17")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pg_trgm");
@@ -480,7 +480,6 @@ namespace Jellystat_API_Core.Migrations
                         .HasColumnType("jsonb");
 
                     b.Property<string>("ServerId")
-                        .IsRequired()
                         .HasColumnType("text");
 
                     b.Property<bool?>("Success")
@@ -490,8 +489,6 @@ namespace Jellystat_API_Core.Migrations
                         .HasColumnType("integer");
 
                     b.HasKey("Id");
-
-                    b.HasIndex("ServerId");
 
                     b.ToTable("Logs");
                 });
@@ -785,17 +782,6 @@ namespace Jellystat_API_Core.Migrations
                 });
 
             modelBuilder.Entity("Jellystat_API_Core.Data.Schema.Libraries", b =>
-                {
-                    b.HasOne("Jellystat_API_Core.Data.Schema.Server", "Server")
-                        .WithMany()
-                        .HasForeignKey("ServerId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Server");
-                });
-
-            modelBuilder.Entity("Jellystat_API_Core.Data.Schema.Logs", b =>
                 {
                     b.HasOne("Jellystat_API_Core.Data.Schema.Server", "Server")
                         .WithMany()

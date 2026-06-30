@@ -1,4 +1,5 @@
 using Jellystat_API_Core.Classes.API.@interface;
+using Jellystat_API_Core.Classes.Tasks;
 using Jellystat_API_Core.Data;
 using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Models.Jellystat;
@@ -102,11 +103,11 @@ namespace Jellystat_API_Core.Services.Tasks
                 _currentRunningTasks.TryGetValue(server.Id, out var currentTask);
                 if (currentTask == null)
                 {
-                    await context.Logs.Where(log => log.ServerId == server.Id && log.Success == null).ExecuteUpdateAsync(log => log.SetProperty(l => l.Success, false));
+                    await context.Logs.Where(log => (log.ServerId == server.Id || log.ServerId == null) && log.Success == null).ExecuteUpdateAsync(log => log.SetProperty(l => l.Success, false));
                 }
 
                 latestExecutions = await context.Logs
-                    .Where(log => log.ServerId == server.Id)
+                    .Where(log => log.ServerId == server.Id || log.ServerId == null)
                     .GroupBy(log => log.Task)
                     .Select(group => group.OrderByDescending(log => log.DateCreated).FirstOrDefault())
                     .ToListAsync() ?? [];
@@ -353,8 +354,9 @@ namespace Jellystat_API_Core.Services.Tasks
 
         private async Task ExecuteBackupTask(Server server)
         {
-            _logger.LogInformation($"Backup task logic not yet implemented for server {server.Name}");
-            await Task.CompletedTask;
+            BackupTask backup = new BackupTask(_serviceScopeFactory);
+            CancellationToken cancellationToken = new CancellationToken();
+            await backup.RunBackupAsync(cancellationToken);
         }
 
         private async Task ExecutePlaybackReportingPluginSyncTask(Server server)

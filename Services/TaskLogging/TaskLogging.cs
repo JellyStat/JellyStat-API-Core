@@ -22,10 +22,8 @@ namespace Jellystat_API_Core.Services.TaskLogging
             _logger = logger;
         }
 
-        public async Task<Logs> CreateLogAsync(TaskTypes taskType, string serverId, CancellationToken cancellationToken = default)
+        public async Task<Logs> CreateLogAsync(TaskTypes taskType, string? serverId = null, CancellationToken cancellationToken = default)
         {
-            ArgumentException.ThrowIfNullOrWhiteSpace(serverId);
-
             Logs log = new()
             {
                 Id = Guid.NewGuid().ToString(),

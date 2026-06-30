@@ -310,11 +310,7 @@ namespace Jellystat_API_Core.Data
                 entity.Property(e => e.Duration).HasDefaultValue(0);
                 entity.Property(e => e.Messages).HasColumnType("jsonb");
                 entity.Property(e => e.Success).HasDefaultValue(null);
-                entity.Property(e => e.ServerId).IsRequired();
-                entity.HasOne(e => e.Server)
-                             .WithMany()
-                             .HasForeignKey(e => e.ServerId)
-                             .OnDelete(DeleteBehavior.Cascade);
+                entity.Property(e => e.ServerId).HasDefaultValue(null);
             });
 
 
