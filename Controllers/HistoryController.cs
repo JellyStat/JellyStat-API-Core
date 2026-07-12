@@ -134,7 +134,7 @@ namespace Jellystat_API_Core.Controllers
                                                           : Convert.ToString(x.item.Index)) +
                                                   " - " +
                                                   h.Name,
-                                    }).ToList()
+                                    }).OrderByDescending(h => h.DateCreated).ToList()
                                 })
                                 .Gridify(query);
             }
