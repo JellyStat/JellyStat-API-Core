@@ -21,7 +21,7 @@ namespace Jellystat_API_Core.Migrations
                          -- Look up all ancestors for the current item
                          SELECT a.*
                          FROM public.""ItemsPath"" ip
-                         JOIN public.""Items"" a ON a.""Id"" = ip.""AncestorId""
+                         JOIN public.""Items"" a ON a.""Id"" = ip.""AncestorId"" AND a.""Id"" != i.""Id""
                          WHERE ip.""DescendantId"" = i.""Id""
                          -- The 'Absolute Top Parent' is the one with the maximum distance (Depth)
                          ORDER BY ip.""Depth"" DESC
