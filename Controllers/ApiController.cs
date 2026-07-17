@@ -100,10 +100,16 @@ namespace Jellystat_API_Core.Controllers
             return result;
         }
 
+        //public class RecentlyAddedGroup
+        //{
+        //    public required Items Item { get; set; }
+        //    public List<Items> Children { get; set; } = [];
+        //}
+
         [HttpGet("RecentlyAdded", Name = "RecentlyAdded")]
 
-        [DefaultGridifyOrder(nameof(ItemsWithParentData.DateCreated), true)]
-        public ActionResult<Paging<ItemsWithParentData>> GetRecentlyAdded([FromQuery] GridifyQuery query, string? ServerId)
+        [DefaultGridifyOrder(nameof(Items.DateCreated), true)]
+        public async Task<ActionResult<Paging<RecentlyAdded>>> GetRecentlyAddedAsync([FromQuery] GridifyQuery query, string? ServerId, bool grouped = false)
         {
             if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
@@ -115,8 +121,102 @@ namespace Jellystat_API_Core.Controllers
                 return NotFound("API instance not found for provided Server Id");
             }
 
+            if (!grouped)
+            {
+                var paged = context.ItemsWithParentData
+                           .Where(i => i.ServerId == ServerId)
+                           .Gridify(query);
 
-            return context.ItemsWithParentData.Where(i => i.ServerId == ServerId).Gridify(query);
+                var pagedData = paged.Data
+                    .Select(x => new RecentlyAdded(x))
+                    .ToList();
+
+                return Ok(new Paging<RecentlyAdded>(paged.Count, pagedData));
+            }
+
+            var baseQuery = context.Items
+                .AsNoTracking()
+                .Where(x => x.ServerId == ServerId
+                    && x.Type != ItemTypes.Unknown
+                    && x.Type != ItemTypes.Series).ApplyFiltering(query);
+
+            var groupedQuery = baseQuery
+                .GroupBy(x => new
+                {
+                    GroupId = !string.IsNullOrEmpty(x.ParentId) ? x.ParentId! : x.Id,
+                    CreatedDate = x.DateCreated.HasValue ? x.DateCreated.Value.Date : DateTime.MinValue
+                })
+                .Select(g => new
+                {
+                    GroupId = g.Key.GroupId,
+                    DateCreated = g.Key.CreatedDate,
+                    Count = g.Count(),
+                    LatestDateCreated = g.Key.CreatedDate,
+                    RepresentativeItemId = g
+                        .OrderByDescending(x => x.DateCreated)
+                        .ThenBy(x => x.Id)
+                        .Select(x => x.Id)
+                        .FirstOrDefault()
+                })
+                .OrderByDescending(x => x.LatestDateCreated)
+                .ThenBy(x => x.GroupId);
+
+            var totalCount = await groupedQuery.CountAsync();
+
+            var pagedGroups = await groupedQuery
+                .ApplyPaging(query)
+                .ToListAsync();
+
+            if (pagedGroups.Count == 0)
+            {
+                return Ok(new Paging<RecentlyAdded>(0, []));
+            }
+
+            var displayItemIds = pagedGroups
+                .Select(g => g.Count > 1 ? g.GroupId : g.RepresentativeItemId)
+                .Where(id => !string.IsNullOrEmpty(id))
+                .Distinct()
+                .ToList();
+
+            var displayItems = await context.ItemsWithParentData
+                .AsNoTracking()
+                .Where(x => x.ServerId == ServerId && displayItemIds.Contains(x.Id))
+                .ToDictionaryAsync(x => x.Id);
+
+            var multiItemGroupIds = pagedGroups
+                .Where(g => g.Count > 1)
+                .Select(g => g.GroupId)
+                .Distinct()
+                .ToList();
+
+            var childLookup = multiItemGroupIds.Count == 0
+                ? Enumerable.Empty<Items>().ToLookup(_ => string.Empty)
+                : (await baseQuery
+                    .Where(x => multiItemGroupIds.Contains(!string.IsNullOrEmpty(x.ParentId) ? x.ParentId! : x.Id))
+                    .OrderByDescending(x => x.DateCreated)
+                    .ToListAsync())
+                    .ToLookup(x => !string.IsNullOrEmpty(x.ParentId) ? x.ParentId! : x.Id);
+
+            var data = pagedGroups
+                .Select(g =>
+                {
+                    var displayItemId = g.Count > 1 ? g.GroupId : g.RepresentativeItemId;
+
+                    if (string.IsNullOrEmpty(displayItemId) || !displayItems.TryGetValue(displayItemId, out var item))
+                    {
+                        return null;
+                    }
+
+                    return new RecentlyAdded(item,
+                        g.Count > 1
+                            ? childLookup[g.GroupId].ToList()
+                            : new List<Items>());
+                })
+                .Where(x => x != null)
+                .Select(x => x!)
+                .ToList();
+
+            return Ok(new Paging<RecentlyAdded>(totalCount, data));
         }
 
         [PermissionAuthorize(PermissionTypes.Administrator)]
