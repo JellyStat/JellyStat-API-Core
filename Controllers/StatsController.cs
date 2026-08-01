@@ -466,7 +466,7 @@ namespace Jellystat_API_Core.Controllers
         }
 
         [HttpGet("CodecStats", Name = "CodecStats")]
-        public List<CountModel<string>> GetCodecStats([FromQuery] GridifyQuery query, string? ServerId)
+        public List<CountModelWithSize<string>> GetCodecStats([FromQuery] GridifyQuery query, string? ServerId)
         {
             if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
@@ -484,17 +484,18 @@ namespace Jellystat_API_Core.Controllers
                 .Where(item => !excludedTypes.Contains(item.Type) && item.ServerId == ServerId)
                 .ApplyFiltering(query)
                 .GroupBy(item => item.Codec)
-                .Select(group => new CountModel<string>
+                .Select(group => new CountModelWithSize<string>
                 {
                     Name = group.Key,
                     Count = group.Count(),
+                    Size = group.Sum(x => x.Size),
 
                 })
                 .ToList();
         }
 
         [HttpGet("ResolutionStats", Name = "ResolutionStats")]
-        public List<CountModel<string>> GetResolutionStats([FromQuery] GridifyQuery query, string? ServerId)
+        public List<CountModelWithSize<string>> GetResolutionStats([FromQuery] GridifyQuery query, string? ServerId)
         {
             if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
@@ -512,10 +513,11 @@ namespace Jellystat_API_Core.Controllers
                 .Where(item => !excludedTypes.Contains(item.Type) && item.ServerId == ServerId)
                 .ApplyFiltering(query)
                 .GroupBy(item => item.Resolution)
-                .Select(group => new CountModel<string>
+                .Select(group => new CountModelWithSize<string>
                 {
                     Name = group.Key,
                     Count = group.Count(),
+                    Size = group.Sum(x => x.Size)
 
                 })
                 .ToList();
