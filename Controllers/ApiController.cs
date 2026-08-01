@@ -507,17 +507,17 @@ namespace Jellystat_API_Core.Controllers
                        .Sum() ?? 0),
 
                    PlaybackDuration = (context.Items
-                       .Where(item => item.LibraryId == library.Id)
+                       .Where(item => item.LibraryId == library.Id && !item.archived)
                        .Select(item => (long?)item.Duration)
                        .Sum() ?? 0),
 
                    Size = (context.Items
-                       .Where(item => item.LibraryId == library.Id && (item.Type != ItemTypes.Series && item.Type != ItemTypes.Season))
+                       .Where(item => item.LibraryId == library.Id && (item.Type != ItemTypes.Series && item.Type != ItemTypes.Season) && !item.archived)
                        .Select(item => (long?)item.Size)
                        .Sum() ?? 0),
 
                    TypeCounts = context.Items
-                       .Where(item => item.LibraryId == library.Id)
+                       .Where(item => item.LibraryId == library.Id && !item.archived)
                        .GroupBy(item => item.Type)
                        .Select(group => new TypeCountModel
                        {
