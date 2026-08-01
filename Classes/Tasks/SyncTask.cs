@@ -135,7 +135,7 @@ namespace Jellystat_API_Core.Classes.Tasks
             await loggingService.AddMessageAsync(log, $"Fetched {libraries.Count} libraries");
             List<Libraries> existingLibraries = await context.Libraries.Where(l => l.ServerId == api.config.Id).ToListAsync();
 
-            List<Libraries> librariesToArchive = existingLibraries.Where(l => !libraries.Any(el => el.Id == l.Id)).ToList();
+            List<Libraries> librariesToArchive = existingLibraries.Where(l => !l.archived && !libraries.Any(el => el.Id == l.Id)).ToList();
             List<BaseLibrary> librariesToAdd = libraries.Where(l => !existingLibraries.Any(el => el.Id == l.Id)).ToList();
             List<BaseLibrary> librariesToUpdate = libraries.Where(l => existingLibraries.Any(el => el.Id == l.Id)).ToList();
 
