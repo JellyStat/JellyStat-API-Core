@@ -129,6 +129,9 @@ namespace Jellystat_API_Core.Classes.Tasks
         {
             await loggingService.AddMessageAsync(log, $"Fetching Libraries");
             List<BaseLibrary> libraries = (await api.GetLibraries()).ToList();
+
+            libraries = libraries.Where(l => l.Type != LibraryTypes.BoxSets && l.Type != LibraryTypes.Unknown).ToList();
+
             await loggingService.AddMessageAsync(log, $"Fetched {libraries.Count} libraries");
             List<Libraries> existingLibraries = await context.Libraries.Where(l => l.ServerId == api.config.Id).ToListAsync();
 
