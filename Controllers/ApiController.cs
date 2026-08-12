@@ -474,6 +474,21 @@ namespace Jellystat_API_Core.Controllers
                    .Any(el => el.ServerId == ServerId && el.UserId == u.Id)).Gridify(query);
         }
 
+
+        [PermissionAuthorize(PermissionTypes.Administrator)]
+        [HttpGet("LocalUsers", Name = "LocalUsers")]
+        [DefaultGridifyOrder(nameof(LocalUsers.Username))]
+        public ActionResult<Paging<LocalUsers>> GetLocalUsers([FromQuery] GridifyQuery query)
+        {
+            Paging<LocalUsers> localUsers = context.LocalUsers.Gridify(query);
+            localUsers.Data = localUsers.Data.Select(u =>
+            {
+                u.Password = string.Empty; // Clear the password before returning
+                return u;
+            }).ToList();
+            return localUsers;
+        }
+
         [HttpGet("Libraries", Name = "Libraries")]
         [DefaultGridifyOrder(nameof(LibrariesWithStats.Name))]
         public ActionResult<Paging<LibrariesWithStats>> GetLibraries([FromQuery] GridifyQuery query, string? ServerId)
