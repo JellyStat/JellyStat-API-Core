@@ -509,7 +509,7 @@ namespace Jellystat_API_Core.Controllers
                              activity => activity.ItemId,
                              item => item.Id,
                              (activity, item) => new { activity, item })
-                       .Where(x => x.item.LibraryId == library.Id)
+                       .Where(x => x.item.LibraryId == library.Id && x.item.ServerId == ServerId)
                        .Count(),
 
                    PlayDuration = (context.Activity
@@ -517,22 +517,22 @@ namespace Jellystat_API_Core.Controllers
                              activity => activity.ItemId,
                              item => item.Id,
                              (activity, item) => new { activity, item })
-                       .Where(x => x.item.LibraryId == library.Id)
+                       .Where(x => x.item.LibraryId == library.Id && x.item.ServerId == ServerId)
                        .Select(x => (long?)x.activity.Duration)
                        .Sum() ?? 0),
 
                    PlaybackDuration = (context.Items
-                       .Where(item => item.LibraryId == library.Id && !item.archived)
+                       .Where(item => item.LibraryId == library.Id && !item.archived && item.ServerId == ServerId)
                        .Select(item => (long?)item.Duration)
                        .Sum() ?? 0),
 
                    Size = (context.Items
-                       .Where(item => item.LibraryId == library.Id && (item.Type != ItemTypes.Series && item.Type != ItemTypes.Season) && !item.archived)
+                       .Where(item => item.LibraryId == library.Id && item.ServerId == ServerId && (item.Type != ItemTypes.Series && item.Type != ItemTypes.Season) && !item.archived)
                        .Select(item => (long?)item.Size)
                        .Sum() ?? 0),
 
                    TypeCounts = context.Items
-                       .Where(item => item.LibraryId == library.Id && !item.archived)
+                       .Where(item => item.LibraryId == library.Id && !item.archived && item.ServerId == ServerId)
                        .GroupBy(item => item.Type)
                        .Select(group => new TypeCountModel
                        {
@@ -547,7 +547,7 @@ namespace Jellystat_API_Core.Controllers
                              activity => activity.ItemId,
                              item => item.Id,
                              (activity, item) => new { activity, item })
-                       .Where(x => x.item.LibraryId == library.Id)
+                       .Where(x => x.item.LibraryId == library.Id && x.item.ServerId == ServerId)
                        .OrderByDescending(x => x.activity.DateCreated)
                        .Select(x => x.activity)
                        .FirstOrDefault(),
@@ -615,7 +615,7 @@ namespace Jellystat_API_Core.Controllers
                         .Select(activity => activity.DateCreated)
                         .FirstOrDefault(),
 
-                    Library = context.Libraries.Where(l => l.Id == item.LibraryId).FirstOrDefault(),
+                    Library = context.Libraries.Where(l => l.Id == item.LibraryId && l.ServerId == ServerId).FirstOrDefault(),
 
                     // Item fields
                     Parent = item.Parent,

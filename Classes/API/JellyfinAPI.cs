@@ -96,7 +96,7 @@ namespace Jellystat_API_Core.Classes.API
         {
             Debug.WriteLine("[Websocket] Client connected: " + clientId);
             EventMessage<string> message = new EventMessage<string>(
-                    Data: "0,1500",
+                    Data: "0,1000",
                     MessageType: MessageTypes.SessionsStart
                 );
 

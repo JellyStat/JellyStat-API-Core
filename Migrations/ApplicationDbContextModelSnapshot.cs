@@ -130,14 +130,14 @@ namespace Jellystat_API_Core.Migrations
             modelBuilder.Entity("Jellystat_API_Core.Data.Schema.ExcludedLibraries", b =>
                 {
                     b.Property<string>("ServerId")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("ServerId");
 
                     b.Property<string>("LibraryId")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("LibraryId");
 
                     b.HasKey("ServerId", "LibraryId");
-
-                    b.HasIndex("LibraryId");
 
                     b.ToTable("ExcludedLibraries");
                 });
@@ -206,7 +206,8 @@ namespace Jellystat_API_Core.Migrations
 
                     b.Property<string>("LibraryId")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("LibraryId");
 
                     b.Property<IList<BaseMediaStream>>("MediaStreams")
                         .IsRequired()
@@ -239,7 +240,8 @@ namespace Jellystat_API_Core.Migrations
 
                     b.Property<string>("ServerId")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("ServerId");
 
                     b.Property<long>("Size")
                         .ValueGeneratedOnAdd()
@@ -256,9 +258,7 @@ namespace Jellystat_API_Core.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("LibraryId");
-
-                    b.HasIndex("ServerId");
+                    b.HasIndex("ServerId", "LibraryId");
 
                     b.ToTable("Items");
                 });
@@ -337,7 +337,8 @@ namespace Jellystat_API_Core.Migrations
 
                     b.Property<string>("LibraryId")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("LibraryId");
 
                     b.Property<IList<BaseMediaStream>>("MediaStreams")
                         .IsRequired()
@@ -370,7 +371,8 @@ namespace Jellystat_API_Core.Migrations
 
                     b.Property<string>("ServerId")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("ServerId");
 
                     b.Property<long>("Size")
                         .ValueGeneratedOnAdd()
@@ -387,17 +389,20 @@ namespace Jellystat_API_Core.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("LibraryId");
-
-                    b.HasIndex("ServerId");
+                    b.HasIndex("ServerId", "LibraryId");
 
                     b.ToTable("ItemsStaging");
                 });
 
             modelBuilder.Entity("Jellystat_API_Core.Data.Schema.Libraries", b =>
                 {
+                    b.Property<string>("ServerId")
+                        .HasColumnType("text")
+                        .HasColumnName("ServerId");
+
                     b.Property<string>("Id")
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("Id");
 
                     b.Property<string>("ImageHash")
                         .ValueGeneratedOnAdd()
@@ -413,10 +418,6 @@ namespace Jellystat_API_Core.Migrations
                         .IsRequired()
                         .HasColumnType("text");
 
-                    b.Property<string>("ServerId")
-                        .IsRequired()
-                        .HasColumnType("text");
-
                     b.Property<int>("Type")
                         .HasColumnType("integer");
 
@@ -425,9 +426,8 @@ namespace Jellystat_API_Core.Migrations
                         .HasColumnType("boolean")
                         .HasDefaultValue(false);
 
-                    b.HasKey("Id");
-
-                    b.HasIndex("ServerId");
+                    b.HasKey("ServerId", "Id")
+                        .HasName("Id");
 
                     b.ToTable("Libraries");
                 });
@@ -634,7 +634,8 @@ namespace Jellystat_API_Core.Migrations
 
                     b.Property<string>("LibraryId")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("LibraryId");
 
                     b.Property<IList<BaseMediaStream>>("MediaStreams")
                         .IsRequired()
@@ -666,7 +667,8 @@ namespace Jellystat_API_Core.Migrations
 
                     b.Property<string>("ServerId")
                         .IsRequired()
-                        .HasColumnType("text");
+                        .HasColumnType("text")
+                        .HasColumnName("ServerId");
 
                     b.Property<long>("Size")
                         .HasColumnType("bigint");
@@ -677,9 +679,7 @@ namespace Jellystat_API_Core.Migrations
                     b.Property<bool>("archived")
                         .HasColumnType("boolean");
 
-                    b.HasIndex("LibraryId");
-
-                    b.HasIndex("ServerId");
+                    b.HasIndex("ServerId", "LibraryId");
 
                     b.ToTable((string)null);
 
@@ -688,15 +688,15 @@ namespace Jellystat_API_Core.Migrations
 
             modelBuilder.Entity("Jellystat_API_Core.Data.Schema.ExcludedLibraries", b =>
                 {
-                    b.HasOne("Jellystat_API_Core.Data.Schema.Libraries", "Library")
-                        .WithMany()
-                        .HasForeignKey("LibraryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("Jellystat_API_Core.Data.Schema.Server", "Server")
                         .WithMany()
                         .HasForeignKey("ServerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Jellystat_API_Core.Data.Schema.Libraries", "Library")
+                        .WithMany()
+                        .HasForeignKey("ServerId", "LibraryId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -726,15 +726,15 @@ namespace Jellystat_API_Core.Migrations
 
             modelBuilder.Entity("Jellystat_API_Core.Data.Schema.Items", b =>
                 {
-                    b.HasOne("Jellystat_API_Core.Data.Schema.Libraries", "Library")
-                        .WithMany()
-                        .HasForeignKey("LibraryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("Jellystat_API_Core.Data.Schema.Server", "Server")
                         .WithMany()
                         .HasForeignKey("ServerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Jellystat_API_Core.Data.Schema.Libraries", "Library")
+                        .WithMany()
+                        .HasForeignKey("ServerId", "LibraryId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -764,15 +764,15 @@ namespace Jellystat_API_Core.Migrations
 
             modelBuilder.Entity("Jellystat_API_Core.Data.Schema.ItemsStaging", b =>
                 {
-                    b.HasOne("Jellystat_API_Core.Data.Schema.Libraries", "Library")
-                        .WithMany()
-                        .HasForeignKey("LibraryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("Jellystat_API_Core.Data.Schema.Server", "Server")
                         .WithMany()
                         .HasForeignKey("ServerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Jellystat_API_Core.Data.Schema.Libraries", "Library")
+                        .WithMany()
+                        .HasForeignKey("ServerId", "LibraryId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
@@ -824,15 +824,15 @@ namespace Jellystat_API_Core.Migrations
 
             modelBuilder.Entity("Jellystat_API_Core.Data.Schema.Views.ItemsWithParentData", b =>
                 {
-                    b.HasOne("Jellystat_API_Core.Data.Schema.Libraries", "Library")
-                        .WithMany()
-                        .HasForeignKey("LibraryId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
                     b.HasOne("Jellystat_API_Core.Data.Schema.Server", "Server")
                         .WithMany()
                         .HasForeignKey("ServerId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Jellystat_API_Core.Data.Schema.Libraries", "Library")
+                        .WithMany()
+                        .HasForeignKey("ServerId", "LibraryId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 

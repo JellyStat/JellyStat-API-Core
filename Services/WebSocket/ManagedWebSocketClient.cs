@@ -1,5 +1,7 @@
 using Jellystat_API_Core.Enums;
+using Jellystat_API_Core.Models.API.Jellyfin;
 using Jellystat_API_Core.Models.WebSocket;
+using Newtonsoft.Json;
 using System.Net.WebSockets;
 using System.Text;
 
@@ -12,6 +14,7 @@ namespace Jellystat_API_Core.Services.WebSocket
         private ClientWebSocket? _webSocket;
         private CancellationTokenSource? _cancellationTokenSource;
         private Task? _receiveTask;
+        private Task? _keepAliveTask;
         private int _reconnectAttempts;
         private bool _disposed;
 
@@ -62,6 +65,7 @@ namespace Jellystat_API_Core.Services.WebSocket
                 _reconnectAttempts = 0;
 
                 _receiveTask = Task.Run(ReceiveLoopAsync);
+                _keepAliveTask = Task.Run(KeepAliveLoopAsync);
 
                 OnConnected?.Invoke(this, ClientId);
                 _logger?.LogInformation("Client {ClientId} connected to {Url}", ClientId, _config.Url);
@@ -229,6 +233,56 @@ namespace Jellystat_API_Core.Services.WebSocket
             await ConnectAsync();
         }
 
+        private async Task KeepAliveLoopAsync()
+        {
+            try
+            {
+                while (State == WebSocketClientState.Connected && !(_cancellationTokenSource?.Token.IsCancellationRequested ?? true))
+                {
+                    await Task.Delay(_config.KeepAliveInterval, _cancellationTokenSource?.Token ?? CancellationToken.None);
+
+                    if (State != WebSocketClientState.Connected || _webSocket?.State != WebSocketState.Open)
+                    {
+                        break;
+                    }
+
+                    try
+                    {
+                        var keepAliveMessage = new EventMessage<object?>(
+                            Data: null,
+                            MessageType: MessageTypes.KeepAlive
+                        );
+
+                        var json = JsonConvert.SerializeObject(keepAliveMessage);
+
+                        bool sent = await SendAsync(json);
+
+                        if (!sent)
+                        {
+                            _logger?.LogWarning("Failed to send keepalive message for client {ClientId}", ClientId);
+                        }
+                        else
+                        {
+                            _logger?.LogDebug("Keepalive message sent for client {ClientId}", ClientId);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger?.LogError(ex, "Error sending keepalive message for client {ClientId}", ClientId);
+                    }
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                _logger?.LogInformation("Keepalive loop cancelled for client {ClientId}", ClientId);
+            }
+            catch (Exception ex)
+            {
+                _logger?.LogError(ex, "Error in keepalive loop for client {ClientId}", ClientId);
+            }
+        }
+
+
         public void Dispose()
         {
             if (_disposed)
@@ -236,6 +290,7 @@ namespace Jellystat_API_Core.Services.WebSocket
 
             _cancellationTokenSource?.Cancel();
             _receiveTask?.Wait(TimeSpan.FromSeconds(5));
+            _keepAliveTask?.Wait(TimeSpan.FromSeconds(5));
 
             _webSocket?.Dispose();
             _cancellationTokenSource?.Dispose();

@@ -82,9 +82,9 @@ namespace Jellystat_API_Core.Data
 
             modelBuilder.Entity<Libraries>(entity =>
             {
-                entity.HasKey(e => e.Id);
-                entity.Property(e => e.Id).IsRequired();
-                entity.Property(e => e.ServerId).IsRequired();
+                entity.HasKey(e => new { e.ServerId, e.Id }).HasName("Id");
+                entity.Property(e => e.Id).HasColumnName("Id").IsRequired();
+                entity.Property(e => e.ServerId).HasColumnName("ServerId").IsRequired();
                 entity.Property(e => e.Name).IsRequired();
                 entity.Property(e => e.Type).IsRequired();
                 entity.Property(e => e.ImageTag).HasDefaultValue("");
@@ -101,8 +101,8 @@ namespace Jellystat_API_Core.Data
             modelBuilder.Entity<ExcludedLibraries>(entity =>
             {
                 entity.HasKey(e => new { e.ServerId, e.LibraryId });
-                entity.Property(e => e.ServerId).IsRequired();
-                entity.Property(e => e.LibraryId).IsRequired();
+                entity.Property(e => e.ServerId).HasColumnName("ServerId").IsRequired();
+                entity.Property(e => e.LibraryId).HasColumnName("LibraryId").IsRequired();
 
                 entity.HasOne(e => e.Server)
                     .WithMany()
@@ -111,7 +111,8 @@ namespace Jellystat_API_Core.Data
 
                 entity.HasOne(e => e.Library)
                         .WithMany()
-                        .HasForeignKey(e => e.LibraryId)
+                        .HasForeignKey(e => new { e.ServerId, e.LibraryId })
+                        .HasPrincipalKey(e => new { e.ServerId, e.Id })
                         .OnDelete(DeleteBehavior.Cascade);
             });
 
@@ -135,8 +136,8 @@ namespace Jellystat_API_Core.Data
             {
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.Id).IsRequired();
-                entity.Property(e => e.ServerId).IsRequired();
-                entity.Property(e => e.LibraryId).IsRequired();
+                entity.Property(e => e.ServerId).HasColumnName("ServerId").IsRequired();
+                entity.Property(e => e.LibraryId).HasColumnName("LibraryId").IsRequired();
                 entity.HasOne(e => e.Server)
                     .WithMany()
                     .HasForeignKey(e => e.ServerId)
@@ -144,7 +145,8 @@ namespace Jellystat_API_Core.Data
 
                 entity.HasOne(e => e.Library)
                 .WithMany()
-                .HasForeignKey(e => e.LibraryId)
+                .HasForeignKey(e => new { e.ServerId, e.LibraryId })
+                .HasPrincipalKey(e => new { e.ServerId, e.Id })
                 .OnDelete(DeleteBehavior.Cascade);
 
                 entity.Property(e => e.Name).IsRequired();
@@ -171,8 +173,8 @@ namespace Jellystat_API_Core.Data
             {
                 entity.HasKey(e => e.Id);
                 entity.Property(e => e.Id).IsRequired();
-                entity.Property(e => e.ServerId).IsRequired();
-                entity.Property(e => e.LibraryId).IsRequired();
+                entity.Property(e => e.ServerId).HasColumnName("ServerId").IsRequired();
+                entity.Property(e => e.LibraryId).HasColumnName("LibraryId").IsRequired();
                 entity.HasOne(e => e.Server)
                     .WithMany()
                     .HasForeignKey(e => e.ServerId)
@@ -180,7 +182,8 @@ namespace Jellystat_API_Core.Data
 
                 entity.HasOne(e => e.Library)
                 .WithMany()
-                .HasForeignKey(e => e.LibraryId)
+                .HasForeignKey(e => new { e.ServerId, e.LibraryId })
+                .HasPrincipalKey(e => new { e.ServerId, e.Id })
                 .OnDelete(DeleteBehavior.Cascade);
 
                 entity.Property(e => e.Name).IsRequired();
@@ -294,6 +297,13 @@ namespace Jellystat_API_Core.Data
                 entity.Property(e => e.Parent).HasColumnType("jsonb");
                 entity.Property(e => e.MediaStreams).HasColumnType("jsonb");
                 entity.Property(e => e.Genres).HasColumnType("jsonb");
+                entity.Property(e => e.ServerId).HasColumnName("ServerId");
+                entity.Property(e => e.LibraryId).HasColumnName("LibraryId");
+
+                entity.HasOne(e => e.Library)
+                    .WithMany()
+                    .HasForeignKey(e => new { e.ServerId, e.LibraryId })
+                    .HasPrincipalKey(e => new { e.ServerId, e.Id });
             });
 
 
