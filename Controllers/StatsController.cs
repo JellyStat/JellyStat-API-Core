@@ -343,22 +343,28 @@ namespace Jellystat_API_Core.Controllers
         }
 
         [HttpGet("StatTrends", Name = "StatTrends")]
-        [DefaultGridifyPageSize(5)]
-        public List<ChartStats> GetStatsByDay(string? ServerId, int days = 30, StatMetric metric = StatMetric.Date)
+        [DefaultGridifyPageSize(200)]
+        public List<ChartStats> GetStatsByDay([FromQuery] GridifyQuery query, string? ServerId, StatMetric metric = StatMetric.Date)
         {
             if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
                 ServerId = HttpContext.User.GetServerId();
             }
 
-            string dateFormat = metric == StatMetric.Date ? "yyyy-MM-dd" : "";
+            string dateFormat = "";
+            if (metric == StatMetric.Date)
+            {
+                dateFormat = "yyyy-MM-dd";
+            }
+            if (metric == StatMetric.Hour)
+            {
+                dateFormat = "00':00";
+            }
 
-            DateTime cutoffDate = days == 0
-                    ? DateTime.MinValue
-                    : DateTime.UtcNow.AddDays(-days);
             // Join activity -> items -> libraries, prepare a base projection
             var baseQuery = context.Activity
-                .Where(activity => activity.DateCreated >= cutoffDate && activity.ServerId == ServerId)
+                .Where(activity => activity.ServerId == ServerId)
+                .ApplyFiltering(query)
                 .Join(context.Items,
                       activity => activity.ItemId,
                       item => item.Id,
