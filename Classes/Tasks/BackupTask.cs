@@ -42,11 +42,11 @@ namespace Jellystat_API_Core.Classes.Tasks
                     var sourceContext = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
                     await loggingService.AddMessageAsync(log, $"Starting backup task");
 
-                    var backupDirectory = Path.Combine(AppContext.BaseDirectory, "backups");
-                    Directory.CreateDirectory(backupDirectory);
+
+                    Directory.CreateDirectory(Global.BackupDirectory);
 
                     backupFilePath = Path.Combine(
-                        backupDirectory,
+                        Global.BackupDirectory,
                         $"jellystat-backup-{DateTime.UtcNow:yyyyMMddHHmmssfff}.bac");
 
                     await loggingService.AddMessageAsync(log, $"Creating Backup: {backupFilePath}");
@@ -190,6 +190,26 @@ namespace Jellystat_API_Core.Classes.Tasks
                     await loggingService.AddMessageAsync(log, $"Servers Table Exported Successfully");
 
                     await ExportInBatchesAsync(
+                        sourceContext.Libraries
+                            .AsNoTracking()
+                            .AsAsyncEnumerable(),
+                        backupContext.Libraries,
+                        backupContext,
+                        library => new BackupLibraries
+                        {
+                            Id = library.Id,
+                            ServerId = library.ServerId,
+                            Name = library.Name,
+                            Type = (int)library.Type,
+                            ImageTag = library.ImageTag,
+                            ImageHash = library.ImageHash,
+                            archived = library.archived,
+                        },
+                        cancellationToken);
+
+                    await loggingService.AddMessageAsync(log, $"Libraries Table Exported Successfully");
+
+                    await ExportInBatchesAsync(
                         sourceContext.ExcludedLibraries
                             .AsNoTracking()
                             .OrderBy(e => e.ServerId)
@@ -222,6 +242,27 @@ namespace Jellystat_API_Core.Classes.Tasks
                         cancellationToken);
 
                     await loggingService.AddMessageAsync(log, $"Excluded Users Table Exported Successfully");
+
+                    await ExportInBatchesAsync(
+                     sourceContext.Logs
+                         .AsNoTracking()
+                         .OrderBy(e => e.ServerId)
+                         .AsAsyncEnumerable(),
+                     backupContext.Logs,
+                     backupContext,
+                     logEntry => new BackupLogs
+                     {
+                         Id = logEntry.Id,
+                         ServerId = logEntry.ServerId,
+                         Task = logEntry.Task,
+                         DateCreated = logEntry.DateCreated,
+                         Duration = logEntry.Duration,
+                         Messages = logEntry.Messages,
+                         Success = logEntry.Success,
+                     },
+                     cancellationToken);
+
+                    await loggingService.AddMessageAsync(log, $"Logs Table Exported Successfully");
 
                     await loggingService.AddMessageAsync(log, $"Backup Task Complete");
                     await loggingService.SuccessAsync(log);

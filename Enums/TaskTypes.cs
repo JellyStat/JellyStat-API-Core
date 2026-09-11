@@ -8,5 +8,6 @@
         FullSync,
         PartialSync,
         PlaybackReportingPluginSync,
+        Restore,
     }
 }

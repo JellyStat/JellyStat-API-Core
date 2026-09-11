@@ -4,12 +4,12 @@ namespace Jellystat_API_Core.Services.Tasks
 {
     public class ScheduledTask
     {
-        public Server Server { get; set; }
+        public Server? Server { get; set; }
         public TaskSettings TaskSettings { get; set; }
         public DateTime? LastExecutionTime { get; set; }
         public DateTime NextExecutionTime { get; set; }
 
-        public ScheduledTask(Server server, TaskSettings taskSettings)
+        public ScheduledTask(Server? server, TaskSettings taskSettings)
         {
             Server = server;
             TaskSettings = taskSettings;

@@ -219,6 +219,10 @@ namespace Jellystat_API_Core.Services.TaskLogging
 
                 await context.SaveChangesAsync(cancellationToken);
             }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[TaskLogging] Error on FlushAsync: {ex.Message}");
+            }
             finally
             {
                 state.FlushLock.Release();

@@ -1,6 +1,7 @@
 using Jellystat_API_Core.Data.Converters;
 using Jellystat_API_Core.Data.Schema;
 using Jellystat_API_Core.Data.Schema.Views;
+using Jellystat_API_Core.Enums;
 using Microsoft.EntityFrameworkCore;
 
 namespace Jellystat_API_Core.Data
@@ -35,6 +36,7 @@ namespace Jellystat_API_Core.Data
         public DbSet<ItemsWithParentData> ItemsWithParentData { get; set; }
         public DbSet<ItemsPath> ItemsPath { get; set; }
         public DbSet<Logs> Logs { get; set; }
+        public DbSet<GlobalTasks> GlobalTasks { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -322,6 +324,19 @@ namespace Jellystat_API_Core.Data
                 entity.Property(e => e.Success).HasDefaultValue(null);
                 entity.Property(e => e.ServerId).HasDefaultValue(null);
             });
+
+            modelBuilder.Entity<GlobalTasks>(entity =>
+            {
+                entity.HasKey(e => e.Task);
+                entity.Property(e => e.Task).IsRequired();
+                entity.Property(e => e.IntervalMinutes).IsRequired();
+                entity.Property(e => e.Enabled).HasDefaultValue(true);
+            });
+
+            modelBuilder.Entity<GlobalTasks>().HasData(
+                new GlobalTasks { Task = TaskTypes.Backup, IntervalMinutes = (24 * 60), Enabled = true },
+                new GlobalTasks { Task = TaskTypes.Restore, IntervalMinutes = 0, Enabled = true }
+            );
 
 
         }

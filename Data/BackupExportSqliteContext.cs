@@ -16,8 +16,10 @@ namespace Jellystat_API_Core.Data
         public DbSet<BackupUserPermissions> UserPermissions => Set<BackupUserPermissions>();
         public DbSet<BackupLocalUsers> LocalUsers => Set<BackupLocalUsers>();
         public DbSet<BackupServer> Servers => Set<BackupServer>();
+        public DbSet<BackupLibraries> Libraries => Set<BackupLibraries>();
         public DbSet<BackupExcludedLibraries> ExcludedLibraries => Set<BackupExcludedLibraries>();
         public DbSet<BackupExcludedUsers> ExcludedUsers => Set<BackupExcludedUsers>();
+        public DbSet<BackupLogs> Logs => Set<BackupLogs>();
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -59,6 +61,18 @@ namespace Jellystat_API_Core.Data
                 entity.HasKey(e => e.Id);
             });
 
+            modelBuilder.Entity<BackupLibraries>(entity =>
+            {
+                entity.HasKey(e => new { e.ServerId, e.Id }).HasName("Id");
+                entity.Property(e => e.Id).HasColumnName("Id").IsRequired();
+                entity.Property(e => e.ServerId).HasColumnName("ServerId").IsRequired();
+                entity.Property(e => e.Name).IsRequired();
+                entity.Property(e => e.Type).IsRequired();
+                entity.Property(e => e.ImageTag).HasDefaultValue("");
+                entity.Property(e => e.ImageHash).HasDefaultValue("");
+                entity.Property(e => e.archived).HasDefaultValue(false);
+            });
+
             modelBuilder.Entity<BackupExcludedLibraries>(entity =>
             {
                 entity.ToTable("ExcludedLibraries");
@@ -69,6 +83,12 @@ namespace Jellystat_API_Core.Data
             {
                 entity.ToTable("ExcludedUsers");
                 entity.HasKey(e => new { e.ServerId, e.UserId });
+            });
+
+            modelBuilder.Entity<BackupLogs>(entity =>
+            {
+                entity.ToTable("Logs");
+                entity.HasKey(e => e.Id);
             });
         }
     }

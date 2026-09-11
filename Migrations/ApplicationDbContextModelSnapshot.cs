@@ -157,6 +157,38 @@ namespace Jellystat_API_Core.Migrations
                     b.ToTable("ExcludedUsers");
                 });
 
+            modelBuilder.Entity("Jellystat_API_Core.Data.Schema.GlobalTasks", b =>
+                {
+                    b.Property<int>("Task")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("Enabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.Property<int>("IntervalMinutes")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Task");
+
+                    b.ToTable("GlobalTasks");
+
+                    b.HasData(
+                        new
+                        {
+                            Task = 0,
+                            Enabled = true,
+                            IntervalMinutes = 1440
+                        },
+                        new
+                        {
+                            Task = 4,
+                            Enabled = true,
+                            IntervalMinutes = 0
+                        });
+                });
+
             modelBuilder.Entity("Jellystat_API_Core.Data.Schema.Items", b =>
                 {
                     b.Property<string>("Id")

@@ -775,5 +775,37 @@ namespace Jellystat_API_Core.Controllers
             return context.Logs.Where(l => l.ServerId == ServerId || l.ServerId == null).Gridify(query);
         }
 
+        [HttpGet("Backups", Name = "Backups")]
+        [PermissionAuthorize(PermissionTypes.Administrator)]
+        public ActionResult<List<string>> GetBackups()
+        {
+            List<string> filePaths = Directory
+                        .EnumerateFiles(Global.BackupDirectory, "*.*", SearchOption.TopDirectoryOnly)
+                        .Where(f => Global.BackupExtensions.Contains(Path.GetExtension(f)))
+                        .ToList();
+
+            return filePaths.Select(fp => Path.GetFileName(fp)).ToList();
+        }
+
+        [HttpDelete("Backups", Name = "Backups")]
+        [PermissionAuthorize(PermissionTypes.Administrator)]
+        public ActionResult DeleteBackup(string FileName)
+        {
+            List<string> filePaths = Directory
+                        .EnumerateFiles(Global.BackupDirectory, "*.*", SearchOption.TopDirectoryOnly)
+                        .Where(f => Global.BackupExtensions.Contains(Path.GetExtension(f)))
+                        .ToList();
+
+            string? backupFilePath = filePaths.FirstOrDefault(f => Path.GetFileName(f).Equals(FileName, StringComparison.OrdinalIgnoreCase));
+
+            if (backupFilePath == null || !System.IO.File.Exists(backupFilePath))
+            {
+                return NotFound("Backup file not found");
+            }
+
+            System.IO.File.Delete(backupFilePath);
+
+            return Ok();
+        }
     }
 }
