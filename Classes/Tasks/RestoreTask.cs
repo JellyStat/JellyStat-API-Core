@@ -207,7 +207,7 @@ namespace Jellystat_API_Core.Classes.Tasks
                         },
                         cancellationToken);
 
-                        await loggingService.AddMessageAsync(log, $"Excluded Libraries Table Restored Successfully");
+                        await loggingService.AddMessageAsync(log, $"Libraries Table Restored Successfully");
 
                         await ImportInBatchesAsync(
                         backupContext.ExcludedLibraries
@@ -245,7 +245,32 @@ namespace Jellystat_API_Core.Classes.Tasks
 
                         await loggingService.AddMessageAsync(log, $"Logs Table Restored Successfully");
 
-                        await loggingService.AddMessageAsync(log, $"Backup Task Complete");
+
+                        await transaction.CommitAsync(cancellationToken);
+
+                        List<Server> dbServers = await sourceContext.Servers.ToListAsync();
+
+                        List<Models.Jellystat.Server> registeredServers = Global.APIInstanceManager.GetAllInstances().Select(instance => instance.config).ToList();
+
+                        List<Server> serversToRegister = dbServers.Where(dbServer => !registeredServers.Any(registeredServer => registeredServer.Id == dbServer.Id)).ToList();
+
+                        foreach (var server in serversToRegister)
+                        {
+                            Models.Jellystat.Server serverConfig = new Models.Jellystat.Server
+                            {
+                                Id = server.Id,
+                                URL = server.URL,
+                                ExternalURL = server.ExternalURL,
+                                APIKey = server.APIKey,
+                                Name = server.Name,
+                                Type = server.Type,
+                                AllowRemoteAuth = server.AllowRemoteAuth,
+                                TaskSettings = server.TaskSettings
+                            };
+                            await Global.APIInstanceManager.RegisterInstanceAsync(serverConfig);
+                        }
+
+                        await loggingService.AddMessageAsync(log, $"Restore Task Complete");
                         await loggingService.SuccessAsync(log);
 
                         var dbConnection = backupContext.Database.GetDbConnection();
@@ -268,7 +293,6 @@ namespace Jellystat_API_Core.Classes.Tasks
                         await loggingService.ErrorAsync(log);
                     }
 
-                    await transaction.CommitAsync(cancellationToken);
 
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)

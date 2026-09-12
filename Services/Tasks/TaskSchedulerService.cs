@@ -271,8 +271,9 @@ namespace Jellystat_API_Core.Services.Tasks
                         {
                             if (scheduledTask.ShouldExecute())
                             {
+                                string serverName = scheduledTask.Server != null ? $" for server {scheduledTask.Server.Name}" : String.Empty;
                                 _logger.LogInformation(
-                                    $"Scheduled task {scheduledTask.TaskSettings.Task} triggered for server {scheduledTask.Server.Name}. " +
+                                    $"Scheduled task {scheduledTask.TaskSettings.Task} triggered{serverName}. " +
                                     $"Last execution: {scheduledTask.LastExecutionTime?.ToString() ?? "Never"}, " +
                                     $"Next execution: {scheduledTask.NextExecutionTime}");
 
