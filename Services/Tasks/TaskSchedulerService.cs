@@ -24,6 +24,7 @@ namespace Jellystat_API_Core.Services.Tasks
         private Task? _schedulingTask;
         private Task? _broadcastingTask;
         private readonly ConcurrentDictionary<string, TaskSettings?> _currentRunningTasks;
+        private readonly ConcurrentDictionary<string, CancellationTokenSource> _runningTaskCancellationTokens;
         private readonly IServiceScopeFactory _serviceScopeFactory;
 
         private static string GlobalTaskId => "Global";
@@ -39,6 +40,7 @@ namespace Jellystat_API_Core.Services.Tasks
             _queueSemaphore = new SemaphoreSlim(0);
             _cancellationTokenSource = new CancellationTokenSource();
             _currentRunningTasks = new ConcurrentDictionary<string, TaskSettings?>();
+            _runningTaskCancellationTokens = new ConcurrentDictionary<string, CancellationTokenSource>();
             _serviceScopeFactory = serviceScopeFactory;
         }
 
@@ -50,7 +52,7 @@ namespace Jellystat_API_Core.Services.Tasks
             {
                 try
                 {
-                    var serverIds = _scheduledTasks.Keys.ToList();
+                    var serverIds = _scheduledTasks.Keys.Where(k => k != GlobalTaskId).ToList();
                     foreach (var serverId in serverIds)
                     {
                         try
@@ -231,6 +233,39 @@ namespace Jellystat_API_Core.Services.Tasks
             return _taskQueue.Count;
         }
 
+        public Task<bool> StopRunningTaskAsync(string? serverId, TaskTypes taskType)
+        {
+            string taskId = string.IsNullOrWhiteSpace(serverId) ? GlobalTaskId : serverId;
+
+            if (!_currentRunningTasks.TryGetValue(taskId, out var runningTask) || runningTask == null || runningTask.Task != taskType)
+            {
+                Debug.WriteLine($"[TaskScheduler] Unable to stop task. Task {taskType} not found for serverId {serverId ?? GlobalTaskId}");
+                return Task.FromResult(false);
+            }
+
+            if (!_runningTaskCancellationTokens.TryGetValue(taskId, out var cancellationTokenSource))
+            {
+                Debug.WriteLine($"[TaskScheduler] Unable to stop task. Cancellation Token for Task {taskType} not found for serverId {serverId ?? GlobalTaskId}");
+                return Task.FromResult(false);
+            }
+
+            try
+            {
+                if (!cancellationTokenSource.IsCancellationRequested)
+                {
+                    _logger.LogInformation("[TaskScheduler] Cancellation requested for task {TaskType} on {TaskId}", taskType, taskId);
+                    cancellationTokenSource.Cancel();
+                }
+
+                return Task.FromResult(true);
+            }
+            catch (ObjectDisposedException ex)
+            {
+                Debug.WriteLine($"[TaskScheduler] Error: {ex.Message}");
+                return Task.FromResult(false);
+            }
+        }
+
         private async Task BroadcastEnqueuedTasksAsync(string serverId)
         {
             // Snapshot the queue and find any tasks for the specified server
@@ -253,8 +288,8 @@ namespace Jellystat_API_Core.Services.Tasks
                 Data = update
             };
 
-
-            await Global.WebSocketServerService.BroadcastObjectAsync(message, serverId != GlobalTaskId ? serverId : null);
+            string? serverIdTag = serverId != GlobalTaskId ? serverId : null;
+            await Global.WebSocketServerService.BroadcastObjectAsync(message, serverIdTag);
         }
 
         private async Task ScheduleTasksAsync(CancellationToken cancellationToken)
@@ -318,19 +353,28 @@ namespace Jellystat_API_Core.Services.Tasks
 
                         // Mark current running task for this server
                         string taskId = server?.Id ?? GlobalTaskId;
+                        CancellationTokenSource? taskCancellationTokenSource = null;
+
                         try
                         {
+                            taskCancellationTokenSource = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
                             _currentRunningTasks[taskId] = taskSettings;
-                        }
-                        catch
-                        {
-                            _currentRunningTasks.AddOrUpdate(taskId, taskSettings, (k, v) => taskSettings);
-                        }
+                            _runningTaskCancellationTokens.AddOrUpdate(
+                                taskId,
+                                taskCancellationTokenSource,
+                                (key, existingCts) =>
+                                {
+                                    existingCts.Cancel();
+                                    existingCts.Dispose();
+                                    return taskCancellationTokenSource;
+                                });
 
-                        try
+                            await ExecuteTaskAsync(server, taskSettings, taskCancellationTokenSource.Token);
+                        }
+                        catch (OperationCanceledException)
                         {
-                            await ExecuteTaskAsync(server, taskSettings);
+                            _logger.LogInformation("Task {TaskType} {ServerName} was cancelled.", taskSettings.Task, serverName);
                         }
                         catch (Exception ex)
                         {
@@ -339,6 +383,11 @@ namespace Jellystat_API_Core.Services.Tasks
                         finally
                         {
                             _currentRunningTasks.TryRemove(taskId, out _);
+
+                            if (_runningTaskCancellationTokens.TryRemove(taskId, out var currentTaskCts))
+                            {
+                                currentTaskCts.Dispose();
+                            }
                         }
 
                         if (_taskQueue.Count > 0)
@@ -362,24 +411,26 @@ namespace Jellystat_API_Core.Services.Tasks
             _logger.LogInformation("Task queue processor stopped.");
         }
 
-        private async Task ExecuteTaskAsync(Server? server, TaskSettings taskSettings)
+        private async Task ExecuteTaskAsync(Server? server, TaskSettings taskSettings, CancellationToken cancellationToken)
         {
             var stopwatch = Stopwatch.StartNew();
 
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 if (server == null)
                 {
                     switch (taskSettings.Task)
                     {
                         case TaskTypes.Backup:
                             _logger.LogInformation($"Executing Backup task");
-                            await ExecuteBackupTask();
+                            await ExecuteBackupTask(cancellationToken);
                             break;
 
                         case TaskTypes.Restore:
                             _logger.LogInformation($"Executing Restore task for server");
-                            await ExecuteRestoreTask(taskSettings.Arguments.FirstOrDefault() ?? String.Empty);
+                            await ExecuteRestoreTask(taskSettings.Arguments.FirstOrDefault() ?? String.Empty, cancellationToken);
                             break;
 
                         default:
@@ -388,41 +439,48 @@ namespace Jellystat_API_Core.Services.Tasks
                     }
                     return;
                 }
-                else
+
+                var apiInstanceManager = _serviceProvider.GetRequiredService<IAPIInstanceManager>();
+                iAPI? api = apiInstanceManager.GetInstance(server.Id);
+                if (api == null)
                 {
-                    var apiInstanceManager = _serviceProvider.GetRequiredService<IAPIInstanceManager>();
-                    iAPI? api = apiInstanceManager.GetInstance(server.Id);
-                    if (api == null)
-                    {
-                        return;
-                    }
-
-                    switch (taskSettings.Task)
-                    {
-                        case TaskTypes.FullSync:
-                            _logger.LogInformation($"Executing FullSync task for server {server.Name}");
-                            await api.syncTask.FullSync();
-                            break;
-
-                        case TaskTypes.PartialSync:
-                            _logger.LogInformation($"Executing PartialSync task for server {server.Name}");
-                            await api.syncTask.PartialSync();
-                            break;
-
-                        case TaskTypes.PlaybackReportingPluginSync:
-                            _logger.LogInformation($"Executing PlaybackReportingPluginSync task for server {server.Name}");
-                            await ExecutePlaybackReportingPluginSyncTask(server);
-                            break;
-
-                        default:
-                            _logger.LogWarning($"Unknown task type: {taskSettings.Task} for server {server.Name}");
-                            break;
-                    }
+                    return;
                 }
 
+                switch (taskSettings.Task)
+                {
+                    case TaskTypes.FullSync:
+                        cancellationToken.ThrowIfCancellationRequested();
+                        _logger.LogInformation($"Executing FullSync task for server {server.Name}");
+                        await api.syncTask.FullSync(cancellationToken);
+                        break;
+
+                    case TaskTypes.PartialSync:
+                        cancellationToken.ThrowIfCancellationRequested();
+                        _logger.LogInformation($"Executing PartialSync task for server {server.Name}");
+                        await api.syncTask.PartialSync(cancellationToken);
+                        break;
+
+                    case TaskTypes.PlaybackReportingPluginSync:
+                        cancellationToken.ThrowIfCancellationRequested();
+                        _logger.LogInformation($"Executing PlaybackReportingPluginSync task for server {server.Name}");
+                        await ExecutePlaybackReportingPluginSyncTask(server);
+                        break;
+
+                    default:
+                        _logger.LogWarning($"Unknown task type: {taskSettings.Task} for server {server.Name}");
+                        break;
+                }
 
                 stopwatch.Stop();
                 _logger.LogInformation($"Task {taskSettings.Task} completed for server {server.Name} in {stopwatch.ElapsedMilliseconds}ms");
+            }
+            catch (OperationCanceledException)
+            {
+                stopwatch.Stop();
+                string serverName = server != null ? $" for server {server.Name}" : String.Empty;
+                _logger.LogInformation($"Task {taskSettings.Task} cancelled{serverName} after {stopwatch.ElapsedMilliseconds}ms");
+                throw;
             }
             catch (Exception ex)
             {
@@ -433,10 +491,9 @@ namespace Jellystat_API_Core.Services.Tasks
             }
         }
 
-        private async Task ExecuteBackupTask()
+        private async Task ExecuteBackupTask(CancellationToken cancellationToken)
         {
             BackupTask backup = new BackupTask(_serviceScopeFactory);
-            CancellationToken cancellationToken = new CancellationToken();
             await backup.RunBackupAsync(cancellationToken);
         }
 
@@ -446,7 +503,7 @@ namespace Jellystat_API_Core.Services.Tasks
             await Task.CompletedTask;
         }
 
-        private async Task ExecuteRestoreTask(string filePath)
+        private async Task ExecuteRestoreTask(string filePath, CancellationToken cancellationToken)
         {
             if (string.IsNullOrEmpty(filePath))
             {
@@ -454,7 +511,6 @@ namespace Jellystat_API_Core.Services.Tasks
                 return;
             }
             RestoreTask restore = new RestoreTask(_serviceScopeFactory);
-            CancellationToken cancellationToken = new CancellationToken();
             await restore.RunRestoreAsync(filePath, cancellationToken);
         }
     }
