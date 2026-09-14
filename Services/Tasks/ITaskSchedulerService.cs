@@ -4,13 +4,14 @@ namespace Jellystat_API_Core.Services.Tasks
 {
     public interface ITaskSchedulerService
     {
-        Task EnqueueTaskAsync(Server server, TaskSettings taskSettings);
+        Task EnqueueTaskAsync(Server? server, TaskSettings taskSettings);
+        Task RegisterGlobalTasks();
         Task RegisterServerAsync(Server server);
         Task UnregisterServerAsync(string serverId);
         Task StartAsync(CancellationToken cancellationToken);
         Task StopAsync(CancellationToken cancellationToken);
         int GetQueueCount();
 
-        Task RegisterTasksAsync(Server server, List<TaskSettings>? tasks = null);
+        Task RegisterTasksAsync(Server? server, List<TaskSettings>? tasks = null);
     }
 }

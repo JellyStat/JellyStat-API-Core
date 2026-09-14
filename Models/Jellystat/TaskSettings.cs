@@ -9,11 +9,17 @@ namespace Jellystat_API_Core.Models.Jellystat
 
         public bool Enabled { get; set; } = true;
 
-        public TaskSettings(TaskTypes Task, int IntervalMinutes = 60, bool Enabled = true)
+        public List<string> Arguments { get; set; } = new List<string>();
+
+        public TaskSettings(TaskTypes Task, int IntervalMinutes = 60, bool Enabled = true, List<string>? Arguments = null)
         {
             this.Task = Task;
             this.IntervalMinutes = IntervalMinutes;
             this.Enabled = Enabled;
+            if (Arguments != null)
+            {
+                this.Arguments = Arguments;
+            }
         }
     }
 }

@@ -37,5 +37,8 @@ namespace Jellystat_API_Core
         public static bool IsConfigured = false;
         public static bool AllowUnauthenticatedPasswordReset = false;
 
+        public static readonly string BackupDirectory = Path.Combine(AppContext.BaseDirectory, "backups");
+        public static readonly HashSet<string> BackupExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".bac", ".json", ".jsonl" };
+
     }
 }

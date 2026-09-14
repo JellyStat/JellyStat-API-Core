@@ -199,6 +199,7 @@ using (var scope = app.Services.CreateScope())
     var context = scope.ServiceProvider.GetRequiredService<ApplicationDbContext>();
     var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
     var apiManager = scope.ServiceProvider.GetRequiredService<IAPIInstanceManager>();
+    var taskSchedulerService = scope.ServiceProvider.GetRequiredService<ITaskSchedulerService>();
 
     try
     {
@@ -219,6 +220,8 @@ using (var scope = app.Services.CreateScope())
         logger.LogInformation($"Fetched: {config.Id}");
         await apiManager.RegisterInstanceAsync(config);
     }
+
+    await taskSchedulerService.RegisterGlobalTasks();
 
 
     var enumValues = Enum.GetNames(typeof(PermissionTypes));

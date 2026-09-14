@@ -474,6 +474,21 @@ namespace Jellystat_API_Core.Controllers
                    .Any(el => el.ServerId == ServerId && el.UserId == u.Id)).Gridify(query);
         }
 
+
+        [PermissionAuthorize(PermissionTypes.Administrator)]
+        [HttpGet("LocalUsers", Name = "LocalUsers")]
+        [DefaultGridifyOrder(nameof(LocalUsers.Username))]
+        public ActionResult<Paging<LocalUsers>> GetLocalUsers([FromQuery] GridifyQuery query)
+        {
+            Paging<LocalUsers> localUsers = context.LocalUsers.Gridify(query);
+            localUsers.Data = localUsers.Data.Select(u =>
+            {
+                u.Password = string.Empty; // Clear the password before returning
+                return u;
+            }).ToList();
+            return localUsers;
+        }
+
         [HttpGet("Libraries", Name = "Libraries")]
         [DefaultGridifyOrder(nameof(LibrariesWithStats.Name))]
         public ActionResult<Paging<LibrariesWithStats>> GetLibraries([FromQuery] GridifyQuery query, string? ServerId)
@@ -494,7 +509,7 @@ namespace Jellystat_API_Core.Controllers
                              activity => activity.ItemId,
                              item => item.Id,
                              (activity, item) => new { activity, item })
-                       .Where(x => x.item.LibraryId == library.Id)
+                       .Where(x => x.item.LibraryId == library.Id && x.item.ServerId == ServerId)
                        .Count(),
 
                    PlayDuration = (context.Activity
@@ -502,22 +517,22 @@ namespace Jellystat_API_Core.Controllers
                              activity => activity.ItemId,
                              item => item.Id,
                              (activity, item) => new { activity, item })
-                       .Where(x => x.item.LibraryId == library.Id)
+                       .Where(x => x.item.LibraryId == library.Id && x.item.ServerId == ServerId)
                        .Select(x => (long?)x.activity.Duration)
                        .Sum() ?? 0),
 
                    PlaybackDuration = (context.Items
-                       .Where(item => item.LibraryId == library.Id && !item.archived)
+                       .Where(item => item.LibraryId == library.Id && !item.archived && item.ServerId == ServerId)
                        .Select(item => (long?)item.Duration)
                        .Sum() ?? 0),
 
                    Size = (context.Items
-                       .Where(item => item.LibraryId == library.Id && (item.Type != ItemTypes.Series && item.Type != ItemTypes.Season) && !item.archived)
+                       .Where(item => item.LibraryId == library.Id && item.ServerId == ServerId && (item.Type != ItemTypes.Series && item.Type != ItemTypes.Season) && !item.archived)
                        .Select(item => (long?)item.Size)
                        .Sum() ?? 0),
 
                    TypeCounts = context.Items
-                       .Where(item => item.LibraryId == library.Id && !item.archived)
+                       .Where(item => item.LibraryId == library.Id && !item.archived && item.ServerId == ServerId)
                        .GroupBy(item => item.Type)
                        .Select(group => new TypeCountModel
                        {
@@ -532,7 +547,7 @@ namespace Jellystat_API_Core.Controllers
                              activity => activity.ItemId,
                              item => item.Id,
                              (activity, item) => new { activity, item })
-                       .Where(x => x.item.LibraryId == library.Id)
+                       .Where(x => x.item.LibraryId == library.Id && x.item.ServerId == ServerId)
                        .OrderByDescending(x => x.activity.DateCreated)
                        .Select(x => x.activity)
                        .FirstOrDefault(),
@@ -600,7 +615,7 @@ namespace Jellystat_API_Core.Controllers
                         .Select(activity => activity.DateCreated)
                         .FirstOrDefault(),
 
-                    Library = context.Libraries.Where(l => l.Id == item.LibraryId).FirstOrDefault(),
+                    Library = context.Libraries.Where(l => l.Id == item.LibraryId && l.ServerId == ServerId).FirstOrDefault(),
 
                     // Item fields
                     Parent = item.Parent,
@@ -760,5 +775,37 @@ namespace Jellystat_API_Core.Controllers
             return context.Logs.Where(l => l.ServerId == ServerId || l.ServerId == null).Gridify(query);
         }
 
+        [HttpGet("Backups", Name = "Backups")]
+        [PermissionAuthorize(PermissionTypes.Administrator)]
+        public ActionResult<List<string>> GetBackups()
+        {
+            List<string> filePaths = Directory
+                        .EnumerateFiles(Global.BackupDirectory, "*.*", SearchOption.TopDirectoryOnly)
+                        .Where(f => Global.BackupExtensions.Contains(Path.GetExtension(f)))
+                        .ToList();
+
+            return filePaths.Select(fp => Path.GetFileName(fp)).ToList();
+        }
+
+        [HttpDelete("Backups", Name = "Backups")]
+        [PermissionAuthorize(PermissionTypes.Administrator)]
+        public ActionResult DeleteBackup(string FileName)
+        {
+            List<string> filePaths = Directory
+                        .EnumerateFiles(Global.BackupDirectory, "*.*", SearchOption.TopDirectoryOnly)
+                        .Where(f => Global.BackupExtensions.Contains(Path.GetExtension(f)))
+                        .ToList();
+
+            string? backupFilePath = filePaths.FirstOrDefault(f => Path.GetFileName(f).Equals(FileName, StringComparison.OrdinalIgnoreCase));
+
+            if (backupFilePath == null || !System.IO.File.Exists(backupFilePath))
+            {
+                return NotFound("Backup file not found");
+            }
+
+            System.IO.File.Delete(backupFilePath);
+
+            return Ok();
+        }
     }
 }

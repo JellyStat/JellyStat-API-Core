@@ -24,13 +24,11 @@ namespace Jellystat_API_Core.Controllers
         {
             if (!HttpContext.WebSockets.IsWebSocketRequest)
             {
-                HttpContext.Response.StatusCode = StatusCodes.Status400BadRequest;
                 return BadRequest("WebSocket request expected");
             }
 
             if (!HttpContext.User.Identity?.IsAuthenticated ?? true)
             {
-                HttpContext.Response.StatusCode = StatusCodes.Status401Unauthorized;
                 return Unauthorized("Authentication required");
             }
 

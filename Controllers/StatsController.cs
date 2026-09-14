@@ -77,7 +77,7 @@ namespace Jellystat_API_Core.Controllers
                                  Codec = item.Codec,
                                  Resolution = item.Resolution,
 
-                                 Library = context.Libraries.FirstOrDefault(l => l.Id == item.LibraryId),
+                                 Library = context.Libraries.FirstOrDefault(l => l.Id == item.LibraryId && l.ServerId == ServerId),
                                  PlayCount = group
                                      .SelectMany(g => g.activities)
                                      .Count(),
@@ -150,7 +150,7 @@ namespace Jellystat_API_Core.Controllers
                                 Codec = item.Codec,
                                 Resolution = item.Resolution,
 
-                                Library = context.Libraries.FirstOrDefault(l => l.Id == item.LibraryId),
+                                Library = context.Libraries.FirstOrDefault(l => l.Id == item.LibraryId && l.ServerId == ServerId),
 
                                 PlayCount = group
                                     .SelectMany(g => g.activities)
@@ -198,7 +198,7 @@ namespace Jellystat_API_Core.Controllers
                                activity => activity.ItemId,
                                item => item.Id,
                                (activity, item) => new { activity, item })
-                         .Where(x => x.item.LibraryId == library.Id)
+                         .Where(x => x.item.LibraryId == library.Id && x.item.ServerId == library.ServerId)
                          .Count(),
 
                      PlayDuration = (context.Activity
@@ -207,22 +207,22 @@ namespace Jellystat_API_Core.Controllers
                                activity => activity.ItemId,
                                item => item.Id,
                                (activity, item) => new { activity, item })
-                         .Where(x => x.item.LibraryId == library.Id)
+                         .Where(x => x.item.LibraryId == library.Id && x.item.ServerId == library.ServerId)
                          .Select(x => (long?)x.activity.Duration)
                          .Sum() ?? 0),
 
                      PlaybackDuration = (context.Items
-                         .Where(item => item.LibraryId == library.Id)
+                         .Where(item => item.LibraryId == library.Id && item.ServerId == library.ServerId)
                          .Select(item => (long?)item.Duration)
                          .Sum() ?? 0),
 
                      Size = (context.Items
-                         .Where(item => item.LibraryId == library.Id && (item.Type != ItemTypes.Series && item.Type != ItemTypes.Season))
+                         .Where(item => item.LibraryId == library.Id && item.ServerId == library.ServerId && (item.Type != ItemTypes.Series && item.Type != ItemTypes.Season))
                          .Select(item => (long?)item.Size)
                          .Sum() ?? 0),
 
                      TypeCounts = context.Items
-                         .Where(item => item.LibraryId == library.Id)
+                         .Where(item => item.LibraryId == library.Id && item.ServerId == library.ServerId)
                          .GroupBy(item => item.Type)
                          .Select(group => new TypeCountModel
                          {
@@ -234,7 +234,7 @@ namespace Jellystat_API_Core.Controllers
 
                      LatestActivity = context.Activity
                                       .Where(activity => context.Items
-                                          .Where(item => item.LibraryId == library.Id)
+                                          .Where(item => item.LibraryId == library.Id && item.ServerId == library.ServerId)
                                           .Select(item => item.Id)
                                           .Contains(activity.ItemId))
                                       .OrderByDescending(a => a.DateCreated)
@@ -242,7 +242,7 @@ namespace Jellystat_API_Core.Controllers
 
                      LatestActivityDate = context.Activity
                                       .Where(activity => context.Items
-                                          .Where(item => item.LibraryId == library.Id)
+                                          .Where(item => item.LibraryId == library.Id && item.ServerId == library.ServerId)
                                           .Select(item => item.Id)
                                           .Contains(activity.ItemId))
                                       .Select(a => (DateTime?)a.DateCreated)
@@ -343,22 +343,28 @@ namespace Jellystat_API_Core.Controllers
         }
 
         [HttpGet("StatTrends", Name = "StatTrends")]
-        [DefaultGridifyPageSize(5)]
-        public List<ChartStats> GetStatsByDay(string? ServerId, int days = 30, StatMetric metric = StatMetric.Date)
+        [DefaultGridifyPageSize(200)]
+        public List<ChartStats> GetStatsByDay([FromQuery] GridifyQuery query, string? ServerId, StatMetric metric = StatMetric.Date)
         {
             if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
                 ServerId = HttpContext.User.GetServerId();
             }
 
-            string dateFormat = metric == StatMetric.Date ? "yyyy-MM-dd" : "";
+            string dateFormat = "";
+            if (metric == StatMetric.Date)
+            {
+                dateFormat = "yyyy-MM-dd";
+            }
+            if (metric == StatMetric.Hour)
+            {
+                dateFormat = "00':00";
+            }
 
-            DateTime cutoffDate = days == 0
-                    ? DateTime.MinValue
-                    : DateTime.UtcNow.AddDays(-days);
             // Join activity -> items -> libraries, prepare a base projection
             var baseQuery = context.Activity
-                .Where(activity => activity.DateCreated >= cutoffDate && activity.ServerId == ServerId)
+                .Where(activity => activity.ServerId == ServerId)
+                .ApplyFiltering(query)
                 .Join(context.Items,
                       activity => activity.ItemId,
                       item => item.Id,

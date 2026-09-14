@@ -1,6 +1,7 @@
 ﻿using Jellystat_API_Core.Attributes;
 using Jellystat_API_Core.Classes.API.@interface;
 using Jellystat_API_Core.Data;
+using Jellystat_API_Core.Data.Schema;
 using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Helpers;
 using Jellystat_API_Core.Models.Jellystat;
@@ -34,6 +35,21 @@ namespace Jellystat_API_Core.Controllers
         public async Task<ActionResult> StartTask(string ServerId, TaskTypes Task)
         {
 
+
+            if (Task == TaskTypes.Restore || Task == TaskTypes.Backup)
+            {
+                GlobalTasks? globalTask = context.GlobalTasks.Where(gt => gt.Task == Task).FirstOrDefault();
+                if (globalTask == null)
+                {
+                    return NotFound("Task Not Found");
+                }
+
+                TaskSettings taskSetting = new TaskSettings(globalTask.Task, globalTask.IntervalMinutes, globalTask.Enabled);
+                await _taskSchedulerService.EnqueueTaskAsync(null, taskSetting);
+                return Ok();
+
+            }
+
             iAPI? api = _apiInstanceManager.GetInstance(ServerId);
             if (api == null)
             {
@@ -54,7 +70,6 @@ namespace Jellystat_API_Core.Controllers
         [PermissionAuthorize(PermissionTypes.Administrator)]
         public async Task<ActionResult> UpdateTask(string ServerId, [FromBody] TaskSettings taskSetting)
         {
-
             iAPI? api = _apiInstanceManager.GetInstance(ServerId);
             if (api == null)
             {
@@ -81,6 +96,94 @@ namespace Jellystat_API_Core.Controllers
             return BadRequest("Failed to update task");
         }
 
+
+        //Restore
+        [HttpGet("RestoreTask", Name = "RestoreTask")]
+        [PermissionAuthorize(PermissionTypes.Administrator)]
+        public async Task<ActionResult> RestoreTask(string FileName)
+        {
+
+            List<string> filePaths = Directory
+                                    .EnumerateFiles(Global.BackupDirectory, "*.*", SearchOption.TopDirectoryOnly)
+                                    .Where(f => Global.BackupExtensions.Contains(Path.GetExtension(f)))
+                                    .ToList();
+
+
+            string? backupFilePath = filePaths.FirstOrDefault(f => Path.GetFileName(f).Equals(FileName, StringComparison.OrdinalIgnoreCase));
+
+            if (backupFilePath == null || !System.IO.File.Exists(backupFilePath))
+            {
+                return NotFound("Backup file not found");
+            }
+
+            TaskSettings restoreTask = new TaskSettings(TaskTypes.Restore, 0, true, new List<string> { backupFilePath });
+            await _taskSchedulerService.EnqueueTaskAsync(null, restoreTask);
+            return Ok();
+        }
+
+        [HttpPost("UploadBackup", Name = "UploadBackup")]
+        [PermissionAuthorize(PermissionTypes.Administrator)]
+        public async Task<ActionResult> UploadBackup()
+        {
+            if (!Request.HasFormContentType)
+            {
+                return BadRequest("Request must be multipart/form-data");
+            }
+
+            IFormFile? file = Request.Form.Files.FirstOrDefault();
+            if (file == null || file.Length == 0)
+            {
+                return BadRequest("No file was uploaded");
+            }
+
+            string extension = Path.GetExtension(file.FileName);
+            if (!Global.BackupExtensions.Contains(extension))
+            {
+                return BadRequest("Only .bac, .json, and .jsonl files are allowed");
+            }
+
+            Directory.CreateDirectory(Global.BackupDirectory);
+
+            string fileName = Path.GetFileName(file.FileName);
+            string backupFilePath = Path.Combine(Global.BackupDirectory, fileName);
+
+            await using FileStream stream = System.IO.File.Create(backupFilePath);
+            await file.CopyToAsync(stream);
+
+            return Ok(new { fileName, filePath = backupFilePath });
+        }
+
+        [HttpGet("DownloadBackup", Name = "DownloadBackup")]
+        [PermissionAuthorize(PermissionTypes.Administrator)]
+        public ActionResult DownloadBackup(string FileName)
+        {
+            List<string> filePaths = Directory
+                        .EnumerateFiles(Global.BackupDirectory, "*.*", SearchOption.TopDirectoryOnly)
+                        .Where(f => Global.BackupExtensions.Contains(Path.GetExtension(f)))
+                        .ToList();
+
+
+            string? backupFilePath = filePaths.FirstOrDefault(f => Path.GetFileName(f).Equals(FileName, StringComparison.OrdinalIgnoreCase));
+
+            if (backupFilePath == null || !System.IO.File.Exists(backupFilePath))
+            {
+                return NotFound("Backup file not found");
+            }
+
+            string contentType = "application/octet-stream";
+            return PhysicalFile(backupFilePath, contentType, Path.GetFileName(backupFilePath));
+        }
+
+        [HttpGet("GlobalTasks", Name = "GlobalTasks")]
+        [PermissionAuthorize(PermissionTypes.Administrator)]
+        public ActionResult<List<TaskSettings>> GetGlobalTasks()
+        {
+            List<GlobalTasks> tasks = context.GlobalTasks.ToList();
+            return tasks.Select(gt =>
+            {
+                return new TaskSettings(gt.Task, gt.IntervalMinutes, gt.Enabled);
+            }).ToList();
+        }
 
     }
 }

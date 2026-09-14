@@ -96,7 +96,7 @@ namespace Jellystat_API_Core.Classes.API
         {
             Debug.WriteLine("[Websocket] Client connected: " + clientId);
             EventMessage<string> message = new EventMessage<string>(
-                    Data: "0,1500",
+                    Data: "0,1000",
                     MessageType: MessageTypes.SessionsStart
                 );
 
@@ -203,6 +203,7 @@ namespace Jellystat_API_Core.Classes.API
                 $"Ids={string.Join(",", itemIds.Select(Uri.EscapeDataString))}",
                 $"fields=MediaSources,DateCreated,Genres,Path",
                 $"isMissing=false",
+                $"collapseBoxSetItems=false",
                 $"excludeLocationTypes=Virtual",
                 $"StartIndex={startIndex}",
                 $"Limit={limit}",
@@ -228,6 +229,7 @@ namespace Jellystat_API_Core.Classes.API
                 $"ParentId={Uri.EscapeDataString(id)}",
                 $"fields=MediaSources,DateCreated,Genres,Path",
                 $"isMissing=false",
+                $"collapseBoxSetItems=false",
                 $"excludeLocationTypes=Virtual",
                 $"StartIndex={startIndex}",
                 $"Limit={limit}",
