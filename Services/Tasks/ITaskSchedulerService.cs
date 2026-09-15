@@ -1,3 +1,4 @@
+using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Models.Jellystat;
 
 namespace Jellystat_API_Core.Services.Tasks
@@ -11,6 +12,7 @@ namespace Jellystat_API_Core.Services.Tasks
         Task StartAsync(CancellationToken cancellationToken);
         Task StopAsync(CancellationToken cancellationToken);
         int GetQueueCount();
+        Task<bool> StopRunningTaskAsync(string? serverId, TaskTypes taskType);
 
         Task RegisterTasksAsync(Server? server, List<TaskSettings>? tasks = null);
     }

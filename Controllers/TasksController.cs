@@ -65,6 +65,19 @@ namespace Jellystat_API_Core.Controllers
             return Ok();
         }
 
+        [HttpGet("StopTask", Name = "StopTask")]
+        [PermissionAuthorize(PermissionTypes.Administrator)]
+        public async Task<ActionResult> StopTask(string? ServerId, TaskTypes Task)
+        {
+            bool cancelled = await _taskSchedulerService.StopRunningTaskAsync(ServerId, Task);
+            if (!cancelled)
+            {
+                return NotFound("No matching running task found");
+            }
+
+            return Ok();
+        }
+
 
         [HttpPost("UpdateTask", Name = "UpdateTask")]
         [PermissionAuthorize(PermissionTypes.Administrator)]
