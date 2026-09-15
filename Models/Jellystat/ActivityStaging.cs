@@ -4,7 +4,7 @@ namespace Jellystat_API_Core.Models.Jellystat
 {
     public class ActivityStaging
     {
-        public string Id { get; set; } = new Guid().ToString();
+        public string Id { get; set; } = Guid.NewGuid().ToString();
         public string ServerId { get; set; }
         public string Name { get; set; }
         public string? SeriesName { get; set; }

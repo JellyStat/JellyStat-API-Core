@@ -19,6 +19,7 @@ namespace Jellystat_API_Core.Services.WebSocket
         private bool _disposed;
 
         public string ClientId => _config.Id;
+        private string LogPrefix => $"[Websocket] {ClientId}";
         public WebSocketClientState State { get; private set; } = WebSocketClientState.Disconnected;
 
         public event EventHandler<WebSocketMessage>? OnMessageReceived;
@@ -36,12 +37,13 @@ namespace Jellystat_API_Core.Services.WebSocket
         {
             if (State == WebSocketClientState.Connected || State == WebSocketClientState.Connecting)
             {
-                _logger?.LogWarning("Client {ClientId} is already connected or connecting", ClientId);
+                _logger?.LogWarning("{Prefix} connect requested while state is {State}", LogPrefix, State);
                 return false;
             }
 
             try
             {
+                _logger?.LogInformation("{Prefix} connecting to {Url}", LogPrefix, _config.Url);
                 State = WebSocketClientState.Connecting;
                 _webSocket?.Dispose();
                 _webSocket = new ClientWebSocket();
@@ -68,19 +70,24 @@ namespace Jellystat_API_Core.Services.WebSocket
                 _keepAliveTask = Task.Run(KeepAliveLoopAsync);
 
                 OnConnected?.Invoke(this, ClientId);
-                _logger?.LogInformation("Client {ClientId} connected to {Url}", ClientId, _config.Url);
+                _logger?.LogInformation("{Prefix} connected to {Url}", LogPrefix, _config.Url);
 
                 return true;
             }
             catch (Exception ex)
             {
                 State = WebSocketClientState.Failed;
-                _logger?.LogError(ex, "Failed to connect client {ClientId} to {Url}", ClientId, _config.Url);
+                _logger?.LogError(ex, "{Prefix} failed to connect to {Url}", LogPrefix, _config.Url);
                 OnError?.Invoke(this, (ClientId, ex));
 
                 if (_config.AutoReconnect && _reconnectAttempts < _config.MaxReconnectAttempts)
                 {
                     await ReconnectAsync();
+                }
+                else if (_config.AutoReconnect)
+                {
+                    _logger?.LogWarning("{Prefix} reconnect limit reached after connection failure ({Attempts}/{MaxAttempts})",
+                        LogPrefix, _reconnectAttempts, _config.MaxReconnectAttempts);
                 }
 
                 return false;
@@ -89,29 +96,34 @@ namespace Jellystat_API_Core.Services.WebSocket
 
         public async Task DisconnectAsync()
         {
+            _logger?.LogInformation("{Prefix} disconnect requested while client state is {State} and socket state is {SocketState}",
+                LogPrefix, State, _webSocket?.State);
+
             if (_webSocket?.State == WebSocketState.Open)
             {
                 try
                 {
                     _cancellationTokenSource?.Cancel();
                     await _webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Client requested disconnect", CancellationToken.None);
+                    _logger?.LogInformation("{Prefix} close frame sent with status {CloseStatus}", LogPrefix, WebSocketCloseStatus.NormalClosure);
                 }
                 catch (Exception ex)
                 {
-                    _logger?.LogError(ex, "Error during disconnect for client {ClientId}", ClientId);
+                    _logger?.LogError(ex, "{Prefix} error during disconnect", LogPrefix);
                 }
             }
 
             State = WebSocketClientState.Disconnected;
             OnDisconnected?.Invoke(this, ClientId);
-            _logger?.LogInformation("Client {ClientId} disconnected", ClientId);
+            _logger?.LogInformation("{Prefix} disconnected", LogPrefix);
         }
 
         public async Task<bool> SendAsync(string message)
         {
             if (State != WebSocketClientState.Connected || _webSocket?.State != WebSocketState.Open)
             {
-                _logger?.LogWarning("Cannot send message on client {ClientId} - not connected", ClientId);
+                _logger?.LogWarning("{Prefix} cannot send text message while client state is {State} and socket state is {SocketState}",
+                    LogPrefix, State, _webSocket?.State);
                 return false;
             }
 
@@ -123,7 +135,7 @@ namespace Jellystat_API_Core.Services.WebSocket
             }
             catch (Exception ex)
             {
-                _logger?.LogError(ex, "Failed to send message on client {ClientId}", ClientId);
+                _logger?.LogError(ex, "{Prefix} failed to send text message", LogPrefix);
                 OnError?.Invoke(this, (ClientId, ex));
                 return false;
             }
@@ -133,7 +145,8 @@ namespace Jellystat_API_Core.Services.WebSocket
         {
             if (State != WebSocketClientState.Connected || _webSocket?.State != WebSocketState.Open)
             {
-                _logger?.LogWarning("Cannot send binary data on client {ClientId} - not connected", ClientId);
+                _logger?.LogWarning("{Prefix} cannot send binary message while client state is {State} and socket state is {SocketState}",
+                    LogPrefix, State, _webSocket?.State);
                 return false;
             }
 
@@ -144,7 +157,7 @@ namespace Jellystat_API_Core.Services.WebSocket
             }
             catch (Exception ex)
             {
-                _logger?.LogError(ex, "Failed to send binary data on client {ClientId}", ClientId);
+                _logger?.LogError(ex, "{Prefix} failed to send binary message", LogPrefix);
                 OnError?.Invoke(this, (ClientId, ex));
                 return false;
             }
@@ -169,11 +182,18 @@ namespace Jellystat_API_Core.Services.WebSocket
 
                         if (result.MessageType == WebSocketMessageType.Close)
                         {
+                            _logger?.LogWarning("{Prefix} remote endpoint requested close with status {CloseStatus} and description {CloseDescription}",
+                                LogPrefix, result.CloseStatus, result.CloseStatusDescription);
                             await DisconnectAsync();
 
                             if (_config.AutoReconnect && _reconnectAttempts < _config.MaxReconnectAttempts)
                             {
                                 await ReconnectAsync();
+                            }
+                            else if (_config.AutoReconnect)
+                            {
+                                _logger?.LogWarning("{Prefix} close detected but reconnect limit reached ({Attempts}/{MaxAttempts})",
+                                    LogPrefix, _reconnectAttempts, _config.MaxReconnectAttempts);
                             }
                             return;
                         }
@@ -207,16 +227,21 @@ namespace Jellystat_API_Core.Services.WebSocket
             }
             catch (OperationCanceledException)
             {
-                _logger?.LogInformation("Receive loop cancelled for client {ClientId}", ClientId);
+                _logger?.LogInformation("{Prefix} receive loop cancelled", LogPrefix);
             }
             catch (Exception ex)
             {
-                _logger?.LogError(ex, "Error in receive loop for client {ClientId}", ClientId);
+                _logger?.LogError(ex, "{Prefix} receive loop failed", LogPrefix);
                 OnError?.Invoke(this, (ClientId, ex));
 
                 if (_config.AutoReconnect && _reconnectAttempts < _config.MaxReconnectAttempts)
                 {
                     await ReconnectAsync();
+                }
+                else if (_config.AutoReconnect)
+                {
+                    _logger?.LogWarning("{Prefix} receive loop error occurred but reconnect limit reached ({Attempts}/{MaxAttempts})",
+                        LogPrefix, _reconnectAttempts, _config.MaxReconnectAttempts);
                 }
             }
         }
@@ -226,8 +251,8 @@ namespace Jellystat_API_Core.Services.WebSocket
             _reconnectAttempts++;
             State = WebSocketClientState.Reconnecting;
 
-            _logger?.LogInformation("Attempting to reconnect client {ClientId} (attempt {Attempt}/{Max})",
-                ClientId, _reconnectAttempts, _config.MaxReconnectAttempts);
+            _logger?.LogWarning("{Prefix} connection dropped, reconnect attempt {Attempt}/{MaxAttempts} in {Delay}",
+                LogPrefix, _reconnectAttempts, _config.MaxReconnectAttempts, _config.ReconnectDelay);
 
             await Task.Delay(_config.ReconnectDelay);
             await ConnectAsync();
@@ -259,26 +284,26 @@ namespace Jellystat_API_Core.Services.WebSocket
 
                         if (!sent)
                         {
-                            _logger?.LogWarning("Failed to send keepalive message for client {ClientId}", ClientId);
+                            _logger?.LogWarning("{Prefix} failed to send keepalive message", LogPrefix);
                         }
                         else
                         {
-                            _logger?.LogDebug("Keepalive message sent for client {ClientId}", ClientId);
+                            _logger?.LogDebug("{Prefix} keepalive message sent", LogPrefix);
                         }
                     }
                     catch (Exception ex)
                     {
-                        _logger?.LogError(ex, "Error sending keepalive message for client {ClientId}", ClientId);
+                        _logger?.LogError(ex, "{Prefix} error sending keepalive message", LogPrefix);
                     }
                 }
             }
             catch (OperationCanceledException)
             {
-                _logger?.LogInformation("Keepalive loop cancelled for client {ClientId}", ClientId);
+                _logger?.LogInformation("{Prefix} keepalive loop cancelled", LogPrefix);
             }
             catch (Exception ex)
             {
-                _logger?.LogError(ex, "Error in keepalive loop for client {ClientId}", ClientId);
+                _logger?.LogError(ex, "{Prefix} keepalive loop failed", LogPrefix);
             }
         }
 
