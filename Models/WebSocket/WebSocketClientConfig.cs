@@ -6,6 +6,7 @@ namespace Jellystat_API_Core.Models.WebSocket
     {
         public string Id { get; set; } = string.Empty;
         public string Url { get; set; } = string.Empty;
+        public string ServerName { get; set; } = string.Empty;
         public Dictionary<string, string>? Headers { get; set; }
         public TimeSpan ReconnectDelay { get; set; } = TimeSpan.FromSeconds(5);
         public int MaxReconnectAttempts { get; set; } = 10;

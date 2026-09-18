@@ -16,10 +16,11 @@ namespace Jellystat_API_Core.Services.WebSocket
         private Task? _receiveTask;
         private Task? _keepAliveTask;
         private int _reconnectAttempts;
+        private bool _maxAttemptsReached;
         private bool _disposed;
 
         public string ClientId => _config.Id;
-        private string LogPrefix => $"[Websocket] {ClientId}";
+        private string LogPrefix => $"[Websocket] {ClientId} {_config.ServerName}";
         public WebSocketClientState State { get; private set; } = WebSocketClientState.Disconnected;
 
         public event EventHandler<WebSocketMessage>? OnMessageReceived;
@@ -65,6 +66,7 @@ namespace Jellystat_API_Core.Services.WebSocket
 
                 State = WebSocketClientState.Connected;
                 _reconnectAttempts = 0;
+                _maxAttemptsReached = false;
 
                 _receiveTask = Task.Run(ReceiveLoopAsync);
                 _keepAliveTask = Task.Run(KeepAliveLoopAsync);
@@ -80,15 +82,7 @@ namespace Jellystat_API_Core.Services.WebSocket
                 _logger?.LogError(ex, "{Prefix} failed to connect to {Url}", LogPrefix, _config.Url);
                 OnError?.Invoke(this, (ClientId, ex));
 
-                if (_config.AutoReconnect && _reconnectAttempts < _config.MaxReconnectAttempts)
-                {
-                    await ReconnectAsync();
-                }
-                else if (_config.AutoReconnect)
-                {
-                    _logger?.LogWarning("{Prefix} reconnect limit reached after connection failure ({Attempts}/{MaxAttempts})",
-                        LogPrefix, _reconnectAttempts, _config.MaxReconnectAttempts);
-                }
+                await HandleReconnectAsync("Connection failure");
 
                 return false;
             }
@@ -186,15 +180,7 @@ namespace Jellystat_API_Core.Services.WebSocket
                                 LogPrefix, result.CloseStatus, result.CloseStatusDescription);
                             await DisconnectAsync();
 
-                            if (_config.AutoReconnect && _reconnectAttempts < _config.MaxReconnectAttempts)
-                            {
-                                await ReconnectAsync();
-                            }
-                            else if (_config.AutoReconnect)
-                            {
-                                _logger?.LogWarning("{Prefix} close detected but reconnect limit reached ({Attempts}/{MaxAttempts})",
-                                    LogPrefix, _reconnectAttempts, _config.MaxReconnectAttempts);
-                            }
+                            await HandleReconnectAsync("Remote endpoint close detected");
                             return;
                         }
 
@@ -234,27 +220,50 @@ namespace Jellystat_API_Core.Services.WebSocket
                 _logger?.LogError(ex, "{Prefix} receive loop failed", LogPrefix);
                 OnError?.Invoke(this, (ClientId, ex));
 
-                if (_config.AutoReconnect && _reconnectAttempts < _config.MaxReconnectAttempts)
-                {
-                    await ReconnectAsync();
-                }
-                else if (_config.AutoReconnect)
-                {
-                    _logger?.LogWarning("{Prefix} receive loop error occurred but reconnect limit reached ({Attempts}/{MaxAttempts})",
-                        LogPrefix, _reconnectAttempts, _config.MaxReconnectAttempts);
-                }
+                await HandleReconnectAsync("Receive loop error");
             }
         }
 
-        private async Task ReconnectAsync()
+        private async Task HandleReconnectAsync(string reason)
+        {
+            if (!_config.AutoReconnect)
+                return;
+
+            if (_reconnectAttempts < _config.MaxReconnectAttempts)
+            {
+                await ReconnectAsync();
+            }
+            else
+            {
+                if (!_maxAttemptsReached)
+                {
+                    _maxAttemptsReached = true;
+                    _logger?.LogWarning("{Prefix} {Reason} - reconnect limit reached ({Attempts}/{MaxAttempts}). Entering indefinite retry mode with 5-minute intervals",
+                        LogPrefix, reason, _reconnectAttempts, _config.MaxReconnectAttempts);
+                }
+                await ReconnectAsync(fiveMinuteInterval: true);
+            }
+        }
+
+        private async Task ReconnectAsync(bool fiveMinuteInterval = false)
         {
             _reconnectAttempts++;
             State = WebSocketClientState.Reconnecting;
 
-            _logger?.LogWarning("{Prefix} connection dropped, reconnect attempt {Attempt}/{MaxAttempts} in {Delay}",
-                LogPrefix, _reconnectAttempts, _config.MaxReconnectAttempts, _config.ReconnectDelay);
+            // Use 5-minute interval when max attempts reached, otherwise use configured delay
+            TimeSpan delay = fiveMinuteInterval ? TimeSpan.FromMinutes(5) : _config.ReconnectDelay;
 
-            await Task.Delay(_config.ReconnectDelay);
+            if (fiveMinuteInterval)
+            {
+                _logger?.LogWarning("{Prefix} reconnection scheduled (indefinite retry mode) in 5 minutes", LogPrefix);
+            }
+            else
+            {
+                _logger?.LogWarning("{Prefix} connection dropped, reconnect attempt {Attempt}/{MaxAttempts} in {Delay}",
+                    LogPrefix, _reconnectAttempts, _config.MaxReconnectAttempts, delay);
+            }
+
+            await Task.Delay(delay);
             await ConnectAsync();
         }
 

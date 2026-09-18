@@ -34,7 +34,8 @@ namespace Jellystat_API_Core.Models.Jellystat
                 {
                     { "Authorization", $"MediaBrowser Token=\"{APIKey}\"" },
                     { "User-Agent", $"Jellystat" }
-                }
+                },
+            ServerName = Name,
 
         };
 
