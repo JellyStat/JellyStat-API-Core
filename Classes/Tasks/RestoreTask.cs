@@ -1,7 +1,9 @@
 ﻿using Jellystat_API_Core.Data;
 using Jellystat_API_Core.Data.Schema;
 using Jellystat_API_Core.Enums;
+using Jellystat_API_Core.Extensions;
 using Jellystat_API_Core.Models.API.Base;
+using Jellystat_API_Core.Models.Jellystat.V1;
 using Jellystat_API_Core.Services.TaskLogging;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +15,17 @@ namespace Jellystat_API_Core.Classes.Tasks
     {
         private readonly IServiceScopeFactory _serviceScopeFactory;
         private const int ImportBatchSize = 500;
+        private static readonly JsonSerializerOptions JsonRestoreOptions = new()
+        {
+            PropertyNameCaseInsensitive = true,
+            UnmappedMemberHandling = System.Text.Json.Serialization.JsonUnmappedMemberHandling.Skip,
+        };
+
+        private static readonly Dictionary<string, string> JsonTableNameMap = new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["jf_playback_activity"] = "activity",
+            ["jf_playback_reporting_plugin_data"] = "jf_playback_reporting_plugin_data"
+        };
 
         public RestoreTask(IServiceScopeFactory serviceScopeFactory)
         {
@@ -248,27 +261,7 @@ namespace Jellystat_API_Core.Classes.Tasks
 
                         await transaction.CommitAsync(cancellationToken);
 
-                        List<Server> dbServers = await sourceContext.Servers.ToListAsync();
-
-                        List<Models.Jellystat.Server> registeredServers = Global.APIInstanceManager.GetAllInstances().Select(instance => instance.config).ToList();
-
-                        List<Server> serversToRegister = dbServers.Where(dbServer => !registeredServers.Any(registeredServer => registeredServer.Id == dbServer.Id)).ToList();
-
-                        foreach (var server in serversToRegister)
-                        {
-                            Models.Jellystat.Server serverConfig = new Models.Jellystat.Server
-                            {
-                                Id = server.Id,
-                                URL = server.URL,
-                                ExternalURL = server.ExternalURL,
-                                APIKey = server.APIKey,
-                                Name = server.Name,
-                                Type = server.Type,
-                                AllowRemoteAuth = server.AllowRemoteAuth,
-                                TaskSettings = server.TaskSettings
-                            };
-                            await Global.APIInstanceManager.RegisterInstanceAsync(serverConfig);
-                        }
+                        await RegisterNewServers(sourceContext);
 
                         await loggingService.AddMessageAsync(log, $"Restore Task Complete");
                         await loggingService.SuccessAsync(log);
@@ -286,6 +279,28 @@ namespace Jellystat_API_Core.Classes.Tasks
 
 
 
+                    }
+                    else if (extension.Equals(".json"))
+                    {
+                        await RestoreJsonBackupAsync(filePath, sourceContext, loggingService, log, cancellationToken);
+
+                        await transaction.CommitAsync(cancellationToken);
+
+                        await RegisterNewServers(sourceContext);
+
+                        await loggingService.AddMessageAsync(log, $"Restore Task Complete");
+                        await loggingService.SuccessAsync(log);
+                    }
+                    else if (extension.Equals(".jsonl"))
+                    {
+                        await RestoreJsonLinesBackupAsync(filePath, sourceContext, loggingService, log, cancellationToken);
+
+                        await transaction.CommitAsync(cancellationToken);
+
+                        await RegisterNewServers(sourceContext);
+
+                        await loggingService.AddMessageAsync(log, $"Restore Task Complete");
+                        await loggingService.SuccessAsync(log);
                     }
                     else
                     {
@@ -318,6 +333,169 @@ namespace Jellystat_API_Core.Classes.Tasks
 
         }
 
+        private async Task RegisterNewServers(ApplicationDbContext sourceContext)
+        {
+            List<Server> dbServers = await sourceContext.Servers.ToListAsync();
+
+            List<Models.Jellystat.Server> registeredServers = Global.APIInstanceManager.GetAllInstances().Select(instance => instance.config).ToList();
+
+            List<Server> serversToRegister = dbServers.Where(dbServer => !registeredServers.Any(registeredServer => registeredServer.Id == dbServer.Id)).ToList();
+
+            foreach (var server in serversToRegister)
+            {
+                Models.Jellystat.Server serverConfig = new Models.Jellystat.Server
+                {
+                    Id = server.Id,
+                    URL = server.URL,
+                    ExternalURL = server.ExternalURL,
+                    APIKey = server.APIKey,
+                    Name = server.Name,
+                    Type = server.Type,
+                    AllowRemoteAuth = server.AllowRemoteAuth,
+                    TaskSettings = server.TaskSettings
+                };
+                await Global.APIInstanceManager.RegisterInstanceAsync(serverConfig);
+            }
+        }
+
+
+        private async Task RestoreJsonBackupAsync(
+          string filePath,
+          ApplicationDbContext sourceContext,
+          ITaskLogging loggingService,
+          Logs log,
+          CancellationToken cancellationToken)
+        {
+            await loggingService.AddMessageAsync(log, "Starting JSON restore");
+
+            await using FileStream fileStream = File.OpenRead(filePath);
+            using JsonDocument document = await JsonDocument.ParseAsync(fileStream, cancellationToken: cancellationToken);
+            var elements = document.RootElement.EnumerateArray().ToArray();
+            var backup = JsonBackupFile.FromArray(elements);
+
+            if (backup.jf_playback_activity.IsEmpty())
+            {
+                throw new JsonException("No activity data found in the backup file.");
+            }
+
+            List<string> serverIds = backup.jf_playback_activity.Where(a => a.ServerId != null).Select(a => a.ServerId!).Distinct().ToList();
+
+            List<string> existingServerIds = await sourceContext.Servers.Select(s => s.Id).ToListAsync(cancellationToken);
+            List<string> matchingServerIds = serverIds.Intersect(existingServerIds).ToList();
+
+            if (matchingServerIds.IsEmpty())
+            {
+                throw new JsonException($"No Valid ServerId's have been found in the current backup.");
+            }
+
+            List<Activity> mappedActivity = backup.jf_playback_activity.Where(a => a.ServerId != null && matchingServerIds.Contains(a.ServerId)).Select(s => s.ConvertData()).ToList();
+
+            await UpsertBatchAsync(mappedActivity, sourceContext.Activity, sourceContext, cancellationToken);
+
+            await loggingService.AddMessageAsync(log, $"Restored {mappedActivity.Count} row(s) from jf_playback_activity");
+
+
+        }
+
+        private async Task RestoreJsonLinesBackupAsync(
+            string filePath,
+            ApplicationDbContext sourceContext,
+            ITaskLogging loggingService,
+            Logs log,
+            CancellationToken cancellationToken)
+        {
+            await loggingService.AddMessageAsync(log, "Starting JSONL restore");
+
+            // Get valid server IDs from database
+            HashSet<string> validServerIds = new(
+                await sourceContext.Servers.Select(s => s.Id).ToListAsync(cancellationToken),
+                StringComparer.Ordinal);
+
+            List<Activity> currentBatch = [];
+            int restoredRows = 0;
+            int skippedRows = 0;
+
+            async Task FlushBatchAsync()
+            {
+                if (currentBatch.Count == 0)
+                {
+                    return;
+                }
+
+                await UpsertBatchAsync(currentBatch, sourceContext.Activity, sourceContext, cancellationToken);
+                restoredRows += currentBatch.Count;
+                currentBatch.Clear();
+            }
+
+            using StreamReader reader = new(filePath);
+            while (!reader.EndOfStream)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+
+                string? line = await reader.ReadLineAsync(cancellationToken);
+                if (string.IsNullOrWhiteSpace(line))
+                {
+                    continue;
+                }
+
+                using JsonDocument lineDocument = JsonDocument.Parse(line);
+                JsonElement record = lineDocument.RootElement;
+
+                if (record.ValueKind != JsonValueKind.Object || !record.TryGetProperty("type", out JsonElement typeElement))
+                {
+                    //throw new JsonException("Invalid JSONL backup record");
+                    continue;
+                }
+
+                string? type = typeElement.GetString();
+
+                // Skip all types except "row"
+                if (type is not "row")
+                {
+                    continue;
+                }
+
+                // Only process rows if they have a data property and the table is jf_playback_activity
+                if (!record.TryGetProperty("table", out JsonElement rowTableElement)
+                    || !string.Equals(rowTableElement.GetString(), "jf_playback_activity", StringComparison.OrdinalIgnoreCase)
+                    || !record.TryGetProperty("data", out JsonElement dataElement)
+                    || dataElement.ValueKind != JsonValueKind.Object)
+                {
+                    continue;
+                }
+
+                // Deserialize the row
+                jf_playback_activity? activityRecord = dataElement.Deserialize<jf_playback_activity>(JsonRestoreOptions);
+                if (activityRecord is null)
+                {
+                    //throw new JsonException("Failed to deserialize activity row");
+                    skippedRows++;
+                    continue;
+                }
+
+                // Skip rows with invalid server IDs
+                if (activityRecord.ServerId is null || !validServerIds.Contains(activityRecord.ServerId))
+                {
+                    skippedRows++;
+                    continue;
+                }
+
+                currentBatch.Add(activityRecord.ConvertData());
+
+                if (currentBatch.Count >= ImportBatchSize)
+                {
+                    await FlushBatchAsync();
+                }
+            }
+
+            await FlushBatchAsync();
+            await loggingService.AddMessageAsync(log, $"Restored {restoredRows} row(s) from jf_playback_activity");
+
+            if (skippedRows > 0)
+            {
+                await loggingService.AddMessageAsync(log, $"{skippedRows} rows not imported as they do not match any configured servers");
+            }
+        }
         private static async Task ImportInBatchesAsync<TSource, TDestination>(
             IAsyncEnumerable<TSource> source,
             DbSet<TDestination> destinationSet,

@@ -136,6 +136,9 @@ namespace Jellystat_API_Core.Controllers
 
         [HttpPost("UploadBackup", Name = "UploadBackup")]
         [PermissionAuthorize(PermissionTypes.Administrator)]
+        [RequestSizeLimit(500_000_000)] // allow up to 500 MB
+        [RequestFormLimits(MultipartBodyLengthLimit = 500_000_000)]
+
         public async Task<ActionResult> UploadBackup()
         {
             if (!Request.HasFormContentType)

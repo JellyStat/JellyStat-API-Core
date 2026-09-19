@@ -10,7 +10,6 @@ using Jellystat_API_Core.Extensions;
 using Jellystat_API_Core.Helpers;
 using Jellystat_API_Core.Models.API.Base;
 using Jellystat_API_Core.Models.Jellystat;
-using Jellystat_API_Core.Models.Jellystat.V1;
 using Jellystat_API_Core.Services.API;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -668,44 +667,6 @@ namespace Jellystat_API_Core.Controllers
 
 
 
-        [PermissionAuthorize(PermissionTypes.Administrator)]
-        [HttpPost("InsertActivity", Name = "InsertActivity")]
-        public async Task<ActionResult> InsertActivity([FromBody] List<ActivityV1> activity, string? ServerId)
-        {
-            if (activity == null)
-            {
-                return BadRequest("Provided Activity list is empty");
-            }
-
-            if (!HttpContext.User.IsAdministrator() || ServerId == null)
-            {
-                ServerId = HttpContext.User.GetServerId();
-            }
-
-            iAPI? api = _apiInstanceManager.GetInstance(ServerId);
-            if (api == null)
-            {
-                return NotFound("Server Id not found");
-            }
-
-            try
-            {
-
-                await context.BulkInsertOrUpdateAsync(activity.Where(a => a.ServerId != null && a.ServerId.IsNotEmpty() && a.ServerId == api.config.Id).Select(a => a.ConvertData()).ToList());
-                return Ok();
-
-            }
-            catch (Exception ex)
-            {
-
-                Debug.WriteLine($"Error inserting activity: {ex.Message}");
-                Debug.WriteLine(ex);
-                return Problem($"Error inserting activity: {ex.Message}");
-
-            }
-
-
-        }
 
         [PermissionAuthorize(PermissionTypes.Administrator)]
         [HttpPost("SetLocalUserServer", Name = "SetLocalUserServer")]

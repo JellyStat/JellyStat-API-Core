@@ -17,27 +17,27 @@ namespace Jellystat_API_Core.Models.Jellystat.V1
         public string? VideoRangeType { get; set; }
         public string? AudioSpatialFormat { get; set; }
         public string? DisplayTitle { get; set; }
-        public bool IsInterlaced { get; set; }
-        public bool IsAVC { get; set; }
+        public bool? IsInterlaced { get; set; }
+        public bool? IsAVC { get; set; }
         public string? ChannelLayout { get; set; }
         public int? BitRate { get; set; }
         public int? BitDepth { get; set; }
         public int? RefFrames { get; set; }
-        public bool IsDefault { get; set; }
-        public bool IsForced { get; set; }
-        public bool IsHearingImpaired { get; set; }
+        public bool? IsDefault { get; set; }
+        public bool? IsForced { get; set; }
+        public bool? IsHearingImpaired { get; set; }
         public int? Height { get; set; }
         public int? Width { get; set; }
         public double? AverageFrameRate { get; set; }
         public double? RealFrameRate { get; set; }
         public double? ReferenceFrameRate { get; set; }
         public string? Profile { get; set; }
-        public required string Type { get; set; }
+        public string? Type { get; set; }
         public string? AspectRatio { get; set; }
-        public int Index { get; set; }
-        public bool IsExternal { get; set; }
-        public bool IsTextSubtitleStream { get; set; }
-        public bool SupportsExternalStream { get; set; }
+        public int? Index { get; set; }
+        public bool? IsExternal { get; set; }
+        public bool? IsTextSubtitleStream { get; set; }
+        public bool? SupportsExternalStream { get; set; }
         public string? PixelFormat { get; set; }
         public double? Level { get; set; }
         public bool? IsAnamorphic { get; set; }
@@ -69,7 +69,7 @@ namespace Jellystat_API_Core.Models.Jellystat.V1
                     _ => MediaStreamType.Unknown
                 },
                 AspectRatio = AspectRatio,
-                Index = Index
+                Index = Index ?? 0
             };
         }
     }
