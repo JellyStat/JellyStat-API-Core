@@ -768,5 +768,38 @@ namespace Jellystat_API_Core.Controllers
 
             return Ok();
         }
+
+        [HttpDelete("Archived", Name = "Archived")]
+        [PermissionAuthorize(PermissionTypes.Administrator)]
+        public async Task<ActionResult> DeleteArchived(string Id, string ServerId)
+        {
+            List<Libraries> libraries = await context.Libraries.Where(l => l.ServerId == ServerId && l.Id == Id && l.archived).ToListAsync();
+
+            if (libraries.Any())
+            {
+                context.Libraries.RemoveRange(libraries);
+                await context.SaveChangesAsync();
+                return Ok();
+            }
+
+            List<string> linkedIds = await context.ItemsPath.Where(p => p.AncestorId == Id).Select(p => p.DescendantId).ToListAsync();
+            if (linkedIds.Count() < 1)
+            {
+                return NotFound();
+            }
+
+            if (linkedIds.Count() == 1)
+            {
+                await context.Items.Where(i => i.Id == Id && i.ServerId == ServerId && i.archived).ExecuteDeleteAsync();
+                return Ok();
+            }
+
+            List<string> episodeIds = await context.ItemsPath.Where(p => linkedIds.Contains(p.AncestorId) && !linkedIds.Contains(p.DescendantId)).Select(p => p.AncestorId).ToListAsync();
+
+            linkedIds.AddRange(episodeIds);
+            await context.Items.Where(i => linkedIds.Contains(i.Id) && i.ServerId == ServerId && i.archived).ExecuteDeleteAsync();
+
+            return Ok();
+        }
     }
 }
