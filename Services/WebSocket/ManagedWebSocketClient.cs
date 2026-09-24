@@ -290,15 +290,6 @@ namespace Jellystat_API_Core.Services.WebSocket
                         var json = JsonConvert.SerializeObject(keepAliveMessage);
 
                         bool sent = await SendAsync(json);
-
-                        if (!sent)
-                        {
-                            _logger?.LogWarning("{Prefix} failed to send keepalive message", LogPrefix);
-                        }
-                        else
-                        {
-                            _logger?.LogDebug("{Prefix} keepalive message sent", LogPrefix);
-                        }
                     }
                     catch (Exception ex)
                     {
