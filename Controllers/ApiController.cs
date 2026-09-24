@@ -558,7 +558,9 @@ namespace Jellystat_API_Core.Controllers
                    Type = library.Type,
                    ImageTag = library.ImageTag,
                    ImageHash = library.ImageHash,
-                   archived = library.archived
+                   archived = library.archived,
+                   HasArchivedItems = context.Items
+                       .Where(item => item.LibraryId == library.Id && item.archived && item.ServerId == ServerId).Any()
                });
 
             return _query.Gridify(query);
@@ -775,6 +777,8 @@ namespace Jellystat_API_Core.Controllers
         {
             List<Libraries> libraries = await context.Libraries.Where(l => l.ServerId == ServerId && l.Id == Id && l.archived).ToListAsync();
 
+
+            //If delete on libary layer, cascade handles the linked items
             if (libraries.Any())
             {
                 context.Libraries.RemoveRange(libraries);
@@ -782,22 +786,59 @@ namespace Jellystat_API_Core.Controllers
                 return Ok();
             }
 
-            List<string> linkedIds = await context.ItemsPath.Where(p => p.AncestorId == Id).Select(p => p.DescendantId).ToListAsync();
-            if (linkedIds.Count() < 1)
+            List<string> allIds = new List<string>();
+
+            //season ids
+            List<string> layer1Ids = new List<string>();
+            //episode ids
+            List<string> layer2Ids = new List<string>();
+
+            //if library is not archived, check if there are any archived top layeritems in the library, if so delete them, ensuring to drill down to the lowest level and delete all linked items
+            bool libraryHasArchivedItems = await context.Items.AnyAsync(i => i.LibraryId == Id && i.ServerId == ServerId && i.archived);
+            if (libraryHasArchivedItems)
             {
-                return NotFound();
+                //gets top layer archived items
+                allIds = await context.Items.Where(i => i.LibraryId == Id && i.ServerId == ServerId && i.archived && i.ParentId == null).Select(i => i.Id).ToListAsync();
+
+                //gets all linked items for the top layer archived items, even if they are not archived, as they will be deleted anyway
+                layer1Ids = await context.ItemsPath.Where(p => allIds.Contains(p.AncestorId)).Select(p => p.DescendantId).ToListAsync();
+                layer2Ids = await context.ItemsPath.Where(p => layer1Ids.Contains(p.AncestorId)).Select(p => p.DescendantId).ToListAsync();
+
+                allIds.AddRange(layer1Ids);
+                allIds.AddRange(layer2Ids);
+
+                await context.Items.Where(i => allIds.Contains(i.Id) && i.ServerId == ServerId).ExecuteDeleteAsync();
+
+                return Ok();
+
             }
 
-            if (linkedIds.Count() == 1)
+            //handles cases where the id is not a library id
+
+            bool isArchived = await context.Items.AnyAsync(i => i.Id == Id && i.ServerId == ServerId && i.archived);
+            if (!isArchived)
+            {
+                return NotFound("Item is not archived");
+            }
+
+            //gets any linked items 1 layer deep
+            layer1Ids = await context.ItemsPath.Where(p => p.AncestorId == Id && p.DescendantId != Id).Select(p => p.DescendantId).ToListAsync();
+
+            //if no linked items
+            if (layer1Ids.IsEmpty())
             {
                 await context.Items.Where(i => i.Id == Id && i.ServerId == ServerId && i.archived).ExecuteDeleteAsync();
                 return Ok();
             }
 
-            List<string> episodeIds = await context.ItemsPath.Where(p => linkedIds.Contains(p.AncestorId) && !linkedIds.Contains(p.DescendantId)).Select(p => p.AncestorId).ToListAsync();
+            //check a second layer of linked items, if there are no second layer linked items, delete all linked items and the parent item
+            layer2Ids = await context.ItemsPath.Where(p => layer1Ids.Contains(p.AncestorId) && !layer1Ids.Contains(p.DescendantId)).Select(p => p.AncestorId).ToListAsync();
 
-            linkedIds.AddRange(episodeIds);
-            await context.Items.Where(i => linkedIds.Contains(i.Id) && i.ServerId == ServerId && i.archived).ExecuteDeleteAsync();
+            //adds all found ids to a single list and deletes them all, including the parent item
+            allIds.Add(Id);
+            allIds.AddRange(layer1Ids);
+            allIds.AddRange(layer2Ids);
+            await context.Items.Where(i => allIds.Contains(i.Id) && i.ServerId == ServerId).ExecuteDeleteAsync();
 
             return Ok();
         }

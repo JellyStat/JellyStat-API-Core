@@ -17,5 +17,6 @@ namespace Jellystat_API_Core.Models.Jellystat
         public DateTime? LatestActivityDate { get; set; }
 
         public List<TypeCountModel> TypeCounts { get; set; } = new List<TypeCountModel>();
+        public bool HasArchivedItems { get; set; } = false;
     }
 }
