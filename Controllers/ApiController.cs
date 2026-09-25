@@ -560,7 +560,7 @@ namespace Jellystat_API_Core.Controllers
                    ImageHash = library.ImageHash,
                    archived = library.archived,
                    HasArchivedItems = context.Items
-                       .Where(item => item.LibraryId == library.Id && item.archived && item.ServerId == ServerId).Any()
+                       .Where(item => item.archived && item.LibraryId == library.Id && item.ParentId == null && item.ServerId == ServerId).Any()
                });
 
             return _query.Gridify(query);
