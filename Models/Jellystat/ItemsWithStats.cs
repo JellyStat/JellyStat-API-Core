@@ -13,5 +13,6 @@ namespace Jellystat_API_Core.Models.Jellystat
 
         [System.Text.Json.Serialization.JsonIgnore]
         public DateTime? LatestActivityDate { get; set; }
+        public bool HasArchivedItems { get; set; } = false;
     }
 }
