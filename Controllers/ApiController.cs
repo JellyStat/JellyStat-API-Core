@@ -748,14 +748,16 @@ namespace Jellystat_API_Core.Controllers
 
         [HttpGet("Backups", Name = "Backups")]
         [PermissionAuthorize(PermissionTypes.Administrator)]
-        public ActionResult<List<string>> GetBackups()
+        public ActionResult<List<BackupModel>> GetBackups()
         {
             List<string> filePaths = Directory
                         .EnumerateFiles(Global.BackupDirectory, "*.*", SearchOption.TopDirectoryOnly)
                         .Where(f => Global.BackupExtensions.Contains(Path.GetExtension(f)))
                         .ToList();
 
-            return filePaths.Select(fp => Path.GetFileName(fp)).ToList();
+
+
+            return filePaths.Select(fp => new BackupModel(Path.GetFileName(fp), System.IO.File.GetCreationTime(fp), new FileInfo(fp).Length)).OrderByDescending(b => b.Date).ToList();
         }
 
         [HttpDelete("Backups", Name = "Backups")]
