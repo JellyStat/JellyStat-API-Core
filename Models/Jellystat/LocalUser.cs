@@ -2,9 +2,9 @@
 {
     public class LocalUser
     {
-        public string? OldUsername { get; set; }
+        public string? Id { get; set; }
         public required string Username { get; set; }
-        public string? OldPassword { get; set; }
         public string? Password { get; set; }
+        public string? ServerId { get; set; }
     }
 }

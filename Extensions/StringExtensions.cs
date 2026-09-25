@@ -14,5 +14,10 @@ namespace Jellystat_API_Core.Extensions
             var str = value.ToString().Replace("_", " ");
             return Regex.Replace(str, @"(^\w)|(\s\w)", m => m.Value.ToUpper());
         }
+
+        public static bool IsNullOrEmpty(this string? value)
+        {
+            return value == null || value.Trim().Length == 0;
+        }
     }
 }

@@ -1,4 +1,5 @@
-﻿using Jellystat_API_Core.Classes.API.@interface;
+﻿using Jellystat_API_Core.Attributes;
+using Jellystat_API_Core.Classes.API.@interface;
 using Jellystat_API_Core.Data;
 using Jellystat_API_Core.Data.Schema;
 using Jellystat_API_Core.Enums;
@@ -260,45 +261,33 @@ namespace Jellystat_API_Core.Controllers
                 return Unauthorized();
             }
 
-            LocalUsers? dbuser = null;
-            if (user.OldUsername != null)
+            LocalUsers? dbuser = await context.LocalUsers.Where(u => u.Id == user.Id).FirstOrDefaultAsync();
+            if (dbuser == null)
             {
-                dbuser = await context.LocalUsers.Where(u => u.Username == user.OldUsername).FirstOrDefaultAsync();
-                if (dbuser == null)
-                    return NotFound("User not found");
+                return NotFound("User not found");
+            }
 
+            if (user.Username != dbuser.Username)
+            {
                 dbuser.Username = user.Username;
-                await context.SaveChangesAsync();
 
             }
-            else if (user.Password != null && user.OldPassword != null)
+
+            if (!user.Password.IsNullOrEmpty())
             {
-                dbuser = await context.LocalUsers.Where(u => u.Username == user.Username).FirstOrDefaultAsync();
-
-                if (dbuser == null || !BCrypt.Net.BCrypt.Verify(user.OldPassword, dbuser.Password))
-                    return Unauthorized("Invalid Username or password");
-
-                dbuser.Password = BCrypt.Net.BCrypt.HashPassword(user.Password);
-                await context.SaveChangesAsync();
+                string hashedPassword = BCrypt.Net.BCrypt.HashPassword(user.Password);
+                if (dbuser.Password != hashedPassword)
+                {
+                    dbuser.Password = hashedPassword;
+                }
             }
-            else if (Global.AllowUnauthenticatedPasswordReset && user.Password != null)
-            {
-                dbuser = await context.LocalUsers.Where(u => u.Username == user.Username).FirstOrDefaultAsync();
 
-                if (dbuser == null)
-                    return NotFound("User not found");
-
-                dbuser.Password = BCrypt.Net.BCrypt.HashPassword(user.Password);
-                await context.SaveChangesAsync();
-            }
-            else
-            {
-                return BadRequest("Some fields are missing for the required operation");
-            }
+            string? serverId = dbuser.ServerId;
 
 
             List<Permissions> permissions = await context.Permissions.Where(p => context.UserPermissions.Where(up => up.UserId == dbuser.Id).Select(up => up.PermissionId).Contains(p.Id)).ToListAsync();
-            var credentials = generateTokens(dbuser.Username, permissions, null);
+            var credentials = generateTokens(dbuser.Username, permissions, serverId);
+            await context.SaveChangesAsync();
 
             return Ok(credentials);
         }
@@ -318,11 +307,13 @@ namespace Jellystat_API_Core.Controllers
             }
 
 
-            if (user.Username == null || user.Password == null)
+            if (user.Username.IsNullOrEmpty() || user.Password.IsNullOrEmpty())
             {
                 return BadRequest("Username and password are required");
             }
-            LocalUsers? dbuser = await context.LocalUsers.Where(u => u.Username == user.OldUsername).FirstOrDefaultAsync();
+
+            string username = user.Username.Trim();
+            LocalUsers? dbuser = await context.LocalUsers.Where(u => u.Username.ToLower().Equals(username.ToLower())).FirstOrDefaultAsync();
 
             if (dbuser != null)
                 return BadRequest("Username already exists");
@@ -334,12 +325,12 @@ namespace Jellystat_API_Core.Controllers
                 try
                 {
                     string userId = Guid.NewGuid().ToString();
-                    await context.LocalUsers.AddAsync(new LocalUsers { Id = userId, Username = user.Username, Password = BCrypt.Net.BCrypt.HashPassword(user.Password) });
+                    await context.LocalUsers.AddAsync(new LocalUsers { Id = userId, Username = username, Password = BCrypt.Net.BCrypt.HashPassword(user.Password) });
                     await context.UserPermissions.AddAsync(new UserPermissions { UserId = userId, PermissionId = context.Permissions.Where(p => p.PermissionKey == PermissionTypes.Administrator.GetDisplayName()).First().Id });
 
                     await context.SaveChangesAsync();
                     List<Permissions> permissions = new() { new Permissions { PermissionKey = PermissionTypes.Administrator.GetDisplayName() } };
-                    var credentials = generateTokens(user.Username, permissions, null);
+                    var credentials = generateTokens(username, permissions, null);
 
                     await transaction.CommitAsync();
                     if (!isConfigured)
@@ -359,6 +350,30 @@ namespace Jellystat_API_Core.Controllers
 
 
         }
+
+        [HttpDelete("DeleteUser", Name = "DeleteUser")]
+        [PermissionAuthorize(PermissionTypes.Administrator)]
+        public async Task<ActionResult> DeleteUser(string Id)
+        {
+            LocalUsers? dbUser = await context.LocalUsers.Where(u => u.Id.Equals(Id)).FirstOrDefaultAsync();
+            if (dbUser == null)
+            {
+                return NotFound();
+            }
+
+            int userCount = await context.LocalUsers.CountAsync();
+
+            if (userCount == 1)
+            {
+                return BadRequest("All local users cannot be removed");
+            }
+
+            context.LocalUsers.Remove(dbUser);
+            await context.SaveChangesAsync();
+
+            return Ok();
+        }
+
 
     }
 }
