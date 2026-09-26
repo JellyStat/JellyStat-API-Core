@@ -7,6 +7,7 @@ namespace Jellystat_API_Core.Models.Jellystat
         public SystemState State { get; set; } = SystemState.Unconfigured;
 
         public string Version { get; set; }
+        public string UITag { get; set; } = string.Empty;
 
         public SystemInfoModel(SystemState State, string Version)
         {

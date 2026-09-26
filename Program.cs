@@ -183,6 +183,10 @@ builder.Services.AddNextjsStaticHosting();
 
 var app = builder.Build();
 
+Global.WebUIDirectory = builder.Environment.IsDevelopment()
+    ? Path.Combine(builder.Environment.ContentRootPath, "wwwroot")
+    : Path.Combine(AppContext.BaseDirectory, "wwwroot");
+
 // Initialize Global static references
 using (var scope = app.Services.CreateScope())
 {
@@ -248,6 +252,7 @@ using (var scope = app.Services.CreateScope())
 
 
     await ConfigurationHelper.CheckIsConfiguredAsync(context);
+    //await UpdateHelper.GetLatestUITag();
 
 }
 

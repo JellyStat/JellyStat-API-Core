@@ -116,6 +116,20 @@ namespace Jellystat_API_Core.Controllers
             bool hasLocalUsers = await context.LocalUsers.CountAsync() > 0;
 
 
+            ////find io file tag
+            List<string> filePaths = Directory.Exists(Global.WebUIDirectory)
+                ? Directory
+                    .EnumerateFiles(Global.WebUIDirectory, "*.emtag", SearchOption.TopDirectoryOnly)
+                    .ToList()
+                : new List<string>();
+
+            if (filePaths.Count > 0)
+            {
+                info.UITag = Path.GetFileNameWithoutExtension(filePaths.First());
+            }
+            ///
+
+
             if (hasLocalUsers)
             {
                 info.State = SystemState.FirstUserCreated;
@@ -131,6 +145,29 @@ namespace Jellystat_API_Core.Controllers
 
 
             return info;
+
+        }
+
+        [HttpGet("/Updates", Name = "/Updates")]
+        public async Task<ActionResult> CheckForUpdates()
+        {
+            string version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "2.0.0.0";
+            string UITag = string.Empty;
+
+            ////find io file tag
+            List<string> filePaths = Directory.Exists(Global.WebUIDirectory)
+                ? Directory
+                    .EnumerateFiles(Global.WebUIDirectory, "*.emtag", SearchOption.TopDirectoryOnly)
+                    .ToList()
+                : new List<string>();
+
+            if (filePaths.Count > 0)
+            {
+                UITag = Path.GetFileNameWithoutExtension(filePaths.First());
+            }
+            ///
+
+            return Ok(new { version, UITag });
 
         }
 
