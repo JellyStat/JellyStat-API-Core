@@ -366,12 +366,12 @@ namespace Jellystat_API_Core.Controllers
                 .Where(activity => activity.ServerId == ServerId)
                 .ApplyFiltering(query)
                 .Join(context.Items,
-                      activity => activity.ItemId,
-                      item => item.Id,
+                      activity => new { activity.ServerId, ItemId = activity.ItemId },
+                      item => new { item.ServerId, ItemId = item.Id },
                       (activity, item) => new { activity, item })
                 .Join(context.Libraries,
-                      ai => ai.item.LibraryId,
-                      lib => lib.Id,
+                      ai => new { ai.item.ServerId, ai.item.LibraryId },
+                      lib => new { lib.ServerId, LibraryId = lib.Id },
                       (ai, lib) => new { ai.activity, ai.item, lib })
                 .Select(x => new
                 {
