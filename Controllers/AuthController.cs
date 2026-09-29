@@ -148,29 +148,6 @@ namespace Jellystat_API_Core.Controllers
 
         }
 
-        [HttpGet("/Updates", Name = "/Updates")]
-        public async Task<ActionResult> CheckForUpdates()
-        {
-            string version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "2.0.0.0";
-            string UITag = string.Empty;
-
-            ////find io file tag
-            List<string> filePaths = Directory.Exists(Global.WebUIDirectory)
-                ? Directory
-                    .EnumerateFiles(Global.WebUIDirectory, "*.emtag", SearchOption.TopDirectoryOnly)
-                    .ToList()
-                : new List<string>();
-
-            if (filePaths.Count > 0)
-            {
-                UITag = Path.GetFileNameWithoutExtension(filePaths.First());
-            }
-            ///
-
-            return Ok(new { version, UITag });
-
-        }
-
 
         [HttpPost("Login", Name = "Login")]
         public async Task<ActionResult> Login([FromBody] LoginModel loginModel)

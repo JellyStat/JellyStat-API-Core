@@ -10,11 +10,15 @@ using Jellystat_API_Core.Extensions;
 using Jellystat_API_Core.Helpers;
 using Jellystat_API_Core.Models.API.Base;
 using Jellystat_API_Core.Models.Jellystat;
+using Jellystat_API_Core.Models.Jellystat.Helpers;
 using Jellystat_API_Core.Services.API;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
+using System.IO.Compression;
+using System.Reflection;
+using System.Security.Cryptography;
 
 namespace Jellystat_API_Core.Controllers
 {
@@ -875,5 +879,119 @@ namespace Jellystat_API_Core.Controllers
 
             return Ok();
         }
+
+
+
+        [HttpGet("Version", Name = "Version")]
+        public async Task<ActionResult> GetVersion()
+        {
+            string version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "2.0.0.0";
+            string UITag = string.Empty;
+
+            ////find io file tag
+            List<string> filePaths = Directory.Exists(Global.WebUIDirectory)
+                ? Directory
+                    .EnumerateFiles(Global.WebUIDirectory, "*.emtag", SearchOption.TopDirectoryOnly)
+                    .ToList()
+                : new List<string>();
+
+            if (filePaths.Count > 0)
+            {
+                UITag = Path.GetFileNameWithoutExtension(filePaths.First());
+            }
+            ///
+
+            UIReleaseInfo? releaseInfo = await UpdateHelper.GetLatestUITag();
+            bool hasUpdate = false;
+
+            if (releaseInfo != null && releaseInfo.Id != UITag)
+            {
+                hasUpdate = true;
+            }
+
+            return Ok(new { apiVersion = version, CurrentUiTag = UITag, LatestUiTag = releaseInfo?.Id ?? string.Empty, UIHasUpdate = hasUpdate });
+
+        }
+
+        [HttpGet("UpdateUI", Name = "UpdateUI")]
+        [PermissionAuthorize(PermissionTypes.Administrator)]
+        public async Task<ActionResult> UpdateUI()
+        {
+
+            UIReleaseInfo? latestRelease = await UpdateHelper.GetLatestUITag();
+
+            bool hasUpdate = await UpdateHelper.IsUIUpdateAvailable(latestRelease?.Id);
+
+            string url = latestRelease?.Link ?? string.Empty;
+
+            string fileName = Path.GetFileName(url);
+
+            string hash = latestRelease?.Hash ?? string.Empty;
+
+            if (!hasUpdate)
+            {
+                return Ok();
+            }
+
+            if (url.IsNullOrEmpty() || fileName.IsNullOrEmpty() || hash.IsNullOrEmpty())
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, new { UpdateAvailable = hasUpdate });
+            }
+
+            string outputPath = Path.Combine(Global.WebUIDirectory, fileName);
+
+            //download latest zip to Global.WebUIDirectory
+            HttpClient _httpClient = new HttpClient();
+
+            // Stream the response from the remote server
+            using var downloadStream = await _httpClient.GetStreamAsync(url);
+
+            // Open the local file stream to write the data
+            using var fileStream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
+
+            // Copy the download stream directly to the file stream asynchronously
+            await downloadStream.CopyToAsync(fileStream);
+
+            fileStream.Close();
+            fileStream.Dispose();
+
+            string downloadedFileHash = GetFileHash(outputPath);
+
+            if (!downloadedFileHash.Equals(hash, StringComparison.OrdinalIgnoreCase))
+            {
+                //delete file and return error
+                System.IO.File.Delete(outputPath);
+                return StatusCode(StatusCodes.Status500InternalServerError, new { UpdateAvailable = hasUpdate, Message = "Downloaded file hash does not match expected hash." });
+            }
+
+            //delete all files in Global.WebUIDirectory except the downloaded file
+            foreach (var file in Directory.GetFiles(Global.WebUIDirectory))
+            {
+                if (!file.Equals(outputPath, StringComparison.OrdinalIgnoreCase))
+                {
+                    System.IO.File.Delete(file);
+                }
+            }
+
+            //extract the zip file to Global.WebUIDirectory
+            ZipFile.ExtractToDirectory(outputPath, Global.WebUIDirectory, true);
+
+
+            return Ok();
+
+        }
+        private string GetFileHash(string filePath)
+        {
+            using (var sha256 = SHA256.Create())
+            {
+                using (var stream = System.IO.File.OpenRead(filePath))
+                {
+                    var hashBytes = sha256.ComputeHash(stream);
+                    return BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
+                }
+            }
+        }
+
+
     }
 }
