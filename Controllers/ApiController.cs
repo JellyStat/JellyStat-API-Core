@@ -946,10 +946,12 @@ namespace Jellystat_API_Core.Controllers
                 Directory.CreateDirectory(uiDirectory);
 
                 using HttpClient httpClient = new();
-                using var downloadStream = await httpClient.GetStreamAsync(url);
-                using var fileStream = new FileStream(tempZipPath, FileMode.Create, FileAccess.Write, FileShare.None);
 
-                await downloadStream.CopyToAsync(fileStream);
+                using (var downloadStream = await httpClient.GetStreamAsync(url))
+                {
+                    using var fileStream = new FileStream(tempZipPath, FileMode.Create, FileAccess.Write, FileShare.None);
+                    await downloadStream.CopyToAsync(fileStream);
+                }
 
                 string downloadedFileHash = GetFileHash(tempZipPath);
 
