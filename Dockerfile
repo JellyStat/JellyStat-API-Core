@@ -2,11 +2,14 @@
 
 # This stage is used when running from VS in fast mode (Default for Debug configuration)
 FROM mcr.microsoft.com/dotnet/aspnet:9.0 AS base
-USER $APP_UID
 WORKDIR /app
 EXPOSE 8080
 EXPOSE 8081
 
+# Set up the folder and permissions in base
+USER root
+RUN mkdir -p wwwroot && chown -R app:app .
+USER app
 
 # This stage is used to build the service project
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
@@ -22,11 +25,8 @@ FROM build AS publish
 ARG BUILD_CONFIGURATION=Release
 RUN dotnet publish "./Jellystat-API-Core.csproj" -c $BUILD_CONFIGURATION -o /app/publish /p:UseAppHost=false
 
-# This stage is used in production or when running from VS in regular mode (Default when not using the Debug configuration)
+# This stage is used in production or when running from VS in regular mode
 FROM base AS final
-USER root
-WORKDIR /app
-COPY --from=publish /app/publish .
-RUN mkdir -p /app/wwwroot && chown -R $APP_UID /app
-USER $APP_UID
+WORKDIR /appcopied
+COPY --from=publish --chown=app:app /app/publish .
 ENTRYPOINT ["dotnet", "Jellystat-API-Core.dll"]

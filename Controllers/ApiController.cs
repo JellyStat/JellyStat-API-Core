@@ -970,8 +970,9 @@ namespace Jellystat_API_Core.Controllers
 
                 System.IO.File.Delete(tempZipPath);
             }
-            catch (UnauthorizedAccessException)
+            catch (UnauthorizedAccessException ex)
             {
+                Console.WriteLine($"UI update failed: '{uiDirectory}'. Exception: {ex.Message}");
                 return StatusCode(StatusCodes.Status500InternalServerError, new
                 {
                     UpdateAvailable = hasUpdate,
