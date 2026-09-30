@@ -7,7 +7,6 @@ WORKDIR /app
 EXPOSE 8080
 EXPOSE 8081
 
-
 # This stage is used to build the service project
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 ARG BUILD_CONFIGURATION=Release
@@ -24,9 +23,14 @@ RUN dotnet publish "./Jellystat-API-Core.csproj" -c $BUILD_CONFIGURATION -o /app
 
 # This stage is used in production or when running from VS in regular mode (Default when not using the Debug configuration)
 FROM base AS final
-USER root
 WORKDIR /app
-COPY --from=publish /app/publish .
-RUN mkdir -p /app/wwwroot && chown -R $APP_UID /app
+
+# FIXED: --chown ensures that the files copied from the build phase belong to the app user right away
+COPY --from=publish --chown=$APP_UID:$APP_UID /app/publish .
+
+# FIXED: Ensure the parent /app directory, the wwwroot directory, and all files have full group permissions matching $APP_UID
+USER root
+RUN mkdir -p /app/wwwroot && chown -R $APP_UID:$APP_UID /app
 USER $APP_UID
+
 ENTRYPOINT ["dotnet", "Jellystat-API-Core.dll"]
