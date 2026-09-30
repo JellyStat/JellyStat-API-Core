@@ -989,8 +989,8 @@ namespace Jellystat_API_Core.Controllers
                 // Execute the exact shell command that worked for you manually
                 var psi = new ProcessStartInfo
                 {
-                    FileName = "rm",
-                    Arguments = $"-rf {targetDirectory}/*", // Deletes all inner contents recursively
+                    FileName = "/bin/sh",
+                    Arguments = $"-c \"rm -rf {targetDirectory}/*\"",
                     RedirectStandardOutput = true,
                     RedirectStandardError = true,
                     UseShellExecute = false,
