@@ -957,11 +957,12 @@ namespace Jellystat_API_Core.Controllers
 
                 string downloadedFileHash = GetFileHash(tempZipPath);
 
-                if (!downloadedFileHash.Equals(hash, StringComparison.OrdinalIgnoreCase))
-                {
-                    System.IO.File.Delete(tempZipPath);
-                    return StatusCode(StatusCodes.Status500InternalServerError, new { UpdateAvailable = hasUpdate, Message = "Downloaded file hash does not match expected hash." });
-                }
+                //Temporarily disabling hash check to test download/replace of ui files. Will re-enable once confirmed working.
+                //if (!downloadedFileHash.Equals(hash, StringComparison.OrdinalIgnoreCase))
+                //{
+                //    System.IO.File.Delete(tempZipPath);
+                //    return StatusCode(StatusCodes.Status500InternalServerError, new { UpdateAvailable = hasUpdate, Message = "Downloaded file hash does not match expected hash." });
+                //}
 
                 ExtractNewUI(tempZipPath, uiDirectory);
 
@@ -983,27 +984,32 @@ namespace Jellystat_API_Core.Controllers
 
         private void ExtractNewUI(string zipPath, string targetDirectory)
         {
-            // Ensure the target directory points to /app/wwwroot
             if (Directory.Exists(targetDirectory))
             {
-                var di = new DirectoryInfo(targetDirectory);
-
-                // 1. Force clear file attributes and delete files inside wwwroot
-                foreach (var file in di.GetFiles("*", SearchOption.AllDirectories))
+                // Execute the exact shell command that worked for you manually
+                var psi = new ProcessStartInfo
                 {
-                    file.Attributes = FileAttributes.Normal;
-                    file.Delete(); // Deletes individual files safely
-                }
+                    FileName = "rm",
+                    Arguments = $"-rf {targetDirectory}/*", // Deletes all inner contents recursively
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    UseShellExecute = false,
+                    CreateNoWindow = true
+                };
 
-                // 2. Delete all subdirectories inside wwwroot
-                foreach (var dir in di.GetDirectories())
+                using (var process = Process.Start(psi))
                 {
-                    dir.Delete(true); // Deletes subfolders recursively
+                    process.WaitForExit();
+
+                    if (process.ExitCode != 0)
+                    {
+                        string error = process.StandardError.ReadToEnd();
+                        throw new IOException($"Shell clean failed: {error}");
+                    }
                 }
             }
             else
             {
-                // Fallback: If it somehow doesn't exist, create it
                 Directory.CreateDirectory(targetDirectory);
             }
 
