@@ -26,4 +26,16 @@ RUN dotnet publish "./Jellystat-API-Core.csproj" -c $BUILD_CONFIGURATION -o /app
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
+
+# --- NEW PERMISSIONS FIX START ---
+# Temporarily switch to root to manage folder permissions
+USER root
+
+# Create the wwwroot directory and assign ownership to the .NET non-root user
+RUN mkdir -p /app/wwwroot && chown -R $APP_UID:$APP_UID /app/wwwroot
+
+# Switch back to the non-root user for security
+USER $APP_UID
+# --- NEW PERMISSIONS FIX END ---
+
 ENTRYPOINT ["dotnet", "Jellystat-API-Core.dll"]
