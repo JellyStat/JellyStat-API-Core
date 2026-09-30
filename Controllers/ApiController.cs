@@ -938,44 +938,44 @@ namespace Jellystat_API_Core.Controllers
                 return StatusCode(StatusCodes.Status500InternalServerError, new { UpdateAvailable = hasUpdate });
             }
 
-            string outputPath = Path.Combine(Global.WebUIDirectory, fileName);
+            string uiDirectory = Global.WebUIDirectory;
+            string tempZipPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}_{fileName}");
 
-            //download latest zip to Global.WebUIDirectory
-            HttpClient _httpClient = new HttpClient();
-
-            // Stream the response from the remote server
-            using var downloadStream = await _httpClient.GetStreamAsync(url);
-
-            // Open the local file stream to write the data
-            using var fileStream = new FileStream(outputPath, FileMode.Create, FileAccess.Write, FileShare.None);
-
-            // Copy the download stream directly to the file stream asynchronously
-            await downloadStream.CopyToAsync(fileStream);
-
-            fileStream.Close();
-            fileStream.Dispose();
-
-            string downloadedFileHash = GetFileHash(outputPath);
-
-            if (!downloadedFileHash.Equals(hash, StringComparison.OrdinalIgnoreCase))
+            try
             {
-                //delete file and return error
-                System.IO.File.Delete(outputPath);
-                return StatusCode(StatusCodes.Status500InternalServerError, new { UpdateAvailable = hasUpdate, Message = "Downloaded file hash does not match expected hash." });
-            }
+                Directory.CreateDirectory(uiDirectory);
 
-            //delete all files in Global.WebUIDirectory except the downloaded file
-            foreach (var file in Directory.GetFiles(Global.WebUIDirectory))
-            {
-                if (!file.Equals(outputPath, StringComparison.OrdinalIgnoreCase))
+                using HttpClient httpClient = new();
+                using var downloadStream = await httpClient.GetStreamAsync(url);
+                using var fileStream = new FileStream(tempZipPath, FileMode.Create, FileAccess.Write, FileShare.None);
+
+                await downloadStream.CopyToAsync(fileStream);
+
+                string downloadedFileHash = GetFileHash(tempZipPath);
+
+                if (!downloadedFileHash.Equals(hash, StringComparison.OrdinalIgnoreCase))
+                {
+                    System.IO.File.Delete(tempZipPath);
+                    return StatusCode(StatusCodes.Status500InternalServerError, new { UpdateAvailable = hasUpdate, Message = "Downloaded file hash does not match expected hash." });
+                }
+
+                foreach (var file in Directory.GetFiles(uiDirectory))
                 {
                     System.IO.File.Delete(file);
                 }
+
+                ZipFile.ExtractToDirectory(tempZipPath, uiDirectory, true);
+
+                System.IO.File.Delete(tempZipPath);
             }
-
-            //extract the zip file to Global.WebUIDirectory
-            ZipFile.ExtractToDirectory(outputPath, Global.WebUIDirectory, true);
-
+            catch (UnauthorizedAccessException)
+            {
+                return StatusCode(StatusCodes.Status500InternalServerError, new
+                {
+                    UpdateAvailable = hasUpdate,
+                    Message = $"UI update failed because '{uiDirectory}' is not writable in this container. Mount a writable UI directory volume and try again."
+                });
+            }
 
             return Ok();
 
