@@ -963,34 +963,7 @@ namespace Jellystat_API_Core.Controllers
                     return StatusCode(StatusCodes.Status500InternalServerError, new { UpdateAvailable = hasUpdate, Message = "Downloaded file hash does not match expected hash." });
                 }
 
-                DirectoryInfo di = new DirectoryInfo(uiDirectory);
-                if (di.Exists)
-                {
-                    // 1. Strip Read-Only attributes from ALL nested files so .NET is allowed to delete them
-                    foreach (FileInfo file in di.GetFiles("*", SearchOption.AllDirectories))
-                    {
-                        // Reset the file attributes to Normal (removes ReadOnly, Hidden, etc.)
-                        file.Attributes = FileAttributes.Normal;
-                    }
-
-                    // 2. Delete all top-level files
-                    foreach (FileInfo file in di.GetFiles())
-                    {
-                        file.Delete();
-                    }
-
-                    // 3. Delete all nested subdirectories (now that read-only locks are gone)
-                    foreach (DirectoryInfo dir in di.GetDirectories())
-                    {
-                        dir.Delete(true);
-                    }
-                }
-                else
-                {
-                    di.Create();
-                }
-
-                ZipFile.ExtractToDirectory(tempZipPath, uiDirectory, true);
+                ExtractNewUI(tempZipPath, uiDirectory);
 
                 System.IO.File.Delete(tempZipPath);
             }
@@ -1006,6 +979,29 @@ namespace Jellystat_API_Core.Controllers
 
             return Ok();
 
+        }
+
+        private void ExtractNewUI(string zipPath, string targetDirectory)
+        {
+            // Ensure the target directory points to /app/wwwroot
+            if (Directory.Exists(targetDirectory))
+            {
+                // 1. Force clear file attributes to prevent Linux from blocking deletions
+                var di = new DirectoryInfo(targetDirectory);
+                foreach (var file in di.GetFiles("*", SearchOption.AllDirectories))
+                {
+                    file.Attributes = FileAttributes.Normal;
+                }
+
+                // 2. Delete everything inside wwwroot cleanly
+                Directory.Delete(targetDirectory, true);
+            }
+
+            // 3. Recreate an empty, clean folder
+            Directory.CreateDirectory(targetDirectory);
+
+            // 4. Extract the zip file contents
+            ZipFile.ExtractToDirectory(zipPath, targetDirectory);
         }
         private string GetFileHash(string filePath)
         {
