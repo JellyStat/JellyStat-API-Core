@@ -29,12 +29,14 @@ namespace Jellystat_API_Core.Controllers
     {
         private readonly IAPIInstanceManager _apiInstanceManager;
         private readonly ApplicationDbContext context;
+        private readonly ILogger<ApiController> _logger;
 
-        public ApiController(IAPIInstanceManager apiInstanceManager, ApplicationDbContext context)
+        public ApiController(IAPIInstanceManager apiInstanceManager, ApplicationDbContext context, ILogger<ApiController> logger)
         {
 
             _apiInstanceManager = apiInstanceManager;
             this.context = context;
+            _logger = logger;
         }
 
 
@@ -961,9 +963,31 @@ namespace Jellystat_API_Core.Controllers
                     return StatusCode(StatusCodes.Status500InternalServerError, new { UpdateAvailable = hasUpdate, Message = "Downloaded file hash does not match expected hash." });
                 }
 
-                foreach (var file in Directory.GetFiles(uiDirectory))
+                DirectoryInfo di = new DirectoryInfo(uiDirectory);
+                if (di.Exists)
                 {
-                    System.IO.File.Delete(file);
+                    // 1. Strip Read-Only attributes from ALL nested files so .NET is allowed to delete them
+                    foreach (FileInfo file in di.GetFiles("*", SearchOption.AllDirectories))
+                    {
+                        // Reset the file attributes to Normal (removes ReadOnly, Hidden, etc.)
+                        file.Attributes = FileAttributes.Normal;
+                    }
+
+                    // 2. Delete all top-level files
+                    foreach (FileInfo file in di.GetFiles())
+                    {
+                        file.Delete();
+                    }
+
+                    // 3. Delete all nested subdirectories (now that read-only locks are gone)
+                    foreach (DirectoryInfo dir in di.GetDirectories())
+                    {
+                        dir.Delete(true);
+                    }
+                }
+                else
+                {
+                    di.Create();
                 }
 
                 ZipFile.ExtractToDirectory(tempZipPath, uiDirectory, true);
@@ -972,7 +996,7 @@ namespace Jellystat_API_Core.Controllers
             }
             catch (UnauthorizedAccessException ex)
             {
-                Console.WriteLine($"UI update failed: '{uiDirectory}'. Exception: {ex.Message}");
+                _logger.LogError(ex, $"UI update failed: '{uiDirectory}' is not writable in this container. Mount a writable UI directory volume and try again.");
                 return StatusCode(StatusCodes.Status500InternalServerError, new
                 {
                     UpdateAvailable = hasUpdate,
