@@ -964,7 +964,7 @@ namespace Jellystat_API_Core.Controllers
                 //    return StatusCode(StatusCodes.Status500InternalServerError, new { UpdateAvailable = hasUpdate, Message = "Downloaded file hash does not match expected hash." });
                 //}
 
-                ExtractNewUI(tempZipPath, uiDirectory);
+                await ExtractNewUIAsync(tempZipPath, uiDirectory);
 
                 System.IO.File.Delete(tempZipPath);
             }
@@ -982,7 +982,7 @@ namespace Jellystat_API_Core.Controllers
 
         }
 
-        private void ExtractNewUI(string zipPath, string targetDirectory)
+        private async Task ExtractNewUIAsync(string zipPath, string targetDirectory)
         {
             if (Directory.Exists(targetDirectory))
             {
@@ -999,7 +999,7 @@ namespace Jellystat_API_Core.Controllers
 
                 using (var process = Process.Start(psi))
                 {
-                    process.WaitForExit();
+                    await process.WaitForExitAsync();
 
                     if (process.ExitCode != 0)
                     {
@@ -1014,7 +1014,7 @@ namespace Jellystat_API_Core.Controllers
             }
 
             // 3. Extract the zip file contents directly into the empty wwwroot folder
-            ZipFile.ExtractToDirectory(zipPath, targetDirectory);
+            ZipFile.ExtractToDirectory(zipPath, targetDirectory, true);
         }
 
         private string GetFileHash(string filePath)
