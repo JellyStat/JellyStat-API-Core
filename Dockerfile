@@ -7,7 +7,6 @@ WORKDIR /app
 EXPOSE 8080
 EXPOSE 8081
 
-
 # This stage is used to build the service project
 FROM mcr.microsoft.com/dotnet/sdk:9.0 AS build
 ARG BUILD_CONFIGURATION=Release
@@ -25,17 +24,19 @@ RUN dotnet publish "./Jellystat-API-Core.csproj" -c $BUILD_CONFIGURATION -o /app
 # This stage is used in production or when running from VS in regular mode (Default when not using the Debug configuration)
 FROM base AS final
 WORKDIR /app
-COPY --from=publish /app/publish .
 
-# --- NEW PERMISSIONS FIX START ---
-# Temporarily switch to root to manage folder permissions
+# --- CORRECTED PERMISSIONS FIX START ---
+# 1. Switch to root BEFORE copying files
 USER root
 
-# Create the wwwroot directory and assign ownership to the .NET non-root user
-RUN mkdir -p /app/wwwroot && chown -R $APP_UID:$APP_UID /app/wwwroot
+# 2. Copy the published app and immediately assign ownership to the .NET non-root user
+COPY --chown=app:app --from=publish /app/publish .
 
-# Switch back to the non-root user for security
+# 3. Create wwwroot and recursively grant the non-root user full control over the whole /app folder
+RUN mkdir -p /app/wwwroot && chown app:app /app/wwwroot
+
+# 4. Switch back to the secure, restricted user
 USER $APP_UID
-# --- NEW PERMISSIONS FIX END ---
+# --- CORRECTED PERMISSIONS FIX END ---
 
 ENTRYPOINT ["dotnet", "Jellystat-API-Core.dll"]
