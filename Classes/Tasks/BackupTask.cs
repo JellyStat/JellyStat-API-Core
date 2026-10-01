@@ -265,8 +265,6 @@ namespace Jellystat_API_Core.Classes.Tasks
                     await loggingService.AddMessageAsync(log, $"Logs Table Exported Successfully");
 
                     await loggingService.AddMessageAsync(log, $"Backup Task Complete");
-                    await loggingService.SuccessAsync(log);
-
                     var dbConnection = backupContext.Database.GetDbConnection();
 
                     await backupContext.DisposeAsync();
@@ -276,6 +274,32 @@ namespace Jellystat_API_Core.Classes.Tasks
                         await sqliteConnection.CloseAsync();
                         SqliteConnection.ClearPool(sqliteConnection);
                     }
+
+                    //get all backups and only keep the 5 most recent ones
+                    var backupFiles = Directory.GetFiles(Global.BackupDirectory, "jellystat-backup-*.bac")
+                        .Select(f => new FileInfo(f))
+                        .OrderByDescending(f => f.CreationTimeUtc)
+                        .ToList();
+
+
+                    var backupsToDelete = backupFiles.Skip(5).ToList();
+
+                    foreach (var backupToDelete in backupsToDelete)
+                    {
+                        try
+                        {
+                            File.Delete(backupToDelete.FullName);
+                            await loggingService.AddMessageAsync(log, $"Deleted old backup: {backupToDelete.FullName}");
+                        }
+                        catch (Exception ex)
+                        {
+                            await loggingService.AddMessageAsync(log, $"Failed to delete old backup: {backupToDelete.FullName}. Error: {ex.Message}");
+                        }
+                    }
+
+
+                    await loggingService.SuccessAsync(log);
+
 
 
                 }
