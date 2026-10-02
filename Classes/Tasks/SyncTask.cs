@@ -3,6 +3,7 @@ using Jellystat_API_Core.Classes.API.@interface;
 using Jellystat_API_Core.Data;
 using Jellystat_API_Core.Data.Schema;
 using Jellystat_API_Core.Enums;
+using Jellystat_API_Core.Extensions;
 using Jellystat_API_Core.Models.API.Base;
 using Jellystat_API_Core.Services.TaskLogging;
 using Microsoft.EntityFrameworkCore;
@@ -49,6 +50,7 @@ namespace Jellystat_API_Core.Classes.Tasks
                         List<ExcludedLibraries> excludedLibraries = await context.ExcludedLibraries.Where(l => l.ServerId == api.config.Id).ToListAsync(cancellationToken);
                         await SyncLibraryItems(context, libraries.Where(l => !excludedLibraries.Any(el => el.LibraryId == l.Id)).ToList(), log, loggingService, cancellationToken);
                         await UpdateFromStaging(context, log, loggingService, true, cancellationToken);
+                        await MigrateArchivedActivity(context, log, loggingService);
                         await loggingService.AddMessageAsync(log, $"Full sync completed for server {api.config.Name}");
                         await loggingService.SuccessAsync(log);
 
@@ -100,6 +102,7 @@ namespace Jellystat_API_Core.Classes.Tasks
                         List<Libraries> libraries = await SyncLibraries(context, log, loggingService, cancellationToken);
                         await SyncLibraryItems(context, libraries, log, loggingService, cancellationToken, 1);
                         await UpdateFromStaging(context, log, loggingService, false, cancellationToken);
+                        await MigrateArchivedActivity(context, log, loggingService);
                         await loggingService.AddMessageAsync(log, $"Partial sync completed for server {api.config.Name}");
                         await loggingService.SuccessAsync(log);
 
@@ -504,6 +507,99 @@ namespace Jellystat_API_Core.Classes.Tasks
                     Debug.WriteLine($"Error during updating items from staging for server '{api.config.Name}'. Transaction rolled back. Exception: {ex.Message}");
                     throw;
                 }
+            }
+        }
+
+        private async Task MigrateArchivedActivity(ApplicationDbContext context, Logs log, ITaskLogging loggingService)
+        {
+            try
+            {
+                List<Data.Schema.Activity> archivedActivity = await context.Activity
+                    .Where(a => a.ServerId == api.config.Id)
+                    .Join(context.Items, a => a.ItemId, i => i.Id, (a, i) => new { Activity = a, Item = i })
+                    .Where(joined => joined.Item.archived)
+                    .Select(joined => joined.Activity)
+                    .ToListAsync();
+
+                if (archivedActivity.IsEmpty())
+                {
+                    Debug.WriteLine($"No archived activity found for server '{api.config.Name}'.");
+                    await loggingService.AddMessageAsync(log, $"No archived activity found for server '{api.config.Name}'.");
+                    return;
+                }
+
+                // Separate into movie and episode activity
+                var movieNames = archivedActivity.Where(a => a.SeriesId == null).Select(a => a.Name).ToHashSet();
+                var episodeData = archivedActivity.Where(a => a.SeriesId != null)
+                    .GroupBy(a => new { a.SeriesName, a.Name })
+                    .ToDictionary(g => g.Key, g => g.ToList());
+
+                var seriesNames = episodeData.Keys.Select(k => k.SeriesName).ToHashSet();
+
+                // Fetch all matching items in one optimized query
+                var movieItems = await context.Items
+                    .Where(i => i.ServerId == api.config.Id && !i.archived && movieNames.Contains(i.Name))
+                    .ToDictionaryAsync(i => i.Name, i => i);
+
+                // For episodes: get all series and their descendants in one query
+                var episodeItems = await (
+                    from series in context.Items
+                    where series.ServerId == api.config.Id
+                          && !series.archived
+                          && seriesNames.Contains(series.Name)
+                    join seriesPath in context.ItemsPath on series.Id equals seriesPath.AncestorId
+                    join episodePath in context.ItemsPath on seriesPath.DescendantId equals episodePath.AncestorId
+                    join episode in context.Items on episodePath.DescendantId equals episode.Id
+                    where episode.ServerId == api.config.Id && !episode.archived && episode.ParentId != null
+                    select new
+                    {
+                        SeriesName = series.Name,
+                        SeriesId = series.Id,
+                        EpisodeName = episode.Name,
+                        EpisodeId = episode.Id,
+                        SeasonId = episode.ParentId
+                    })
+                    .ToListAsync();
+
+                // Create a lookup for fast matching
+                var episodeLookup = episodeItems
+                    .GroupBy(e => new { e.SeriesName, e.EpisodeName })
+                    .ToDictionary(g => g.Key, g => g.First());
+
+                int migratedCount = 0;
+
+                // Migrate movie activity
+                foreach (var activity in archivedActivity.Where(a => a.SeriesId == null))
+                {
+                    if (movieItems.TryGetValue(activity.Name, out var item))
+                    {
+                        activity.ItemId = item.Id;
+                        activity.SeriesName = null;
+                        migratedCount++;
+                    }
+                }
+
+                // Migrate episode activity
+                foreach (var activity in archivedActivity.Where(a => a.SeriesId != null))
+                {
+                    var key = new { SeriesName = activity.SeriesName, EpisodeName = activity.Name };
+                    if (episodeLookup.TryGetValue(key, out var item))
+                    {
+                        activity.ItemId = item.EpisodeId;
+                        activity.SeriesId = item.SeriesId;
+                        activity.SeasonId = item.SeasonId;
+                        migratedCount++;
+                    }
+                }
+
+                await context.SaveChangesAsync();
+
+                await loggingService.AddMessageAsync(log, $"Migrated {migratedCount} archived activity records for server '{api.config.Name}'");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error during migrating archived activity for server '{api.config.Name}'. Exception: {ex.Message}");
+                throw;
             }
         }
 
