@@ -566,7 +566,7 @@ namespace Jellystat_API_Core.Controllers
                    ImageHash = library.ImageHash,
                    archived = library.archived,
                    HasArchivedItems = context.Items
-                       .Where(item => item.archived && item.LibraryId == library.Id && item.ParentId == null && item.ServerId == ServerId).Any()
+                       .Where(item => item.archived && item.LibraryId == library.Id && (item.ParentId == null || item.ParentId == "") && item.ServerId == ServerId).Any()
                });
 
             return _query.Gridify(query);
@@ -814,11 +814,11 @@ namespace Jellystat_API_Core.Controllers
             //if library is not archived, check if there are any archived top layeritems in the library, if so delete them, ensuring to drill down to the lowest level and delete all linked items
             if (libraryExists)
             {
-                bool libraryHasArchivedItems = await context.Items.AnyAsync(i => i.LibraryId == Id && i.ServerId == ServerId && i.archived);
+                bool libraryHasArchivedItems = await context.Items.AnyAsync(i => i.LibraryId == Id && i.ServerId == ServerId && i.archived && (i.ParentId == null || i.ParentId == ""));
                 if (libraryHasArchivedItems)
                 {
                     //gets top layer archived items
-                    allIds = await context.Items.Where(i => i.LibraryId == Id && i.ServerId == ServerId && i.archived && i.ParentId == null).Select(i => i.Id).ToListAsync();
+                    allIds = await context.Items.Where(i => i.LibraryId == Id && i.ServerId == ServerId && i.archived && (i.ParentId == null || i.ParentId == "")).Select(i => i.Id).ToListAsync();
 
                     //gets all linked items for the top layer archived items, even if they are not archived, as they will be deleted anyway
                     layer1Ids = await context.ItemsPath.Where(p => allIds.Contains(p.AncestorId)).Select(p => p.DescendantId).ToListAsync();
