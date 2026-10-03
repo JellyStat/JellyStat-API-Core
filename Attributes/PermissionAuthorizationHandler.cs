@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.OpenApi.Extensions;
+using System.Text.Json;
 
 namespace Jellystat_API_Core.Attributes
 {
@@ -25,21 +26,56 @@ namespace Jellystat_API_Core.Attributes
             if (string.IsNullOrEmpty(token))
                 return;
 
+            var permissionsClaimJson = context.User.FindFirst("permissions")?.Value;
+            if (string.IsNullOrWhiteSpace(permissionsClaimJson))
+                return;
+
+            List<string>? claimPermissions;
+            try
+            {
+                claimPermissions = JsonSerializer.Deserialize<List<string>>(permissionsClaimJson);
+            }
+            catch
+            {
+                return;
+            }
+
+            if (claimPermissions == null)
+                return;
+
+            var normalizedClaimPermissions = claimPermissions
+                .Select(NormalizePermissionKey)
+                .Where(p => p != null)
+                .ToHashSet(StringComparer.Ordinal);
+
+            if (normalizedClaimPermissions.Count == 0)
+                return;
+
+            var administratorPermission = PermissionTypes.Administrator.ToString();
+            var canViewPermission = PermissionTypes.CanView.ToString();
+
+            if (normalizedClaimPermissions.SetEquals([canViewPermission]))
+            {
+                if (requirement.Permission == canViewPermission)
+                {
+                    context.Succeed(requirement);
+                }
+
+                return;
+            }
+
+            if (!normalizedClaimPermissions.Contains(administratorPermission))
+                return;
+
+            var username = context.User.FindFirst("username")?.Value;
+            if (string.IsNullOrEmpty(username))
+                return;
+
             var cacheKey = $"permissions_{token}";
             List<string> permissionKeys;
 
-            var username = context.User.FindFirst("username")?.Value;
-            string? serverId = context.User.FindFirst("serverId")?.Value;
-
-            // Try to get permissions from cache
             if (!_cache.TryGetValue(cacheKey, out permissionKeys))
             {
-
-                if (string.IsNullOrEmpty(username))
-                    return;
-
-
-                // Fetch permissions from DB
                 permissionKeys = await (
                       from up in _dbContext.UserPermissions
                       join p in _dbContext.Permissions on up.PermissionId equals p.Id
@@ -48,23 +84,35 @@ namespace Jellystat_API_Core.Attributes
                       select p.PermissionKey
                   ).ToListAsync();
 
-
-                if (permissionKeys.IsEmpty() && serverId != null && Global.APIInstanceManager.HasInstance(serverId))
-                {
-                    permissionKeys = [PermissionTypes.CanView.GetDisplayName()];
-                }
-
-                // Cache permissions for 5 minutes sliding expiration
                 var cacheEntryOptions = new MemoryCacheEntryOptions()
                     .SetSlidingExpiration(TimeSpan.FromMinutes(5));
                 _cache.Set(cacheKey, permissionKeys, cacheEntryOptions);
             }
 
+            var normalizedDbPermissions = permissionKeys
+                .Select(NormalizePermissionKey)
+                .Where(p => p != null)
+                .ToHashSet(StringComparer.Ordinal);
 
-
-            // Check if required permission exists
-            if (permissionKeys.Contains(requirement.Permission) || permissionKeys.Contains(PermissionTypes.Administrator.ToString()))
+            if (normalizedDbPermissions.Contains(requirement.Permission) || normalizedDbPermissions.Contains(administratorPermission))
                 context.Succeed(requirement);
+        }
+
+        private static string? NormalizePermissionKey(string? permission)
+        {
+            if (string.IsNullOrWhiteSpace(permission))
+                return null;
+
+            if (Enum.TryParse<PermissionTypes>(permission, true, out var parsedPermission))
+                return parsedPermission.ToString();
+
+            foreach (var permissionType in Enum.GetValues<PermissionTypes>())
+            {
+                if (string.Equals(permissionType.GetDisplayName(), permission, StringComparison.OrdinalIgnoreCase))
+                    return permissionType.ToString();
+            }
+
+            return null;
         }
     }
 }

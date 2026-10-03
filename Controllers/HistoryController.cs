@@ -404,6 +404,7 @@ namespace Jellystat_API_Core.Controllers
         }
 
         [HttpGet("UnlinkedActivity", Name = "UnlinkedActivity")]
+        [PermissionAuthorize(PermissionTypes.Administrator)]
         [DefaultGridifyOrder(nameof(Activity.DateCreated), true)]
         public ActionResult<Paging<Activity>> GetUnlinkedActivity([FromQuery] GridifyQuery query, string? ServerId)
         {

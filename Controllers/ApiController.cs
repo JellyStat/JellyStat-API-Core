@@ -741,6 +741,7 @@ namespace Jellystat_API_Core.Controllers
         }
 
         [HttpGet("Logs", Name = "Logs")]
+        [PermissionAuthorize(PermissionTypes.Administrator)]
         [DefaultGridifyOrder(nameof(Logs.DateCreated), true)]
         public ActionResult<Paging<Logs>> GetLogs([FromQuery] GridifyQuery query, string? ServerId)
         {
