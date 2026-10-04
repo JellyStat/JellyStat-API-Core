@@ -29,6 +29,34 @@ jobs:
       - name: Checkout API repository
         uses: actions/checkout@v4
 
+      # 1. Fetch the latest versioned release artifact from the UI repo
+      - name: Download Latest Versioned UI Asset
+        run: |
+          set -euo pipefail
+          mkdir -p wwwroot
+          
+          echo "Fetching the latest release tag name from UI repo..."
+          LATEST_TAG=$(gh api repos/jellystat/jellystat-ui/releases/latest --jq '.tag_name')
+          
+          if [ -z "$LATEST_TAG" ]; then
+            echo "Error: No releases found in jellystat/jellystat-ui!"
+            exit 1
+          fi
+          
+          echo "Found latest UI release tag: $LATEST_TAG"
+          echo "Downloading ${LATEST_TAG}.zip..."
+          
+          # Download the specific zip file tied to this release tag
+          gh release download "$LATEST_TAG" -R jellystat/jellystat-ui -p "${LATEST_TAG}.zip"
+          
+          # Unzip into the wwwroot folder and clean up the zip file
+          unzip "${LATEST_TAG}.zip" -d wwwroot
+          rm "${LATEST_TAG}.zip"
+          
+          echo "UI asset successfully deployed to wwwroot/"
+        env:
+          GH_TOKEN: ${{ secrets.JELLYSTAT_UI_TOKEN }}
+
       # 2. Install the cosign tool except on PR
       # https://github.com/sigstore/cosign-installer
       - name: Install cosign

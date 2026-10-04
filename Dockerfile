@@ -28,9 +28,9 @@ WORKDIR /app
 # FIXED: --chown ensures that the files copied from the build phase belong to the app user right away
 COPY --from=publish --chown=$APP_UID:$APP_UID /app/publish .
 
-# Ensure /app stays writable by the app user so wwwroot can be created at first startup
+# FIXED: Ensure the parent /app directory, the wwwroot directory, and all files have full group permissions matching $APP_UID
 USER root
-RUN chown -R $APP_UID:$APP_UID /app
+RUN mkdir -p /app/wwwroot && chown -R $APP_UID:$APP_UID /app
 USER $APP_UID
 
 ENTRYPOINT ["dotnet", "Jellystat-API-Core.dll"]

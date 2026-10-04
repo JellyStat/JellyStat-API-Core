@@ -5,7 +5,6 @@ using Jellystat_API_Core.Data;
 using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Extensions;
 using Jellystat_API_Core.Helpers;
-using Jellystat_API_Core.Models.Jellystat.Helpers;
 using Jellystat_API_Core.Services.API;
 using Jellystat_API_Core.Services.TaskLogging;
 using Jellystat_API_Core.Services.Tasks;
@@ -194,68 +193,6 @@ using (var scope = app.Services.CreateScope())
     Global.WebSocketClientService = scope.ServiceProvider.GetRequiredService<IWebSocketClientService>();
     Global.APIInstanceManager = scope.ServiceProvider.GetRequiredService<IAPIInstanceManager>();
     Global.WebSocketServerService = scope.ServiceProvider.GetRequiredService<IWebSocketServerService>();
-
-}
-
-
-
-//download ui if it doesn't exist
-if (UpdateHelper.GetCurrentUITag().IsNullOrEmpty())
-{
-    using (var scope = app.Services.CreateScope())
-    {
-        var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-
-        UIReleaseInfo? latestRelease = await UpdateHelper.GetLatestUITag();
-        string url = latestRelease?.Link ?? string.Empty;
-
-        string fileName = Path.GetFileName(url);
-
-        string hash = latestRelease?.Hash ?? string.Empty;
-
-        if (!url.IsNullOrEmpty() && !fileName.IsNullOrEmpty() && !hash.IsNullOrEmpty())
-        {
-            string uiDirectory = Global.WebUIDirectory;
-            string tempZipPath = Path.Combine(Path.GetTempPath(), $"{Guid.NewGuid()}_{fileName}");
-
-            try
-            {
-                Directory.CreateDirectory(uiDirectory);
-
-                using HttpClient httpClient = new();
-
-                using (var downloadStream = await httpClient.GetStreamAsync(url))
-                {
-                    using var fileStream = new FileStream(tempZipPath, FileMode.Create, FileAccess.Write, FileShare.None);
-                    await downloadStream.CopyToAsync(fileStream);
-                }
-
-                string downloadedFileHash = UpdateHelper.GetFileHash(tempZipPath);
-
-                if (downloadedFileHash.Equals(hash, StringComparison.OrdinalIgnoreCase))
-                {
-                    UpdateHelper.ExtractNewUI(tempZipPath, uiDirectory);
-
-
-                }
-                else
-                {
-                    logger.LogError($"UI update failed: Hash mismatch for downloaded file. Expected: {hash}, Actual: {downloadedFileHash}");
-                }
-
-                System.IO.File.Delete(tempZipPath);
-
-
-
-            }
-            catch (UnauthorizedAccessException ex)
-            {
-                logger.LogError(ex, $"UI update failed: '{ex.Message}'");
-
-            }
-        }
-    }
-
 
 }
 
