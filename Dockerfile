@@ -31,6 +31,7 @@ COPY --from=publish --chown=$APP_UID:$APP_UID /app/publish .
 # Ensure the parent /app directory, the wwwroot directory, and all files have the expected ownership
 USER root
 RUN mkdir -p /app/wwwroot && chown -R $APP_UID:$APP_UID /app
+RUN chmod 755 /app/wwwroot
 USER $APP_UID
 
 ENTRYPOINT ["dotnet", "Jellystat-API-Core.dll"]
