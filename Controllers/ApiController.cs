@@ -16,9 +16,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
-using System.IO.Compression;
 using System.Reflection;
-using System.Security.Cryptography;
 
 namespace Jellystat_API_Core.Controllers
 {
@@ -956,7 +954,7 @@ namespace Jellystat_API_Core.Controllers
                     await downloadStream.CopyToAsync(fileStream);
                 }
 
-                string downloadedFileHash = GetFileHash(tempZipPath);
+                string downloadedFileHash = UpdateHelper.GetFileHash(tempZipPath);
 
                 //if (!downloadedFileHash.Equals(hash, StringComparison.OrdinalIgnoreCase))
                 //{
@@ -964,7 +962,7 @@ namespace Jellystat_API_Core.Controllers
                 //    return StatusCode(StatusCodes.Status500InternalServerError, new { UpdateAvailable = hasUpdate, Message = "Downloaded file hash does not match expected hash." });
                 //}
 
-                ExtractNewUI(tempZipPath, uiDirectory);
+                UpdateHelper.ExtractNewUI(tempZipPath, uiDirectory);
 
                 System.IO.File.Delete(tempZipPath);
             }
@@ -981,49 +979,6 @@ namespace Jellystat_API_Core.Controllers
             return Ok();
 
         }
-
-        private void ExtractNewUI(string zipPath, string targetDirectory)
-        {
-            // Ensure the target directory points to /app/wwwroot
-            if (Directory.Exists(targetDirectory))
-            {
-                var di = new DirectoryInfo(targetDirectory);
-
-                // 1. Force clear file attributes and delete files inside wwwroot
-                foreach (var file in di.GetFiles("*", SearchOption.AllDirectories))
-                {
-                    file.Attributes = FileAttributes.Normal;
-                    file.Delete(); // Deletes individual files safely
-                }
-
-                // 2. Delete all subdirectories inside wwwroot
-                foreach (var dir in di.GetDirectories())
-                {
-                    dir.Delete(true); // Deletes subfolders recursively
-                }
-            }
-            else
-            {
-                // Fallback: If it somehow doesn't exist, create it
-                Directory.CreateDirectory(targetDirectory);
-            }
-
-            // 3. Extract the zip file contents directly into the empty wwwroot folder
-            ZipFile.ExtractToDirectory(zipPath, targetDirectory, true);
-        }
-
-        private string GetFileHash(string filePath)
-        {
-            using (var sha256 = SHA256.Create())
-            {
-                using (var stream = System.IO.File.OpenRead(filePath))
-                {
-                    var hashBytes = sha256.ComputeHash(stream);
-                    return BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
-                }
-            }
-        }
-
 
     }
 }

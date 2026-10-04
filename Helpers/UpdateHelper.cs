@@ -1,6 +1,8 @@
 ﻿using Jellystat_API_Core.Extensions;
 using Jellystat_API_Core.Models.Jellystat.Helpers;
 using System.Diagnostics;
+using System.IO.Compression;
+using System.Security.Cryptography;
 
 namespace Jellystat_API_Core.Helpers
 {
@@ -71,6 +73,48 @@ namespace Jellystat_API_Core.Helpers
                 return true;
             }
             return false;
+        }
+
+        public static string GetFileHash(string filePath)
+        {
+            using (var sha256 = SHA256.Create())
+            {
+                using (var stream = System.IO.File.OpenRead(filePath))
+                {
+                    var hashBytes = sha256.ComputeHash(stream);
+                    return BitConverter.ToString(hashBytes).Replace("-", "").ToLowerInvariant();
+                }
+            }
+        }
+
+        public static void ExtractNewUI(string zipPath, string targetDirectory)
+        {
+            // Ensure the target directory points to /app/wwwroot
+            if (Directory.Exists(targetDirectory))
+            {
+                var di = new DirectoryInfo(targetDirectory);
+
+                // 1. Force clear file attributes and delete files inside wwwroot
+                foreach (var file in di.GetFiles("*", SearchOption.AllDirectories))
+                {
+                    file.Attributes = FileAttributes.Normal;
+                    file.Delete(); // Deletes individual files safely
+                }
+
+                // 2. Delete all subdirectories inside wwwroot
+                foreach (var dir in di.GetDirectories())
+                {
+                    dir.Delete(true); // Deletes subfolders recursively
+                }
+            }
+            else
+            {
+                // Fallback: If it somehow doesn't exist, create it
+                Directory.CreateDirectory(targetDirectory);
+            }
+
+            // 3. Extract the zip file contents directly into the empty wwwroot folder
+            ZipFile.ExtractToDirectory(zipPath, targetDirectory, true);
         }
     }
 }
