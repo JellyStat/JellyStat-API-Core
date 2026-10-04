@@ -929,10 +929,10 @@ namespace Jellystat_API_Core.Controllers
 
             string hash = latestRelease?.Hash ?? string.Empty;
 
-            if (!hasUpdate)
-            {
-                return Ok();
-            }
+            //if (!hasUpdate)
+            //{
+            //    return NotFound("No UI update available.");
+            //}
 
             if (url.IsNullOrEmpty() || fileName.IsNullOrEmpty() || hash.IsNullOrEmpty())
             {
@@ -956,11 +956,11 @@ namespace Jellystat_API_Core.Controllers
 
                 string downloadedFileHash = UpdateHelper.GetFileHash(tempZipPath);
 
-                //if (!downloadedFileHash.Equals(hash, StringComparison.OrdinalIgnoreCase))
-                //{
-                //    System.IO.File.Delete(tempZipPath);
-                //    return StatusCode(StatusCodes.Status500InternalServerError, new { UpdateAvailable = hasUpdate, Message = "Downloaded file hash does not match expected hash." });
-                //}
+                if (!downloadedFileHash.Equals(hash, StringComparison.OrdinalIgnoreCase))
+                {
+                    System.IO.File.Delete(tempZipPath);
+                    return StatusCode(StatusCodes.Status500InternalServerError, new { UpdateAvailable = hasUpdate, Message = "Downloaded file hash does not match expected hash." });
+                }
 
                 UpdateHelper.ExtractNewUI(tempZipPath, uiDirectory);
 
