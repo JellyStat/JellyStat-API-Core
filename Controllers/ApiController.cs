@@ -929,10 +929,10 @@ namespace Jellystat_API_Core.Controllers
 
             string hash = latestRelease?.Hash ?? string.Empty;
 
-            //if (!hasUpdate)
-            //{
-            //    return NotFound("No UI update available.");
-            //}
+            if (!hasUpdate)
+            {
+                return NotFound("No UI update available.");
+            }
 
             if (url.IsNullOrEmpty() || fileName.IsNullOrEmpty() || hash.IsNullOrEmpty())
             {
