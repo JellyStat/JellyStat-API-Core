@@ -25,10 +25,10 @@ RUN dotnet publish "./Jellystat-API-Core.csproj" -c $BUILD_CONFIGURATION -o /app
 FROM base AS final
 WORKDIR /app
 
-# FIXED: --chown ensures that the files copied from the build phase belong to the app user right away
+# Ensure files copied from the publish phase belong to the app user
 COPY --from=publish --chown=$APP_UID:$APP_UID /app/publish .
 
-# FIXED: Ensure the parent /app directory, the wwwroot directory, and all files have full group permissions matching $APP_UID
+# Ensure the parent /app directory, the wwwroot directory, and all files have the expected ownership
 USER root
 RUN mkdir -p /app/wwwroot && chown -R $APP_UID:$APP_UID /app
 USER $APP_UID
