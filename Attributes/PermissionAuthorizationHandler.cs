@@ -1,10 +1,9 @@
 ﻿using Jellystat_API_Core.Data;
 using Jellystat_API_Core.Enums;
-using Jellystat_API_Core.Extensions;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.OpenApi.Extensions;
+using Microsoft.OpenApi;
 using System.Text.Json;
 
 namespace Jellystat_API_Core.Attributes
