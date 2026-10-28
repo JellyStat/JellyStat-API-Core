@@ -16,9 +16,9 @@ namespace Jellystat_API_Core.Models.API.Emby
         public ImageBlurHashes? ImageBlurHashes { private get; set; }
         public override IList<BaseMediaStream> MediaStreams => MediaSources.Where(ms => ms.MediaStreams.IsNotEmpty()).SelectMany(ms => ms.MediaStreams).Cast<BaseMediaStream>().ToList();
         public override string? Path { get; set; }
-        public override long Size => MediaSources.Where(ms => ms.Id == Id).FirstOrDefault(defaultValue: null)?.Size ?? 0;
+        public override long Size => MediaSources.Where(ms => ms.Id == $"mediasource_{Id}").FirstOrDefault(defaultValue: null)?.Size ?? 0;
 
-        public override long Bitrate => MediaSources.Where(ms => ms.Id == Id).FirstOrDefault(defaultValue: null)?.Bitrate ?? 0;
+        public override long Bitrate => MediaSources.Where(ms => ms.Id == $"mediasource_{Id}").FirstOrDefault(defaultValue: null)?.Bitrate ?? 0;
 
         public override string ImageTag => ImageTags?.Primary ?? "";
         public override string ImageHash => ImageBlurHashes?.Primary?.ContainsKey(ImageTag) == true ? ImageBlurHashes.Primary[ImageTag] : "";
@@ -27,7 +27,7 @@ namespace Jellystat_API_Core.Models.API.Emby
         public override string? ParentId => Type == ItemTypes.Season ? SeriesId : (Type == ItemTypes.Episode ? SeasonId : null);
         public override int? ParentIndex => Type == ItemTypes.Episode ? ParentIndexNumber : null;
         public override int? Index => Type == ItemTypes.Season || Type == ItemTypes.Episode ? IndexNumber : null;
-        public override long? RunTimeTicks => MediaSources.Where(ms => ms.Id == Id).FirstOrDefault(defaultValue: null)?.RunTimeTicks ?? 0;
+        public override long? RunTimeTicks => MediaSources.Where(ms => ms.Id == $"mediasource_{Id}").FirstOrDefault(defaultValue: null)?.RunTimeTicks ?? 0;
 
         public override string Codec => MediaStreams.Where(ms => ms.Type == MediaStreamType.Video).FirstOrDefault(defaultValue: null)?.Codec ?? "";
         public override string Resolution
