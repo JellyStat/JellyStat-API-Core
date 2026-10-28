@@ -179,7 +179,9 @@ namespace Jellystat_API_Core.Classes.Tasks
                             Id = server.Id,
                             URL = server.URL,
                             ExternalURL = server.ExternalURL,
-                            APIKey = server.APIKey,
+                            // Media server API keys are admin credentials: never write them to backup files.
+                            // Restoring onto an existing server keeps its stored key; new servers need it re-entered.
+                            APIKey = string.Empty,
                             Name = server.Name,
                             Type = (int)server.Type,
                             AllowRemoteAuth = server.AllowRemoteAuth,

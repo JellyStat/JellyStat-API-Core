@@ -112,6 +112,12 @@ namespace Jellystat_API_Core.Classes.Tasks
 
                         await loggingService.AddMessageAsync(log, $"User Permissions Table Restored Successfully");
 
+                        // Backups no longer contain API keys. Keep the key of any server that already exists here
+                        // so the upsert doesn't blank it; older backups that still include a key restore it as before.
+                        Dictionary<string, string> existingApiKeys = await sourceContext.Servers
+                            .AsNoTracking()
+                            .ToDictionaryAsync(s => s.Id, s => s.APIKey, cancellationToken);
+
                         await ImportInBatchesAsync(
                         backupContext.Servers
                             .AsNoTracking()
@@ -124,7 +130,9 @@ namespace Jellystat_API_Core.Classes.Tasks
                             Id = server.Id,
                             URL = server.URL,
                             ExternalURL = server.ExternalURL,
-                            APIKey = server.APIKey,
+                            APIKey = string.IsNullOrEmpty(server.APIKey)
+                                ? existingApiKeys.GetValueOrDefault(server.Id, string.Empty)
+                                : server.APIKey,
                             Name = server.Name,
                             Type = (ServerTypes)server.Type,
                             AllowRemoteAuth = server.AllowRemoteAuth,
@@ -133,6 +141,15 @@ namespace Jellystat_API_Core.Classes.Tasks
                         cancellationToken);
 
                         await loggingService.AddMessageAsync(log, $"Servers Table Restored Successfully");
+
+                        List<string> serversMissingKeys = await sourceContext.Servers
+                            .Where(s => s.APIKey == "")
+                            .Select(s => s.Name)
+                            .ToListAsync(cancellationToken);
+                        if (serversMissingKeys.Count > 0)
+                        {
+                            await loggingService.AddMessageAsync(log, $"Backups don't include API keys. Re-enter the API key in Settings > Servers for: {string.Join(", ", serversMissingKeys)}");
+                        }
 
                         await ImportInBatchesAsync(
                         backupContext.Users
