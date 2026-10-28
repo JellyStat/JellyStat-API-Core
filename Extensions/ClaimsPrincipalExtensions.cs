@@ -75,6 +75,15 @@ namespace Jellystat_API_Core.Extensions
         }
 
         /// <summary>
+        /// True for access tokens and API keys (which carry type=access). Refresh tokens have type=refresh and
+        /// must only ever be accepted by /Auth/Refresh.
+        /// </summary>
+        public static bool IsAccessToken(this ClaimsPrincipal principal)
+        {
+            return principal.HasClaim(c => c.Type == "type" && c.Value == "access");
+        }
+
+        /// <summary>
         /// Checks if the current user has administrator permissions.
         /// </summary>
         /// <param name="principal">The claims principal</param>

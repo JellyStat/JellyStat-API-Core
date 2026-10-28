@@ -21,6 +21,11 @@ namespace Jellystat_API_Core.Attributes
 
         protected override async Task HandleRequirementAsync(AuthorizationHandlerContext context, PermissionRequirement requirement)
         {
+            // Permission checks only apply to access tokens (and API keys). A refresh token carries the same
+            // claims but must not work anywhere except /Auth/Refresh.
+            if (!context.User.HasClaim(c => c.Type == "type" && c.Value == "access"))
+                return;
+
             var token = context.User.FindFirst("jti")?.Value;
             if (string.IsNullOrEmpty(token))
                 return;

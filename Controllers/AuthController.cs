@@ -87,7 +87,7 @@ namespace Jellystat_API_Core.Controllers
         [HttpGet("Config", Name = "Config")]
         public ActionResult<List<Models.Jellystat.Server>> GetConfig()
         {
-            bool Authorized = HttpContext.User.Identity?.IsAuthenticated == true;
+            bool Authorized = HttpContext.User.Identity?.IsAuthenticated == true && HttpContext.User.IsAccessToken();
 
             List<iAPI> instances = _apiInstanceManager.GetAllInstances().ToList();
             // Deep-clone the server configs so changes to the returned list won't affect the original instances
@@ -259,7 +259,20 @@ namespace Jellystat_API_Core.Controllers
                 return Unauthorized("Invalid server ID");
             }
 
+            // Re-check what allowed the original remote login, so turning remote auth off or removing the
+            // user in Jellyfin ends their session at the next refresh instead of lasting forever.
+            if (!instance.config.AllowRemoteAuth)
+            {
+                return Unauthorized("Remote authentication is not allowed for this server");
+            }
 
+            // Users is kept in sync with the media server (users deleted there are removed on sync)
+            string usernameLower = Username.ToLower();
+            bool userExists = await context.Users.AnyAsync(u => u.ServerId == ServerId && u.Username.ToLower() == usernameLower);
+            if (!userExists)
+            {
+                return Unauthorized("User no longer exists on this server");
+            }
 
             List<Permissions> viewPermissions = new() { new Permissions { PermissionKey = PermissionTypes.CanView.GetDisplayName() } };
 
@@ -275,7 +288,7 @@ namespace Jellystat_API_Core.Controllers
         {
             if (IsApiKeyCaller) return Forbid();
 
-            bool Authorized = HttpContext.User.Identity?.IsAuthenticated == true;
+            bool Authorized = HttpContext.User.Identity?.IsAuthenticated == true && HttpContext.User.IsAccessToken();
             bool isAdmin = Authorized && HttpContext.User.IsAdministrator();
 
             if (!isAdmin && !Global.AllowUnauthenticatedPasswordReset)
@@ -322,7 +335,7 @@ namespace Jellystat_API_Core.Controllers
             if (IsApiKeyCaller) return Forbid();
 
             bool isConfigured = Global.IsConfigured;
-            bool Authorized = HttpContext.User.Identity?.IsAuthenticated == true;
+            bool Authorized = HttpContext.User.Identity?.IsAuthenticated == true && HttpContext.User.IsAccessToken();
             bool isAdmin = Authorized && HttpContext.User.IsAdministrator();
 
             // Anonymous creation is only for the very first account during setup. As soon as any local user

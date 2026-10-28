@@ -27,7 +27,7 @@ namespace Jellystat_API_Core.Controllers
                 return BadRequest("WebSocket request expected");
             }
 
-            if (!HttpContext.User.Identity?.IsAuthenticated ?? true)
+            if (!(HttpContext.User.Identity?.IsAuthenticated ?? false) || !HttpContext.User.IsAccessToken())
             {
                 return Unauthorized("Authentication required");
             }
