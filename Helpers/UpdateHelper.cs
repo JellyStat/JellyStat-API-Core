@@ -2,10 +2,16 @@
 using Jellystat_API_Core.Models.Jellystat.Helpers;
 using System.Diagnostics;
 using System.IO.Compression;
+using System.Reflection;
 using System.Security.Cryptography;
 
 namespace Jellystat_API_Core.Helpers
 {
+    public class ApiReleaseInfo
+    {
+        public string? Version { get; set; }
+    }
+
     public static class UpdateHelper
     {
 
@@ -32,6 +38,42 @@ namespace Jellystat_API_Core.Helpers
                 Debug.WriteLine($"[Latest UI Tag] Error: {ex.Message}");
                 return null;
             }
+        }
+
+        /// <summary>The version of the running API, from AssemblyVersion in the csproj.</summary>
+        public static Version CurrentApiVersion =>
+            Assembly.GetExecutingAssembly().GetName().Version ?? new Version(2, 0, 0, 0);
+
+        /// <summary>Latest published API version, from release.json on the API repo's main branch (written by CI after the image is pushed).</summary>
+        public static async Task<Version?> GetLatestApiVersion()
+        {
+            try
+            {
+                using HttpClient httpClient = new HttpClient();
+
+                string url = "https://raw.githubusercontent.com/JellyStat/JellyStat-API-Core/refs/heads/main/release.json";
+
+                var response = await httpClient.GetAsync(url);
+                if (!response.IsSuccessStatusCode)
+                {
+                    return null;
+                }
+
+                var latestRelease = await response.Content.ReadAsJsonAsync<ApiReleaseInfo>();
+
+                return Version.TryParse(latestRelease?.Version, out var version) ? version : null;
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"[Latest API Version] Error: {ex.Message}");
+                return null;
+            }
+        }
+
+        /// <summary>True only when the published version is higher than the running one, so local builds with a bumped version are never flagged.</summary>
+        public static bool IsApiUpdateAvailable(Version? latestVersion)
+        {
+            return latestVersion != null && latestVersion > CurrentApiVersion;
         }
 
         public static string GetCurrentUITag()

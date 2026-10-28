@@ -914,23 +914,15 @@ namespace Jellystat_API_Core.Controllers
         [HttpGet("Version", Name = "Version")]
         public async Task<ActionResult> GetVersion()
         {
-            string version = Assembly.GetExecutingAssembly().GetName().Version?.ToString() ?? "2.0.0.0";
-            string UITag = string.Empty;
+            string version = UpdateHelper.CurrentApiVersion.ToString();
+            string UITag = UpdateHelper.GetCurrentUITag();
 
-            ////find io file tag
-            List<string> filePaths = Directory.Exists(Global.WebUIDirectory)
-                ? Directory
-                    .EnumerateFiles(Global.WebUIDirectory, "*.emtag", SearchOption.TopDirectoryOnly)
-                    .ToList()
-                : new List<string>();
+            var latestUiTask = UpdateHelper.GetLatestUITag();
+            var latestApiTask = UpdateHelper.GetLatestApiVersion();
+            await Task.WhenAll(latestUiTask, latestApiTask);
 
-            if (filePaths.Count > 0)
-            {
-                UITag = Path.GetFileNameWithoutExtension(filePaths.First());
-            }
-            ///
-
-            UIReleaseInfo? releaseInfo = await UpdateHelper.GetLatestUITag();
+            UIReleaseInfo? releaseInfo = latestUiTask.Result;
+            Version? latestApiVersion = latestApiTask.Result;
             bool hasUpdate = false;
 
             if (releaseInfo != null && releaseInfo.Id != UITag)
@@ -938,7 +930,15 @@ namespace Jellystat_API_Core.Controllers
                 hasUpdate = true;
             }
 
-            return Ok(new { apiVersion = version, CurrentUiTag = UITag, LatestUiTag = releaseInfo?.Id ?? string.Empty, UIHasUpdate = hasUpdate });
+            return Ok(new
+            {
+                apiVersion = version,
+                LatestApiVersion = latestApiVersion?.ToString() ?? string.Empty,
+                ApiHasUpdate = UpdateHelper.IsApiUpdateAvailable(latestApiVersion),
+                CurrentUiTag = UITag,
+                LatestUiTag = releaseInfo?.Id ?? string.Empty,
+                UIHasUpdate = hasUpdate
+            });
 
         }
 

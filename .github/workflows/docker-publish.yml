@@ -19,7 +19,7 @@ jobs:
   build-api:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
       # This is used to complete the identity challenge
       # with sigstore/fulcio when running outside of PRs.
@@ -99,7 +99,28 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # 7. Sign the resulting Docker image digest except on PRs.
+      # 7. Publish release.json so running instances can detect a newer API version.
+      # Runs after the image is pushed, so the notifier never points at an image that doesn't exist yet.
+      - name: Publish API release info
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          VERSION=$(grep -oPm1 '(?<=<AssemblyVersion>)[^<]+' Jellystat-API-Core.csproj)
+          jq -n --arg version "$VERSION" '{version: $version}' > release.json
+
+          # Nothing to commit unless the version changed (or the file is new)
+          if [ -z "$(git status --porcelain -- release.json)" ]; then
+            echo "API version $VERSION unchanged; release.json not updated."
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add release.json
+          git commit -m "chore: update API release info for $VERSION [skip ci]"
+          git push origin HEAD:main
+
+      # 8. Sign the resulting Docker image digest except on PRs.
       # https://github.com/sigstore/cosign
       - name: Sign the published Docker image
         if: ${{ github.event_name != 'pull_request' }}
