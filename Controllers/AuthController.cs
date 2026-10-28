@@ -9,6 +9,7 @@ using Jellystat_API_Core.Models.Jellystat;
 using Jellystat_API_Core.Services.API;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
@@ -26,6 +27,10 @@ namespace Jellystat_API_Core.Controllers
     public class AuthController : ControllerBase
     {
         private readonly ApplicationDbContext context;
+
+        // Verified against when the username doesn't exist, so a wrong username takes as long as a wrong
+        // password and response timing can't be used to find valid usernames. Same default work factor as real hashes.
+        private static readonly string TimingEqualiserHash = BCrypt.Net.BCrypt.HashPassword(Guid.NewGuid().ToString());
         private readonly IAPIInstanceManager _apiInstanceManager;
 
         public AuthController(IAPIInstanceManager apiInstanceManager, ApplicationDbContext context)
@@ -155,6 +160,7 @@ namespace Jellystat_API_Core.Controllers
         }
 
 
+        [EnableRateLimiting("login")]
         [HttpPost("Login", Name = "Login")]
         public async Task<ActionResult> Login([FromBody] LoginModel loginModel)
         {
@@ -172,7 +178,11 @@ namespace Jellystat_API_Core.Controllers
                 {
                     LocalUsers? localUsers = await context.LocalUsers.Where(u => u.Username == loginModel.Username).FirstOrDefaultAsync();
 
-                    if (localUsers != null)
+                    if (localUsers == null)
+                    {
+                        BCrypt.Net.BCrypt.Verify(loginModel.Password, TimingEqualiserHash);
+                    }
+                    else
                     {
 
                         if (BCrypt.Net.BCrypt.Verify(loginModel.Password, localUsers.Password))
