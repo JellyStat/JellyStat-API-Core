@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Authorization;
+﻿using Jellystat_API_Core.Helpers;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Collections.Concurrent;
 using System.Diagnostics;
@@ -52,7 +53,7 @@ namespace Jellystat_API_Core.Controllers
                     "IP lookup is not configured. Set JS_GEOLITE_ACCOUNT_ID and JS_GEOLITE_LICENSE_KEY to enable it.");
             }
 
-            if (!IPAddress.TryParse(IpAddress?.Trim(), out IPAddress? ip) || !IsPublicAddress(ip))
+            if (!IPAddress.TryParse(IpAddress?.Trim(), out IPAddress? ip) || !NetworkHelper.IsPublicAddress(ip))
             {
                 return BadRequest("A valid public IP address is required.");
             }
@@ -135,35 +136,6 @@ namespace Jellystat_API_Core.Controllers
             }
 
             return new GeolocationInfo(ip, Name("city"), region, Name("country"), countryCode, postal, isp, lat, lon, accuracy);
-        }
-
-        /// <summary>
-        /// Rejects loopback, private, link-local and carrier-grade NAT ranges, which GeoLite can't locate.
-        /// </summary>
-        private static bool IsPublicAddress(IPAddress ip)
-        {
-            if (ip.IsIPv4MappedToIPv6) ip = ip.MapToIPv4();
-            if (IPAddress.IsLoopback(ip)) return false;
-
-            if (ip.AddressFamily == AddressFamily.InterNetwork)
-            {
-                byte[] b = ip.GetAddressBytes();
-                return !(b[0] == 0
-                    || b[0] == 10
-                    || (b[0] == 100 && b[1] >= 64 && b[1] <= 127)
-                    || (b[0] == 169 && b[1] == 254)
-                    || (b[0] == 172 && b[1] >= 16 && b[1] <= 31)
-                    || (b[0] == 192 && b[1] == 168)
-                    || b[0] >= 224);
-            }
-
-            if (ip.AddressFamily == AddressFamily.InterNetworkV6)
-            {
-                byte first = ip.GetAddressBytes()[0];
-                return !(ip.IsIPv6LinkLocal || ip.IsIPv6SiteLocal || ip.IsIPv6Multicast || (first & 0xFE) == 0xFC);
-            }
-
-            return false;
         }
     }
 }

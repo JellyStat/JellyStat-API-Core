@@ -2,6 +2,7 @@
 using Jellystat_API_Core.Classes.Tasks;
 using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Extensions;
+using Jellystat_API_Core.Helpers;
 using Jellystat_API_Core.Models.API.Base;
 using Jellystat_API_Core.Models.API.Jellyfin;
 using Jellystat_API_Core.Models.Jellystat;
@@ -329,27 +330,39 @@ namespace Jellystat_API_Core.Classes.API
         {
             if (iconUrl != null)
             {
+                // Absolute URLs point at third-party hosts: never send them the server API key
+                if (iconUrl.IsAbsoluteUri)
+                {
+                    return await ExternalImageFetcher.GetAsync(iconUrl);
+                }
+
+                // Server-relative paths go to the media server. "//host" would be resolved as a different host, so refuse it.
+                string path = iconUrl.OriginalString;
+                if (!path.StartsWith('/') || path.StartsWith("//"))
+                {
+                    return new HttpResponseMessage(System.Net.HttpStatusCode.BadRequest);
+                }
                 return await httpClient.GetAsync(iconUrl);
             }
             if (icon != null)
             {
-                icon = icon.ToLowerInvariant();
+                icon = Uri.EscapeDataString(icon.ToLowerInvariant());
             }
             return await httpClient.GetAsync($"/web/assets/img/devices/{icon}");
         }
         public async Task<HttpResponseMessage> GetBackdropImage(string Id, int Width = 800, int Quality = 100, int Blur = 0)
         {
-            return await httpClient.GetAsync($"/Items/{Id}/Images/Backdrop?fillWidth={Width}&quality={Quality}&blur={Blur}");
+            return await httpClient.GetAsync($"/Items/{Uri.EscapeDataString(Id)}/Images/Backdrop?fillWidth={Width}&quality={Quality}&blur={Blur}");
         }
 
         public async Task<HttpResponseMessage> GetItemImage(string Id, int Width = 800, int Quality = 100, int Blur = 0)
         {
-            return await httpClient.GetAsync($"/Items/{Id}/Images/Primary?fillWidth={Width}&quality={Quality}&blur={Blur}");
+            return await httpClient.GetAsync($"/Items/{Uri.EscapeDataString(Id)}/Images/Primary?fillWidth={Width}&quality={Quality}&blur={Blur}");
         }
 
         public async Task<HttpResponseMessage> GetUserImage(string Id, int Width = 800, int Quality = 100, int Blur = 0)
         {
-            return await httpClient.GetAsync($"/Users/{Id}/Images/Primary?fillWidth={Width}&quality={Quality}&blur={Blur}");
+            return await httpClient.GetAsync($"/Users/{Uri.EscapeDataString(Id)}/Images/Primary?fillWidth={Width}&quality={Quality}&blur={Blur}");
         }
     }
 }
