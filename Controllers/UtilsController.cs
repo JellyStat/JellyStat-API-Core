@@ -1,6 +1,9 @@
-﻿using Jellystat_API_Core.Helpers;
+﻿using Jellystat_API_Core.Data;
+using Jellystat_API_Core.Extensions;
+using Jellystat_API_Core.Helpers;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Net;
@@ -27,6 +30,13 @@ namespace Jellystat_API_Core.Controllers
 
         // GeoLite's free tier is rate limited, so remember recent lookups
         private static readonly ConcurrentDictionary<string, (DateTime Expires, GeolocationInfo Info)> _cache = new();
+
+        private readonly ApplicationDbContext context;
+
+        public UtilsController(ApplicationDbContext context)
+        {
+            this.context = context;
+        }
 
         public record GeolocationInfo(
             string IpAddress,
@@ -59,6 +69,20 @@ namespace Jellystat_API_Core.Controllers
             }
 
             string key = ip.ToString();
+
+            // Remote logins may only look up IPs from their own playback history.
+            // Checked before the cache so cached lookups can't be used to get around it.
+            string? scopedUserId = HttpContext.User.GetScopedUserId();
+            if (scopedUserId != null)
+            {
+                string raw = IpAddress!.Trim();
+                bool ownsIp = await context.Activity.AnyAsync(a => a.UserId == scopedUserId && (a.IpAddress == key || a.IpAddress == raw));
+                if (!ownsIp)
+                {
+                    return Forbid();
+                }
+            }
+
             if (_cache.TryGetValue(key, out var cached) && cached.Expires > DateTime.UtcNow)
             {
                 return Ok(cached.Info);

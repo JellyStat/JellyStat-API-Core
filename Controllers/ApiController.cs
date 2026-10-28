@@ -502,7 +502,8 @@ namespace Jellystat_API_Core.Controllers
                 ServerId = HttpContext.User.GetServerId();
             }
 
-            return context.Users.Where(u => u.ServerId == ServerId && !context.ExcludedUsers
+            // Remote logins only see themselves
+            return context.Users.VisibleTo(HttpContext.User).Where(u => u.ServerId == ServerId && !context.ExcludedUsers
                    .Any(el => el.ServerId == ServerId && el.UserId == u.Id)).Gridify(query);
         }
 
@@ -525,6 +526,9 @@ namespace Jellystat_API_Core.Controllers
         [DefaultGridifyOrder(nameof(LibrariesWithStats.Name))]
         public ActionResult<Paging<LibrariesWithStats>> GetLibraries([FromQuery] GridifyQuery query, string? ServerId)
         {
+            // Non-admins (remote Jellyfin logins) only see their own plays
+            var visibleActivity = context.Activity.VisibleTo(HttpContext.User);
+
             if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
                 ServerId = HttpContext.User.GetServerId();
@@ -536,7 +540,7 @@ namespace Jellystat_API_Core.Controllers
                .Select(library => new LibrariesWithStats
                {
                    // Stats fields - calculated from activity on items in this library
-                   PlayCount = context.Activity
+                   PlayCount = visibleActivity
                        .Join(context.Items,
                              activity => activity.ItemId,
                              item => item.Id,
@@ -544,7 +548,7 @@ namespace Jellystat_API_Core.Controllers
                        .Where(x => x.item.LibraryId == library.Id && x.item.ServerId == ServerId)
                        .Count(),
 
-                   PlayDuration = (context.Activity
+                   PlayDuration = (visibleActivity
                        .Join(context.Items,
                              activity => activity.ItemId,
                              item => item.Id,
@@ -574,7 +578,7 @@ namespace Jellystat_API_Core.Controllers
                        .OrderBy(type => type.Type)
                        .ToList(),
 
-                   LatestActivity = context.Activity
+                   LatestActivity = visibleActivity
                        .Join(context.Items,
                              activity => activity.ItemId,
                              item => item.Id,
@@ -604,6 +608,9 @@ namespace Jellystat_API_Core.Controllers
         [DefaultGridifyOrder(nameof(Items.Name))]
         public ActionResult<Paging<ItemsWithStats>> GetLibraryItems([FromQuery] GridifyQuery query, string? ServerId)
         {
+            // Non-admins (remote Jellyfin logins) only see their own plays
+            var visibleActivity = context.Activity.VisibleTo(HttpContext.User);
+
             if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
                 ServerId = HttpContext.User.GetServerId();
@@ -615,7 +622,7 @@ namespace Jellystat_API_Core.Controllers
                     // Stats fields - calculated from descendant activity via ItemsPath
                     PlayCount = context.ItemsPath
                         .Where(path => path.AncestorId == item.Id)
-                        .Join(context.Activity,
+                        .Join(visibleActivity,
                               path => path.DescendantId,
                               activity => activity.ItemId,
                               (path, activity) => activity)
@@ -623,7 +630,7 @@ namespace Jellystat_API_Core.Controllers
 
                     PlayDuration = (context.ItemsPath
                         .Where(path => path.AncestorId == item.Id)
-                        .Join(context.Activity,
+                        .Join(visibleActivity,
                               path => path.DescendantId,
                               activity => activity.ItemId,
                               (path, activity) => activity)
@@ -632,7 +639,7 @@ namespace Jellystat_API_Core.Controllers
 
                     LatestActivity = context.ItemsPath
                         .Where(path => path.AncestorId == item.Id)
-                        .Join(context.Activity,
+                        .Join(visibleActivity,
                               path => path.DescendantId,
                               activity => activity.ItemId,
                               (path, activity) => activity)
@@ -641,7 +648,7 @@ namespace Jellystat_API_Core.Controllers
 
                     LatestActivityDate = context.ItemsPath
                         .Where(path => path.AncestorId == item.Id)
-                        .Join(context.Activity,
+                        .Join(visibleActivity,
                               path => path.DescendantId,
                               activity => activity.ItemId,
                               (path, activity) => activity)

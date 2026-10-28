@@ -30,6 +30,9 @@ namespace Jellystat_API_Core.Controllers
         [DefaultGridifyOrder(nameof(Activity.DateCreated), true)]
         public Paging<ActivityModel> GetActivityAsync([FromQuery] GridifyQuery query, string? ServerId, bool GroupResults = true)
         {
+            // Non-admins (remote Jellyfin logins) only see their own plays
+            var visibleActivity = context.Activity.VisibleTo(HttpContext.User);
+
             if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
                 ServerId = HttpContext.User.GetServerId();
@@ -37,14 +40,14 @@ namespace Jellystat_API_Core.Controllers
             if (GroupResults)
             {
 
-                var latestIdsQuery = context.Activity
+                var latestIdsQuery = visibleActivity
               .Where(a => a.ServerId == ServerId)
               .GroupBy(a => new { a.UserId, a.ItemId })
               .Select(g => g.OrderByDescending(x => x.DateCreated)
                             .Select(x => x.Id)
                             .FirstOrDefault());
 
-                return context.Activity
+                return visibleActivity
                                 .Where(a => latestIdsQuery.Contains(a.Id))
                                 .LeftJoin(context.Items,
                                       activity => activity.ItemId,
@@ -76,8 +79,8 @@ namespace Jellystat_API_Core.Controllers
                                     RuntimeTicks = x.activity.RuntimeTicks,
                                     LibraryId = x.item.LibraryId,
                                     Item = x.item,
-                                    PlayCount = context.Activity.Count(a => a.ItemId == x.activity.ItemId && a.UserId == x.activity.UserId),
-                                    PlayDuration = context.Activity.Where(a => a.ItemId == x.activity.ItemId && a.UserId == x.activity.UserId).Sum(a => a.Duration),
+                                    PlayCount = visibleActivity.Count(a => a.ItemId == x.activity.ItemId && a.UserId == x.activity.UserId),
+                                    PlayDuration = visibleActivity.Where(a => a.ItemId == x.activity.ItemId && a.UserId == x.activity.UserId).Sum(a => a.Duration),
                                     FullName = x.activity.SeriesName == null
                                                     ? x.activity.Name
                                                     : x.activity.SeriesName + " : " +
@@ -95,7 +98,7 @@ namespace Jellystat_API_Core.Controllers
                                                       " - " : string.Empty)
                                                        +
                                                       x.activity.Name,
-                                    GroupedResults = context.Activity.Where(a => a.ItemId == x.activity.ItemId && a.UserId == x.activity.UserId).Select(h => new ActivityModel
+                                    GroupedResults = visibleActivity.Where(a => a.ItemId == x.activity.ItemId && a.UserId == x.activity.UserId).Select(h => new ActivityModel
                                     {
                                         Id = h.Id,
                                         ServerId = ServerId,
@@ -145,7 +148,7 @@ namespace Jellystat_API_Core.Controllers
                                 .Gridify(query);
             }
 
-            return context.Activity.Where(a => a.ServerId == ServerId)
+            return visibleActivity.Where(a => a.ServerId == ServerId)
                     .LeftJoin(context.Items,
                              activity => activity.ItemId,
                              item => item.Id,
@@ -226,18 +229,12 @@ namespace Jellystat_API_Core.Controllers
             }
             else
             {
-                // Non admins always get their own timeline, matched on their Jellyfin username.
-                string? username = HttpContext.User.GetUsername();
-                userId = username == null
-                    ? null
-                    : await context.Users
-                        .Where(u => u.ServerId == ServerId && u.Username.ToLower() == username.ToLower())
-                        .Select(u => u.Id)
-                        .FirstOrDefaultAsync();
-
-                if (userId == null)
+                // Remote logins always get their own timeline (user id from their token).
+                // Server-wide read-only API keys have no user of their own, so they choose one like an admin.
+                userId = HttpContext.User.GetScopedUserId() ?? UserId;
+                if (string.IsNullOrWhiteSpace(userId))
                 {
-                    return NotFound("No user found for the current login on this server.");
+                    return BadRequest("UserId is required.");
                 }
             }
 

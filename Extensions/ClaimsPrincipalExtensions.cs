@@ -74,6 +74,27 @@ namespace Jellystat_API_Core.Extensions
             }
         }
 
+        /// <summary>Claim holding the media server user id of a remote (Jellyfin/Emby) login.</summary>
+        public const string UserIdClaim = "userId";
+
+        // Matches no user: used when a non-admin token has no userId (e.g. issued before this claim existed),
+        // so it sees nothing until the next refresh adds the claim.
+        private const string NoUserScope = "__no_user__";
+
+        /// <summary>
+        /// The media server user id this caller is limited to, or null when they may see every user on their server.
+        /// Admins and read-only API keys (created by an admin for a whole server, e.g. dashboards) are not limited;
+        /// remote logins only ever see their own data.
+        /// </summary>
+        public static string? GetScopedUserId(this ClaimsPrincipal principal)
+        {
+            if (principal.IsAdministrator()) return null;
+            if (principal.HasClaim(c => c.Type == Jellystat_API_Core.Attributes.ApiKeyDefaults.ApiKeyIdClaim)) return null;
+
+            string? userId = principal.GetClaimValue(UserIdClaim);
+            return string.IsNullOrEmpty(userId) ? NoUserScope : userId;
+        }
+
         /// <summary>
         /// True for access tokens and API keys (which carry type=access). Refresh tokens have type=refresh and
         /// must only ever be accepted by /Auth/Refresh.

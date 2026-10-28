@@ -366,12 +366,8 @@ namespace Jellystat_API_Core.Classes.Tasks
             }
             LastSessionData = sessionsItems;
 
-            JellystatWebsocketMessage<IList<BaseSessionItem>> message = new JellystatWebsocketMessage<IList<BaseSessionItem>>()
-            {
-                Type = WebsocketServerTypes.Sessions,
-                Data = sessionsItems
-            };
-            await Global.WebSocketServerService.BroadcastObjectAsync(message, api.config.Id);
+            // Filtered per connection: remote logins only receive their own sessions
+            await Global.WebSocketServerService.BroadcastSessionsAsync(sessionsItems, api.config.Id);
         }
     }
 }

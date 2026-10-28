@@ -1,3 +1,5 @@
+using Jellystat_API_Core.Enums;
+using Jellystat_API_Core.Models.API.Base;
 using Jellystat_API_Core.Models.WebSocket;
 using Newtonsoft.Json;
 using System.Collections.Concurrent;
@@ -10,18 +12,18 @@ namespace Jellystat_API_Core.Services.WebSocket
 
     public class WebSocketServerService : IWebSocketServerService
     {
-        private readonly ConcurrentDictionary<string, (string ServerId, System.Net.WebSockets.WebSocket WebSocket)> _connections;
+        private readonly ConcurrentDictionary<string, (string ServerId, System.Net.WebSockets.WebSocket WebSocket, string? ScopedUserId)> _connections;
         private readonly ILogger<WebSocketServerService> _logger;
 
         public WebSocketServerService(ILogger<WebSocketServerService> logger)
         {
-            _connections = new ConcurrentDictionary<string, (string ServerId, System.Net.WebSockets.WebSocket WebSocket)>();
+            _connections = new ConcurrentDictionary<string, (string ServerId, System.Net.WebSockets.WebSocket WebSocket, string? ScopedUserId)>();
             _logger = logger;
         }
 
-        public async Task HandleWebSocketAsync(System.Net.WebSockets.WebSocket webSocket, string connectionId, string serverId)
+        public async Task HandleWebSocketAsync(System.Net.WebSockets.WebSocket webSocket, string connectionId, string serverId, string? scopedUserId = null)
         {
-            if (!_connections.TryAdd(connectionId, (serverId, webSocket)))
+            if (!_connections.TryAdd(connectionId, (serverId, webSocket, scopedUserId)))
             {
                 _logger.LogWarning("Connection {ConnectionId} already exists", connectionId);
                 await webSocket.CloseAsync(WebSocketCloseStatus.NormalClosure, "Duplicate connection", CancellationToken.None);
@@ -101,6 +103,41 @@ namespace Jellystat_API_Core.Services.WebSocket
             await BroadcastMessageAsync(json, serverId);
         }
 
+
+        public async Task BroadcastSessionsAsync(IList<BaseSessionItem> sessions, string serverId)
+        {
+            // Serialise once per distinct audience (everything, or one user's sessions) rather than per connection
+            var payloads = new Dictionary<string, byte[]>();
+            byte[] PayloadFor(string? userId)
+            {
+                string cacheKey = userId ?? string.Empty;
+                if (!payloads.TryGetValue(cacheKey, out byte[]? bytes))
+                {
+                    IList<BaseSessionItem> visible = userId == null
+                        ? sessions
+                        : sessions.Where(s => s.UserId == userId).ToList();
+                    var message = new JellystatWebsocketMessage<IList<BaseSessionItem>>
+                    {
+                        Type = WebsocketServerTypes.Sessions,
+                        Data = visible
+                    };
+                    bytes = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(message, Global.jsonSettings));
+                    payloads[cacheKey] = bytes;
+                }
+                return bytes;
+            }
+
+            var tasks = new List<Task>();
+            foreach (var connection in _connections.Where(c => c.Value.ServerId == serverId))
+            {
+                if (connection.Value.WebSocket.State == WebSocketState.Open)
+                {
+                    tasks.Add(SendBytesAsync(connection.Key, connection.Value.WebSocket, PayloadFor(connection.Value.ScopedUserId)));
+                }
+            }
+
+            await Task.WhenAll(tasks);
+        }
 
         public IEnumerable<string> GetConnectedClients()
         {

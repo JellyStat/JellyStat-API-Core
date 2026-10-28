@@ -31,6 +31,9 @@ namespace Jellystat_API_Core.Controllers
         [DefaultGridifyPageSize(5)]
         public Paging<ItemsWithStats> GetItemStats([FromQuery] GridifyQuery query, string? ServerId, int days = 30)
         {
+            // Non-admins (remote Jellyfin logins) only see their own plays
+            var visibleActivity = context.Activity.VisibleTo(HttpContext.User);
+
             if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
                 ServerId = HttpContext.User.GetServerId();
@@ -47,7 +50,7 @@ namespace Jellystat_API_Core.Controllers
                          .SelectMany(
                              x => x.paths,
                              (x, path) => new { x.item, path })
-                         .GroupJoin(context.Activity.Where(a => a.DateCreated >= cutoffDate),
+                         .GroupJoin(visibleActivity.Where(a => a.DateCreated >= cutoffDate),
                              x => x.path.DescendantId,
                              activity => activity.ItemId,
                              (x, activities) => new { x.item, activities })
@@ -104,6 +107,9 @@ namespace Jellystat_API_Core.Controllers
         [DefaultGridifyPageSize(5)]
         public Paging<ItemsWithStats> GetMostPopularItems([FromQuery] GridifyQuery query, string? ServerId, int days = 30)
         {
+            // Non-admins (remote Jellyfin logins) only see their own plays
+            var visibleActivity = context.Activity.VisibleTo(HttpContext.User);
+
             if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
                 ServerId = HttpContext.User.GetServerId();
@@ -120,7 +126,7 @@ namespace Jellystat_API_Core.Controllers
                         .SelectMany(
                             x => x.paths,
                             (x, path) => new { x.item, path })
-                        .GroupJoin(context.Activity.Where(a => a.DateCreated >= cutoffDate),
+                        .GroupJoin(visibleActivity.Where(a => a.DateCreated >= cutoffDate),
                             x => x.path.DescendantId,
                             activity => activity.ItemId,
                             (x, activities) => new { x.item, activities })
@@ -180,6 +186,9 @@ namespace Jellystat_API_Core.Controllers
         [DefaultGridifyPageSize(5)]
         public Paging<LibrariesWithStats> GetLibraryStats([FromQuery] GridifyQuery query, string? ServerId, int days = 30)
         {
+            // Non-admins (remote Jellyfin logins) only see their own plays
+            var visibleActivity = context.Activity.VisibleTo(HttpContext.User);
+
             if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
                 ServerId = HttpContext.User.GetServerId();
@@ -192,7 +201,7 @@ namespace Jellystat_API_Core.Controllers
                  .Where(i => i.ServerId == ServerId && !context.ExcludedLibraries.Select(el => el.LibraryId).Contains(i.Id))
                  .Select(library => new LibrariesWithStats
                  {
-                     PlayCount = context.Activity
+                     PlayCount = visibleActivity
                          .Where(activity => activity.DateCreated >= cutoffDate) // Simple comparison
                          .Join(context.Items,
                                activity => activity.ItemId,
@@ -201,7 +210,7 @@ namespace Jellystat_API_Core.Controllers
                          .Where(x => x.item.LibraryId == library.Id && x.item.ServerId == library.ServerId)
                          .Count(),
 
-                     PlayDuration = (context.Activity
+                     PlayDuration = (visibleActivity
                          .Where(activity => activity.DateCreated >= cutoffDate)
                          .Join(context.Items,
                                activity => activity.ItemId,
@@ -232,7 +241,7 @@ namespace Jellystat_API_Core.Controllers
                          .OrderBy(type => type.Type)
                          .ToList(),
 
-                     LatestActivity = context.Activity
+                     LatestActivity = visibleActivity
                                       .Where(activity => context.Items
                                           .Where(item => item.LibraryId == library.Id && item.ServerId == library.ServerId)
                                           .Select(item => item.Id)
@@ -240,7 +249,7 @@ namespace Jellystat_API_Core.Controllers
                                       .OrderByDescending(a => a.DateCreated)
                                       .FirstOrDefault(),
 
-                     LatestActivityDate = context.Activity
+                     LatestActivityDate = visibleActivity
                                       .Where(activity => context.Items
                                           .Where(item => item.LibraryId == library.Id && item.ServerId == library.ServerId)
                                           .Select(item => item.Id)
@@ -267,6 +276,9 @@ namespace Jellystat_API_Core.Controllers
         [DefaultGridifyPageSize(5)]
         public Paging<ClientsWithStats> GetMostUsedClients([FromQuery] GridifyQuery query, string? ServerId, int days = 30)
         {
+            // Non-admins (remote Jellyfin logins) only see their own plays
+            var visibleActivity = context.Activity.VisibleTo(HttpContext.User);
+
             if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
                 ServerId = HttpContext.User.GetServerId();
@@ -274,7 +286,7 @@ namespace Jellystat_API_Core.Controllers
             DateTime cutoffDate = days == 0
                                 ? DateTime.MinValue
                                 : DateTime.UtcNow.AddDays(-days);
-            return context.Activity
+            return visibleActivity
                 .Where(activity => activity.DateCreated >= cutoffDate && activity.ServerId == ServerId)
                 .GroupBy(activity => activity.Client)
                 .Select(group => new ClientsWithStats
@@ -292,6 +304,9 @@ namespace Jellystat_API_Core.Controllers
         [DefaultGridifyPageSize(5)]
         public Paging<UsersWithStats> GetUserStats([FromQuery] GridifyQuery query, string? ServerId, int days = 30)
         {
+            // Non-admins (remote Jellyfin logins) only see their own plays
+            var visibleActivity = context.Activity.VisibleTo(HttpContext.User);
+
             if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
                 ServerId = HttpContext.User.GetServerId();
@@ -299,7 +314,7 @@ namespace Jellystat_API_Core.Controllers
             DateTime cutoffDate = days == 0
                     ? DateTime.MinValue
                     : DateTime.UtcNow.AddDays(-days);
-            return context.Activity
+            return visibleActivity
                 .Where(activity => activity.DateCreated >= cutoffDate && activity.ServerId == ServerId)
                 .GroupBy(activity => activity.UserId)
                 .Select(group => new UsersWithStats
@@ -322,6 +337,9 @@ namespace Jellystat_API_Core.Controllers
         [DefaultGridifyPageSize(5)]
         public Paging<TranscodesWithStats> GetTranscodeStats([FromQuery] GridifyQuery query, string? ServerId, int days = 30)
         {
+            // Non-admins (remote Jellyfin logins) only see their own plays
+            var visibleActivity = context.Activity.VisibleTo(HttpContext.User);
+
             if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
                 ServerId = HttpContext.User.GetServerId();
@@ -330,7 +348,7 @@ namespace Jellystat_API_Core.Controllers
             DateTime cutoffDate = days == 0
                     ? DateTime.MinValue
                     : DateTime.UtcNow.AddDays(-days);
-            return context.Activity
+            return visibleActivity
                 .Where(activity => activity.DateCreated >= cutoffDate && activity.ServerId == ServerId)
                 .GroupBy(activity => activity.PlayMethod)
                 .Select(group => new TranscodesWithStats
@@ -346,6 +364,9 @@ namespace Jellystat_API_Core.Controllers
         [DefaultGridifyPageSize(200)]
         public List<ChartStats> GetStatsByDay([FromQuery] GridifyQuery query, string? ServerId, StatMetric metric = StatMetric.Date)
         {
+            // Non-admins (remote Jellyfin logins) only see their own plays
+            var visibleActivity = context.Activity.VisibleTo(HttpContext.User);
+
             if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
                 ServerId = HttpContext.User.GetServerId();
@@ -362,7 +383,7 @@ namespace Jellystat_API_Core.Controllers
             }
 
             // Join activity -> items -> libraries, prepare a base projection
-            var baseQuery = context.Activity
+            var baseQuery = visibleActivity
                 .Where(activity => activity.ServerId == ServerId)
                 .ApplyFiltering(query)
                 .Join(context.Items,
@@ -534,12 +555,15 @@ namespace Jellystat_API_Core.Controllers
         [DefaultGridifyPageSize(5)]
         public IQueryable<GenreStats> GetGenreStats([FromQuery] GridifyQuery query, string? ServerId)
         {
+            // Non-admins (remote Jellyfin logins) only see their own plays
+            var visibleActivity = context.Activity.VisibleTo(HttpContext.User);
+
             if (!HttpContext.User.IsAdministrator() || ServerId == null)
             {
                 ServerId = HttpContext.User.GetServerId();
             }
 
-            return context.Activity
+            return visibleActivity
                   .Where(a => a.ServerId == ServerId)
                   .Join(
                       context.Items,

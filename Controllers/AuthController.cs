@@ -46,9 +46,19 @@ namespace Jellystat_API_Core.Controllers
         /// </summary>
         private bool IsApiKeyCaller => HttpContext.User.HasClaim(c => c.Type == ApiKeyDefaults.ApiKeyIdClaim);
 
-        private Object generateTokens(string Username, List<Permissions> permissions, string? ServerId)
+        /// <summary>Media server user id for a remote login, looked up once at login/refresh rather than per request.</summary>
+        private Task<string?> FindServerUserIdAsync(string serverId, string username)
         {
-            var claims = new[]
+            string usernameLower = username.ToLower();
+            return context.Users
+                .Where(u => u.ServerId == serverId && u.Username.ToLower() == usernameLower)
+                .Select(u => (string?)u.Id)
+                .FirstOrDefaultAsync();
+        }
+
+        private Object generateTokens(string Username, List<Permissions> permissions, string? ServerId, string? UserId = null)
+        {
+            var claims = new List<Claim>
            {
                 new Claim("username", Username),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
@@ -56,6 +66,7 @@ namespace Jellystat_API_Core.Controllers
                 new Claim("permissions", JsonConvert.SerializeObject(permissions.Select(p=>p.PermissionKey).ToList() ) ),
                 new Claim("serverId", ServerId ?? string.Empty)
             };
+            if (UserId != null) claims.Add(new Claim(ClaimsPrincipalExtensions.UserIdClaim, UserId));
 
             var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(Global.JwtKey));
             var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
@@ -66,7 +77,7 @@ namespace Jellystat_API_Core.Controllers
                 expires: DateTime.Now.AddHours(1),
                 signingCredentials: creds);
 
-            claims = new[]
+            claims = new List<Claim>
            {
                 new Claim("username", Username),
                 new Claim(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
@@ -74,6 +85,7 @@ namespace Jellystat_API_Core.Controllers
                 new Claim("type", "refresh"),
                 new Claim("serverId", ServerId ?? string.Empty)
             };
+            if (UserId != null) claims.Add(new Claim(ClaimsPrincipalExtensions.UserIdClaim, UserId));
 
 
             var refreshToken = new JwtSecurityToken(
@@ -216,9 +228,16 @@ namespace Jellystat_API_Core.Controllers
                     return Unauthorized("Invalid username or password");
                 }
 
+                // Remote logins are limited to their own data, so the token needs their media server user id
+                string? remoteUserId = await FindServerUserIdAsync(loginModel.ServerId!, loginModel.Username);
+                if (remoteUserId == null)
+                {
+                    return Unauthorized("Your account hasn't been synced to Jellystat yet. Try again after the next sync.");
+                }
+
                 List<Permissions> viewPermissions = new() { new Permissions { PermissionKey = PermissionTypes.CanView.GetDisplayName() } };
 
-                var remoteCredentials = generateTokens(loginModel.Username, viewPermissions, loginModel.ServerId!);
+                var remoteCredentials = generateTokens(loginModel.Username, viewPermissions, loginModel.ServerId!, remoteUserId);
 
                 return Ok(remoteCredentials);
 
@@ -277,16 +296,15 @@ namespace Jellystat_API_Core.Controllers
             }
 
             // Users is kept in sync with the media server (users deleted there are removed on sync)
-            string usernameLower = Username.ToLower();
-            bool userExists = await context.Users.AnyAsync(u => u.ServerId == ServerId && u.Username.ToLower() == usernameLower);
-            if (!userExists)
+            string? remoteUserId = await FindServerUserIdAsync(ServerId, Username);
+            if (remoteUserId == null)
             {
                 return Unauthorized("User no longer exists on this server");
             }
 
             List<Permissions> viewPermissions = new() { new Permissions { PermissionKey = PermissionTypes.CanView.GetDisplayName() } };
 
-            var remoteCredentials = generateTokens(Username, viewPermissions, ServerId!);
+            var remoteCredentials = generateTokens(Username, viewPermissions, ServerId!, remoteUserId);
 
             return Ok(remoteCredentials);
         }

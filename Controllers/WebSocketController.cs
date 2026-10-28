@@ -49,7 +49,8 @@ namespace Jellystat_API_Core.Controllers
             _logger.LogInformation("WebSocket connection established: {ConnectionId}, ClientId: {ClientId}",
                 connectionId, ServerId);
 
-            await _webSocketService.HandleWebSocketAsync(webSocket, connectionId, ServerId);
+            // Remote logins only receive their own live sessions
+            await _webSocketService.HandleWebSocketAsync(webSocket, connectionId, ServerId, HttpContext.User.GetScopedUserId());
 
             return Ok();
         }
