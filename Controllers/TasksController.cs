@@ -9,6 +9,7 @@ using Jellystat_API_Core.Services.API;
 using Jellystat_API_Core.Services.Tasks;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Jellystat_API_Core.Controllers
 {
@@ -81,8 +82,32 @@ namespace Jellystat_API_Core.Controllers
 
         [HttpPost("UpdateTask", Name = "UpdateTask")]
         [PermissionAuthorize(PermissionTypes.Administrator)]
-        public async Task<ActionResult> UpdateTask(string ServerId, [FromBody] TaskSettings taskSetting)
+        public async Task<ActionResult> UpdateTask(string? ServerId, [FromBody] TaskSettings taskSetting)
         {
+            // Global tasks (e.g. Backup) live in the GlobalTasks table, not on a server's TaskSettings
+            bool isGlobalTask = await context.GlobalTasks.AnyAsync(gt => gt.Task == taskSetting.Task);
+            if (isGlobalTask)
+            {
+                if (taskSetting.IntervalMinutes < 0)
+                {
+                    return BadRequest("Interval must be zero or greater");
+                }
+
+                await context.GlobalTasks
+                    .Where(gt => gt.Task == taskSetting.Task)
+                    .ExecuteUpdateAsync(gt => gt
+                        .SetProperty(p => p.IntervalMinutes, taskSetting.IntervalMinutes)
+                        .SetProperty(p => p.Enabled, taskSetting.Enabled));
+
+                await _taskSchedulerService.RegisterGlobalTasks();
+                return Ok(true);
+            }
+
+            if (string.IsNullOrWhiteSpace(ServerId))
+            {
+                return BadRequest("ServerId is required for server tasks");
+            }
+
             iAPI? api = _apiInstanceManager.GetInstance(ServerId);
             if (api == null)
             {
@@ -104,7 +129,7 @@ namespace Jellystat_API_Core.Controllers
             if (success)
             {
                 await _taskSchedulerService.RegisterTasksAsync(api.config, taskSettings.ToList());
-                return Ok();
+                return Ok(true);
             }
             return BadRequest("Failed to update task");
         }

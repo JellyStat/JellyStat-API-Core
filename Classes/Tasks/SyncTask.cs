@@ -455,7 +455,7 @@ namespace Jellystat_API_Core.Classes.Tasks
 
                     // Rebuild the ItemsPath table using a recursive CTE, which is much faster than doing it in memory
                     await context.Database.ExecuteSqlRawAsync(@"
-                            DELETE FROM ""ItemsPath"";
+                            TRUNCATE ""ItemsPath"";
                             INSERT INTO ""ItemsPath"" (""AncestorId"", ""DescendantId"", ""Depth"")
                             WITH RECURSIVE tree AS (
                                 -- 1. Base Case: Select from Items directly
