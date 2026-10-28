@@ -37,6 +37,10 @@ namespace Jellystat_API_Core
         public static bool IsConfigured = false;
         public static bool AllowUnauthenticatedPasswordReset = false;
 
+        /// <summary>MaxMind GeoLite web service credentials (JS_GEOLITE_ACCOUNT_ID / JS_GEOLITE_LICENSE_KEY). IP lookup is disabled when either is missing.</summary>
+        public static string? GeoLiteAccountId { get; set; }
+        public static string? GeoLiteLicenseKey { get; set; }
+
         public static readonly string BackupDirectory = Path.Combine(AppContext.BaseDirectory, "backups");
         public static string WebUIDirectory { get; set; } = string.Empty;
         public static readonly HashSet<string> BackupExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { ".bac", ".json", ".jsonl" };

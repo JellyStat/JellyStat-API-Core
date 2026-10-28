@@ -33,6 +33,9 @@ int NewWatchThresholdHours = builder.Configuration.GetValue<int?>("NEW_WATCH_EVE
 int MinimumDurationThreshold = builder.Configuration.GetValue<int?>("MINIMUM_SECONDS_TO_INCLUDE_PLAYBACK") ?? Global.MinimumDurationThreshold;
 string UiURI = builder.Configuration["UI_URI"] ?? "";
 bool AllowUnauthenticatedPasswordReset = builder.Configuration.GetValue<bool?>("ALLOW_UNAUTHENTICATED_PASSWORD_RESET") ?? Global.AllowUnauthenticatedPasswordReset;
+// Same variable names as Jellystat v1 so existing deployments keep working
+string? geoLiteAccountId = builder.Configuration["JS_GEOLITE_ACCOUNT_ID"];
+string? geoLiteLicenseKey = builder.Configuration["JS_GEOLITE_LICENSE_KEY"];
 
 
 var jwtKey = builder.Configuration["JWT_KEY"] ?? Global.JwtKey;
@@ -59,6 +62,9 @@ Global.MinimumDurationThreshold = MinimumDurationThreshold;
 Global.JwtKey = jwtKey;
 
 Global.AllowUnauthenticatedPasswordReset = AllowUnauthenticatedPasswordReset;
+
+Global.GeoLiteAccountId = geoLiteAccountId;
+Global.GeoLiteLicenseKey = geoLiteLicenseKey;
 
 
 var connectionString = $"Host={dbHost};Port={dbPort};Database={dbName};Username={dbUsername};Password={dbPassword}";
