@@ -35,6 +35,12 @@ namespace Jellystat_API_Core.Controllers
         }
 
 
+        /// <summary>
+        /// True when the caller authenticated with an API key. Local user management is limited to signed-in
+        /// administrators, so a leaked key can't create or take over a login that outlives revoking the key.
+        /// </summary>
+        private bool IsApiKeyCaller => HttpContext.User.HasClaim(c => c.Type == ApiKeyDefaults.ApiKeyIdClaim);
+
         private Object generateTokens(string Username, List<Permissions> permissions, string? ServerId)
         {
             var claims = new[]
@@ -267,6 +273,8 @@ namespace Jellystat_API_Core.Controllers
         [HttpPost("UpdateUser", Name = "UpdateUser")]
         public async Task<ActionResult> UpdateUser([FromBody] LocalUser user)
         {
+            if (IsApiKeyCaller) return Forbid();
+
             bool Authorized = HttpContext.User.Identity?.IsAuthenticated == true;
             bool isAdmin = Authorized && HttpContext.User.IsAdministrator();
 
@@ -311,6 +319,8 @@ namespace Jellystat_API_Core.Controllers
         [HttpPost("CreateUser", Name = "CreateUser")]
         public async Task<ActionResult> CreateUser([FromBody] LocalUser user)
         {
+            if (IsApiKeyCaller) return Forbid();
+
             bool isConfigured = Global.IsConfigured;
             bool Authorized = HttpContext.User.Identity?.IsAuthenticated == true;
             bool isAdmin = Authorized && HttpContext.User.IsAdministrator();
@@ -369,6 +379,8 @@ namespace Jellystat_API_Core.Controllers
         [PermissionAuthorize(PermissionTypes.Administrator)]
         public async Task<ActionResult> DeleteUser(string Id)
         {
+            if (IsApiKeyCaller) return Forbid();
+
             LocalUsers? dbUser = await context.LocalUsers.Where(u => u.Id.Equals(Id)).FirstOrDefaultAsync();
             if (dbUser == null)
             {
