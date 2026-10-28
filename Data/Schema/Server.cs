@@ -19,6 +19,7 @@ namespace Jellystat_API_Core.Data.Schema
         public List<TaskSettings> TaskSettings { get; set; } = new List<TaskSettings> {
             new TaskSettings(TaskTypes.FullSync, (24 * 60)),
             new TaskSettings(TaskTypes.PartialSync, (12 * 60)),
+            new TaskSettings(TaskTypes.PlaybackReportingPluginSync, 0, true), // interval 0: manual only, never scheduled
         };
     }
 }

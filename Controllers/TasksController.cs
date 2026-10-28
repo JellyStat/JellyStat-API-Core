@@ -58,6 +58,15 @@ namespace Jellystat_API_Core.Controllers
             }
 
             TaskSettings? task = api.config.TaskSettings.FirstOrDefault(t => t.Task == Task);
+
+            if (Task == TaskTypes.PlaybackReportingPluginSync)
+            {
+                // A manual import doesn't need the task to be scheduled (or even present in the server's task list)
+                TaskSettings importTask = task ?? new TaskSettings(Task, 0, true);
+                await _taskSchedulerService.EnqueueTaskAsync(api.config, importTask);
+                return Ok();
+            }
+
             if (task == null)
             {
                 return NotFound("Task not found");
@@ -84,6 +93,11 @@ namespace Jellystat_API_Core.Controllers
         [PermissionAuthorize(PermissionTypes.Administrator)]
         public async Task<ActionResult> UpdateTask(string? ServerId, [FromBody] TaskSettings taskSetting)
         {
+            if (taskSetting.Task == TaskTypes.PlaybackReportingPluginSync)
+            {
+                return BadRequest("The Playback Reporting import can only be run manually; its interval and enabled state can't be changed");
+            }
+
             // Global tasks (e.g. Backup) live in the GlobalTasks table, not on a server's TaskSettings
             bool isGlobalTask = await context.GlobalTasks.AnyAsync(gt => gt.Task == taskSetting.Task);
             if (isGlobalTask)

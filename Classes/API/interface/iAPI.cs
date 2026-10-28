@@ -37,6 +37,14 @@ namespace Jellystat_API_Core.Classes.API.@interface
 
         public Task<BaseSystemInfo> GetSystemInfo();
 
+        public Task<IList<BasePlugin>> GetInstalledPlugins();
+
+        /// <summary>
+        /// Runs a SQLite query against the Playback Reporting plugin. Returns null when the plugin is not installed,
+        /// otherwise one dictionary per result row, keyed by column name (case-insensitive).
+        /// </summary>
+        public Task<List<Dictionary<string, string?>>?> SubmitPlaybackReportingQuery(string query, CancellationToken cancellationToken = default);
+
         public IList<BaseSessionItem> GetSessionData();
         //
         public Task Dispose();

@@ -172,7 +172,8 @@ namespace Jellystat_API_Core.Services.Tasks
 
             foreach (var taskSettings in tasks)
             {
-                if (taskSettings.Enabled)
+                // Tasks with no interval are run manually only and are never scheduled
+                if (taskSettings.Enabled && taskSettings.IntervalMinutes > 0)
                 {
                     var scheduledTask = new ScheduledTask(server, taskSettings);
                     Data.Schema.Logs? latestLog = latestExecutions.FirstOrDefault(log => log?.Task == taskSettings.Task);
@@ -464,7 +465,7 @@ namespace Jellystat_API_Core.Services.Tasks
                     case TaskTypes.PlaybackReportingPluginSync:
                         cancellationToken.ThrowIfCancellationRequested();
                         _logger.LogInformation($"Executing PlaybackReportingPluginSync task for server {server.Name}");
-                        await ExecutePlaybackReportingPluginSyncTask(server);
+                        await ExecutePlaybackReportingPluginSyncTask(api, cancellationToken);
                         break;
 
                     default:
@@ -497,10 +498,10 @@ namespace Jellystat_API_Core.Services.Tasks
             await backup.RunBackupAsync(cancellationToken);
         }
 
-        private async Task ExecutePlaybackReportingPluginSyncTask(Server server)
+        private async Task ExecutePlaybackReportingPluginSyncTask(iAPI api, CancellationToken cancellationToken)
         {
-            _logger.LogInformation($"PlaybackReportingPluginSync task logic not yet implemented for server {server.Name}");
-            await Task.CompletedTask;
+            PlaybackReportingImportTask import = new PlaybackReportingImportTask(api, _serviceScopeFactory);
+            await import.RunAsync(cancellationToken);
         }
 
         private async Task ExecuteRestoreTask(string filePath, CancellationToken cancellationToken)

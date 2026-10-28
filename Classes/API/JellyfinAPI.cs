@@ -274,6 +274,62 @@ namespace Jellystat_API_Core.Classes.API
             return systemInfo;
         }
 
+        public async Task<IList<BasePlugin>> GetInstalledPlugins()
+        {
+            var response = await httpClient.GetAsync("/Plugins");
+            response.EnsureSuccessStatusCode();
+
+            var plugins = await response.Content.ReadAsJsonAsync<IList<Plugin>>();
+            return plugins.Cast<BasePlugin>().ToList();
+        }
+
+        public async Task<List<Dictionary<string, string?>>?> SubmitPlaybackReportingQuery(string query, CancellationToken cancellationToken = default)
+        {
+            string body = JsonConvert.SerializeObject(new { CustomQueryString = query, ReplaceUserId = false });
+            using var content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
+            using var response = await httpClient.PostAsync("/user_usage_stats/submit_custom_query", content, cancellationToken);
+
+            // The route only exists when the Playback Reporting plugin is installed on the Jellyfin server
+            if (response.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                return null;
+            }
+
+            response.EnsureSuccessStatusCode();
+
+            string json = await response.Content.ReadAsStringAsync(cancellationToken);
+            Newtonsoft.Json.Linq.JObject result = Newtonsoft.Json.Linq.JObject.Parse(json);
+
+            if (result["results"] is not Newtonsoft.Json.Linq.JArray rows)
+            {
+                // The plugin reports SQL errors in "message" and leaves "results" empty
+                string? message = result["message"]?.ToString();
+                if (!string.IsNullOrWhiteSpace(message))
+                {
+                    throw new InvalidOperationException($"Playback Reporting query failed: {message}");
+                }
+                return new List<Dictionary<string, string?>>();
+            }
+
+            // The plugin spells the column list "colums"; accept "columns" too in case that's ever fixed
+            List<string> columns = ((result["colums"] ?? result["columns"]) as Newtonsoft.Json.Linq.JArray)?
+                .Select(c => c.ToString())
+                .ToList() ?? new List<string>();
+
+            return rows
+                .OfType<Newtonsoft.Json.Linq.JArray>()
+                .Select(row =>
+                {
+                    var values = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+                    for (int i = 0; i < row.Count && i < columns.Count; i++)
+                    {
+                        values[columns[i]] = row[i].Type == Newtonsoft.Json.Linq.JTokenType.Null ? null : row[i].ToString();
+                    }
+                    return values;
+                })
+                .ToList();
+        }
+
         public IList<BaseSessionItem> GetSessionData()
         {
             return SessionItems;
