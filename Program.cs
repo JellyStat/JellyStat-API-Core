@@ -6,6 +6,11 @@ using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Extensions;
 using Jellystat_API_Core.Helpers;
 using Jellystat_API_Core.Services.API;
+using Jellystat_API_Core.Services.Reports;
+using Jellystat_API_Core.Services.Reports.Datasets;
+using Jellystat_API_Core.Services.Reports.Delivery;
+using Jellystat_API_Core.Services.Reports.Query;
+using Jellystat_API_Core.Services.Reports.Rendering;
 using Jellystat_API_Core.Services.TaskLogging;
 using Jellystat_API_Core.Services.Tasks;
 using Jellystat_API_Core.Services.WebSocket;
@@ -107,6 +112,20 @@ builder.Services.AddScoped<IAuthorizationHandler, PermissionAuthorizationHandler
 builder.Services.AddSingleton<IAPIInstanceManager, APIInstanceManager>();
 builder.Services.AddSingleton<IWebSocketClientService, WebSocketClientService>();
 builder.Services.AddSingleton<IWebSocketServerService, WebSocketServerService>();
+
+// Custom reports: datasets and both query engines (EF Core / Gridify), server-side rendering, webhook delivery
+builder.Services.AddSingleton<IReportDatasetRegistry, ReportDatasetRegistry>();
+builder.Services.AddSingleton<IReportQueryEngine, EfCoreReportQueryEngine>();
+builder.Services.AddSingleton<IReportQueryEngine, GridifyReportQueryEngine>();
+builder.Services.AddScoped<IReportQueryExecutor, ReportQueryExecutor>();
+builder.Services.AddScoped<IReportService, ReportService>();
+builder.Services.AddSingleton<IReportTextMeasurer, SkiaTextMeasurer>();
+builder.Services.AddSingleton<SvgReportRenderer>();
+builder.Services.AddSingleton<IReportExporter, ReportExporter>();
+builder.Services.AddSingleton<IReportWebhookSender, ReportWebhookSender>();
+builder.Services.AddScoped<IReportScheduleRunner, ReportScheduleRunner>();
+builder.Services.AddHostedService<ReportScheduleHostedService>();
+builder.Services.AddHttpClient(ReportWebhookSender.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(60));
 
 
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, DefaultAccessTokenPolicyProvider>();

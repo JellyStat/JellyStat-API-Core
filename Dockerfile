@@ -30,6 +30,10 @@ COPY --from=publish --chown=$APP_UID:$APP_UID /app/publish .
 
 # Ensure the parent /app directory, the wwwroot directory, and all files have the expected ownership
 USER root
+# Fonts for server-side report rendering (PNG/PDF); the base image has none
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libfontconfig1 fonts-dejavu-core \
+    && rm -rf /var/lib/apt/lists/*
 COPY entrypoint.sh /app/entrypoint.sh
 RUN chmod +x /app/entrypoint.sh
 USER $APP_UID
