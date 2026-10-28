@@ -42,11 +42,12 @@ namespace Jellystat_API_Core.Controllers
         [HttpPost("UpdateConfig", Name = "UpdateConfig")]
         public async Task<ActionResult<Models.Jellystat.Server?>> AddOrUpdateServer([FromBody] AddServer server)
         {
-            bool isConfigured = Global.IsConfigured;
             bool Authorized = HttpContext.User.Identity?.IsAuthenticated == true;
             bool isAdmin = Authorized && HttpContext.User.IsAdministrator();
 
-            if (isConfigured && !isAdmin)
+            // Same rule as CreateUser: open only while no local user exists. Setup creates the admin first,
+            // and the tokens it returns authorise this call.
+            if (Global.HasLocalUsers && !isAdmin)
             {
                 return Unauthorized();
             }

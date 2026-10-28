@@ -325,7 +325,9 @@ namespace Jellystat_API_Core.Controllers
             bool Authorized = HttpContext.User.Identity?.IsAuthenticated == true;
             bool isAdmin = Authorized && HttpContext.User.IsAdministrator();
 
-            if (isConfigured && !isAdmin)
+            // Anonymous creation is only for the very first account during setup. As soon as any local user
+            // exists this is admin-only, even before a server has been added (IsConfigured needs both).
+            if (Global.HasLocalUsers && !isAdmin)
             {
                 return Unauthorized();
             }
@@ -357,6 +359,7 @@ namespace Jellystat_API_Core.Controllers
                     var credentials = generateTokens(username, permissions, null);
 
                     await transaction.CommitAsync();
+                    Global.HasLocalUsers = true;
                     if (!isConfigured)
                     {
                         await ConfigurationHelper.CheckIsConfiguredAsync(context);

@@ -36,6 +36,12 @@ namespace Jellystat_API_Core
         public static string UserAgent = "JellystatAPI/1.0.0";
 
         public static bool IsConfigured = false;
+
+        /// <summary>
+        /// True once any local user exists. Set at startup and when the first user is created; it never goes back
+        /// to false (the last local user can't be deleted). Gates the anonymous setup endpoints without a DB query.
+        /// </summary>
+        public static volatile bool HasLocalUsers = false;
         public static bool AllowUnauthenticatedPasswordReset = false;
 
         /// <summary>MaxMind GeoLite web service credentials (JS_GEOLITE_ACCOUNT_ID / JS_GEOLITE_LICENSE_KEY). IP lookup is disabled when either is missing.</summary>

@@ -7,8 +7,9 @@ namespace Jellystat_API_Core.Helpers
     {
         public static async Task CheckIsConfiguredAsync(ApplicationDbContext context)
         {
-            bool isConfigured = await context.LocalUsers.AnyAsync() && await context.Servers.AnyAsync();
-            Global.IsConfigured = isConfigured;
+            bool hasLocalUsers = await context.LocalUsers.AnyAsync();
+            Global.HasLocalUsers = hasLocalUsers;
+            Global.IsConfigured = hasLocalUsers && await context.Servers.AnyAsync();
         }
     }
 }
