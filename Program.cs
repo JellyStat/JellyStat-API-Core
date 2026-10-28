@@ -66,6 +66,12 @@ Global.MinimumDurationThreshold = MinimumDurationThreshold;
 Global.JwtKey = jwtKey;
 
 Global.AllowUnauthenticatedPasswordReset = AllowUnauthenticatedPasswordReset;
+if (AllowUnauthenticatedPasswordReset)
+{
+    // Recovery mode for a locked-out admin. While on, anyone who can reach the API and knows a local user's id
+    // can change that user's username and password, so make sure it doesn't get left on by accident.
+    Console.WriteLine("WARNING: ALLOW_UNAUTHENTICATED_PASSWORD_RESET is enabled. Anyone who can reach Jellystat can reset local user passwords. Turn it off and restart as soon as you have recovered access.");
+}
 
 Global.GeoLiteAccountId = geoLiteAccountId;
 Global.GeoLiteLicenseKey = geoLiteLicenseKey;
