@@ -5,6 +5,7 @@ using Jellystat_API_Core.Data;
 using Jellystat_API_Core.Data.Schema;
 using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Extensions;
+using Jellystat_API_Core.Helpers;
 using Jellystat_API_Core.Models.Jellystat;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -198,6 +199,102 @@ namespace Jellystat_API_Core.Controllers
                 .Gridify(query);
 
 
+        }
+
+        /// <summary>
+        /// Activity timeline for a single user: consecutive plays of the same title collapsed into runs.
+        /// Administrators can request any user on the server; everyone else only gets their own timeline.
+        /// When LibraryIds is omitted all (non excluded) libraries are included.
+        /// </summary>
+        [HttpGet("Timeline", Name = "Timeline")]
+        public async Task<ActionResult<List<TimelineEntry>>> GetTimelineAsync(string? UserId, string? ServerId, [FromQuery] string[]? LibraryIds)
+        {
+            bool isAdmin = HttpContext.User.IsAdministrator();
+            if (!isAdmin || ServerId == null)
+            {
+                ServerId = HttpContext.User.GetServerId();
+            }
+
+            string? userId;
+            if (isAdmin)
+            {
+                if (string.IsNullOrWhiteSpace(UserId))
+                {
+                    return BadRequest("UserId is required.");
+                }
+                userId = UserId;
+            }
+            else
+            {
+                // Non admins always get their own timeline, matched on their Jellyfin username.
+                string? username = HttpContext.User.GetUsername();
+                userId = username == null
+                    ? null
+                    : await context.Users
+                        .Where(u => u.ServerId == ServerId && u.Username.ToLower() == username.ToLower())
+                        .Select(u => u.Id)
+                        .FirstOrDefaultAsync();
+
+                if (userId == null)
+                {
+                    return NotFound("No user found for the current login on this server.");
+                }
+            }
+
+            var libraries = await context.Libraries
+                .Where(l => l.ServerId == ServerId && !context.ExcludedLibraries
+                    .Any(el => el.ServerId == ServerId && el.LibraryId == l.Id))
+                .Select(l => new { l.Id, l.Type })
+                .ToListAsync();
+
+            if (LibraryIds is { Length: > 0 })
+            {
+                libraries = libraries.Where(l => LibraryIds.Contains(l.Id)).ToList();
+            }
+
+            var libraryTypes = libraries.ToDictionary(l => l.Id, l => l.Type);
+            var libraryIdList = libraryTypes.Keys.ToList();
+
+            var rows = (await context.Activity
+                .Where(a => a.ServerId == ServerId && a.UserId == userId)
+                .Join(context.Items.Where(i => i.ServerId == ServerId && libraryIdList.Contains(i.LibraryId)),
+                      activity => activity.ItemId,
+                      item => item.Id,
+                      (activity, item) => new
+                      {
+                          activity.ItemId,
+                          activity.SeriesId,
+                          Title = activity.SeriesName ?? activity.Name,
+                          activity.DateCreated,
+                          activity.Duration,
+                          ItemType = item.Type,
+                          SeasonNumber = item.ParentIndex,
+                          item.LibraryId
+                      })
+                .ToListAsync())
+                .Select(r => new TimelineActivityRow(r.ItemId, r.SeriesId, r.Title, r.DateCreated, r.Duration, r.ItemType, r.SeasonNumber, r.LibraryId));
+
+            var entries = TimelineBuilder.Build(rows, libraryTypes, ServerId);
+
+            // Blurhash placeholders for the posters
+            var itemIds = entries.Select(e => e.ItemId).Distinct().ToList();
+            var hashes = await context.Items
+                .Where(i => i.ServerId == ServerId && itemIds.Contains(i.Id))
+                .Select(i => new { i.Id, i.ImageHash })
+                .ToListAsync();
+            var hashLookup = hashes
+                .GroupBy(h => h.Id)
+                .ToDictionary(g => g.Key, g => g.First().ImageHash);
+
+            foreach (var entry in entries)
+            {
+                if (hashLookup.TryGetValue(entry.ItemId, out var hash) && !string.IsNullOrEmpty(hash))
+                {
+                    entry.ImageHash = hash;
+                }
+            }
+
+            return entries;
         }
 
         [HttpDelete("Activity", Name = "Activity")]
