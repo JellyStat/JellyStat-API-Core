@@ -38,14 +38,16 @@ string? geoLiteAccountId = builder.Configuration["JS_GEOLITE_ACCOUNT_ID"];
 string? geoLiteLicenseKey = builder.Configuration["JS_GEOLITE_LICENSE_KEY"];
 
 
-var jwtKey = builder.Configuration["JWT_KEY"] ?? Global.JwtKey;
+var jwtKey = builder.Configuration["JWT_KEY"];
 
-if (string.IsNullOrEmpty(jwtKey))
+if (string.IsNullOrWhiteSpace(jwtKey))
 {
-    throw new InvalidOperationException("JWT Key is not defined");
+    // No fixed fallback: a key published in source code would let anyone sign their own admin tokens.
+    // A fresh random key is used instead, so existing sessions end (everyone signs in again) on every restart.
+    jwtKey = Convert.ToBase64String(System.Security.Cryptography.RandomNumberGenerator.GetBytes(64));
+    Console.WriteLine("WARNING: JWT_KEY is not set. Using a random signing key for this run; users will need to sign in again after every restart. Set JWT_KEY (32+ characters) to keep sessions across restarts.");
 }
-
-if (jwtKey.Length < 32)
+else if (jwtKey.Length < 32)
 {
     throw new InvalidOperationException("JWT key must be at least 32 characters (256 bits) for HS256.");
 }

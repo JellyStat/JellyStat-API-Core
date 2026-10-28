@@ -29,7 +29,8 @@ namespace Jellystat_API_Core
         public static double CompletionThreshold = 90;
         public static int NewWatchThresholdHours = 1;
         public static int MinimumDurationThreshold = 1;
-        public static string JwtKey = "A_super_secret_key_that_is_32_chars";
+        /// <summary>Signing key for JWTs. Set at startup from JWT_KEY, or a random per-run key when that is unset.</summary>
+        public static string JwtKey = string.Empty;
         public static string JwtIssuer = "Jellystat";
 
         public static string UserAgent = "JellystatAPI/1.0.0";
