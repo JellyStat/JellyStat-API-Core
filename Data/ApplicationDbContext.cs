@@ -37,6 +37,7 @@ namespace Jellystat_API_Core.Data
         public DbSet<ItemsPath> ItemsPath { get; set; }
         public DbSet<Logs> Logs { get; set; }
         public DbSet<GlobalTasks> GlobalTasks { get; set; }
+        public DbSet<ApiKeys> ApiKeys { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -331,6 +332,22 @@ namespace Jellystat_API_Core.Data
                 entity.Property(e => e.Task).IsRequired();
                 entity.Property(e => e.IntervalMinutes).IsRequired();
                 entity.Property(e => e.Enabled).HasDefaultValue(true);
+            });
+
+            modelBuilder.Entity<ApiKeys>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Name).IsRequired().HasMaxLength(100);
+                entity.Property(e => e.KeyHash).IsRequired();
+                entity.HasIndex(e => e.KeyHash).IsUnique();
+                entity.Property(e => e.KeyPrefix).IsRequired();
+                entity.Property(e => e.Permission).HasConversion<string>().IsRequired();
+
+                // Read-only keys are scoped to one server; removing the server removes its keys
+                entity.HasOne(e => e.Server)
+                      .WithMany()
+                      .HasForeignKey(e => e.ServerId)
+                      .OnDelete(DeleteBehavior.Cascade);
             });
 
             modelBuilder.Entity<GlobalTasks>().HasData(

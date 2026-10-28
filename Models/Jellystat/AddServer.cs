@@ -4,6 +4,8 @@ namespace Jellystat_API_Core.Models.Jellystat
 {
     public class AddServer
     {
+        /// <summary>Set when editing an existing server. A blank APIKey then keeps the stored key.</summary>
+        public string? Id { get; set; }
         public required string URL { get; set; }
         public string ExternalURL { get; set; } = "";
         public string APIKey { get; set; } = string.Empty;

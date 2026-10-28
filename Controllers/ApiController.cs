@@ -75,12 +75,32 @@ namespace Jellystat_API_Core.Controllers
 
 
 
+            // Editing an existing server: a blank API key keeps the stored one
+            var editingServer = string.IsNullOrWhiteSpace(server.Id)
+                ? null
+                : await context.Servers.AsNoTracking().FirstOrDefaultAsync(s => s.Id == server.Id);
+
+            if (!string.IsNullOrWhiteSpace(server.Id) && editingServer == null)
+            {
+                return NotFound("Server not found");
+            }
+
+            if (editingServer != null && string.IsNullOrWhiteSpace(server.APIKey))
+            {
+                server.APIKey = editingServer.APIKey;
+            }
+
             BaseSystemInfo? systemInfo = await serverHelper.GetSystemInfo(server.Type, server.URL, server.APIKey);
 
             if (systemInfo == null)
             {
 
                 return BadRequest("Could not connect to server with the provided information");
+            }
+
+            if (editingServer != null && systemInfo.Id != editingServer.Id)
+            {
+                return BadRequest("The provided URL and API key belong to a different server");
             }
 
             Models.Jellystat.Server _server = new Models.Jellystat.Server
@@ -92,6 +112,14 @@ namespace Jellystat_API_Core.Controllers
                 Name = systemInfo.ServerName,
                 Type = server.Type,
             };
+
+            // Keep the settings that are not part of this form (sync schedules, remote auth)
+            var existingServer = editingServer ?? await context.Servers.AsNoTracking().FirstOrDefaultAsync(s => s.Id == systemInfo.Id);
+            if (existingServer != null)
+            {
+                _server.TaskSettings = existingServer.TaskSettings;
+                _server.AllowRemoteAuth = existingServer.AllowRemoteAuth;
+            }
 
             Models.Jellystat.Server? result = await serverHelper.UpdateConfig(_server, context);
 

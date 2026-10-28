@@ -63,6 +63,16 @@ namespace Jellystat_API_Core.Attributes
                 return;
             }
 
+            // API keys carry their own permission level and have no local user to look up.
+            // Revoked keys never get this far: the API key authentication handler rejects them first.
+            if (context.User.HasClaim(c => c.Type == ApiKeyDefaults.ApiKeyIdClaim))
+            {
+                if (normalizedClaimPermissions.Contains(administratorPermission))
+                    context.Succeed(requirement);
+
+                return;
+            }
+
             if (!normalizedClaimPermissions.Contains(administratorPermission))
                 return;
 

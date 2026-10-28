@@ -9,6 +9,7 @@ using Jellystat_API_Core.Services.API;
 using Jellystat_API_Core.Services.TaskLogging;
 using Jellystat_API_Core.Services.Tasks;
 using Jellystat_API_Core.Services.WebSocket;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.EntityFrameworkCore;
@@ -117,9 +118,18 @@ builder.Services.AddAuthorization(options =>
 
 builder.Services.AddAuthentication(options =>
 {
-    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
-    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultAuthenticateScheme = ApiKeyDefaults.PolicyScheme;
+    options.DefaultChallengeScheme = ApiKeyDefaults.PolicyScheme;
 })
+// Requests carrying an x-api-token header are authenticated as API keys, everything else as JWT
+.AddPolicyScheme(ApiKeyDefaults.PolicyScheme, "JWT or API key", options =>
+{
+    options.ForwardDefaultSelector = context =>
+        context.Request.Headers.ContainsKey(ApiKeyDefaults.HeaderName)
+            ? ApiKeyDefaults.Scheme
+            : JwtBearerDefaults.AuthenticationScheme;
+})
+.AddScheme<AuthenticationSchemeOptions, ApiKeyAuthenticationHandler>(ApiKeyDefaults.Scheme, null)
 .AddJwtBearer(options =>
 {
     options.TokenValidationParameters = new TokenValidationParameters
@@ -218,7 +228,7 @@ using (var scope = app.Services.CreateScope())
     }
 
     logger.LogInformation("Fetching Configured Servers");
-    List<Jellystat_API_Core.Models.Jellystat.Server> serverConfigs = (await context.Servers.ToListAsync()).Select(s => new Jellystat_API_Core.Models.Jellystat.Server() { Id = s.Id, Name = s.Name, URL = s.URL, ExternalURL = s.ExternalURL, APIKey = s.APIKey, Type = s.Type, TaskSettings = s.TaskSettings }).ToList();
+    List<Jellystat_API_Core.Models.Jellystat.Server> serverConfigs = (await context.Servers.ToListAsync()).Select(s => new Jellystat_API_Core.Models.Jellystat.Server() { Id = s.Id, Name = s.Name, URL = s.URL, ExternalURL = s.ExternalURL, APIKey = s.APIKey, Type = s.Type, TaskSettings = s.TaskSettings, AllowRemoteAuth = s.AllowRemoteAuth }).ToList();
     foreach (Jellystat_API_Core.Models.Jellystat.Server config in serverConfigs)
     {
         logger.LogInformation($"Fetched: {config.Id}");

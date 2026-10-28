@@ -21,7 +21,7 @@ namespace Jellystat_API_Core.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.17")
+                .HasAnnotation("ProductVersion", "10.0.12")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "pg_trgm");
@@ -127,6 +127,50 @@ namespace Jellystat_API_Core.Migrations
                     b.ToTable("Activity");
                 });
 
+            modelBuilder.Entity("Jellystat_API_Core.Data.Schema.ApiKeys", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedBy")
+                        .HasColumnType("text");
+
+                    b.Property<string>("KeyHash")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("KeyPrefix")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("LastUsedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<string>("Permission")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("ServerId")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("KeyHash")
+                        .IsUnique();
+
+                    b.HasIndex("ServerId");
+
+                    b.ToTable("ApiKeys");
+                });
+
             modelBuilder.Entity("Jellystat_API_Core.Data.Schema.ExcludedLibraries", b =>
                 {
                     b.Property<string>("ServerId")
@@ -215,7 +259,7 @@ namespace Jellystat_API_Core.Migrations
                         .HasColumnType("bigint")
                         .HasDefaultValue(0L);
 
-                    b.PrimitiveCollection<IList<string>>("Genres")
+                    b.PrimitiveCollection<string>("Genres")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasColumnType("jsonb")
@@ -346,7 +390,7 @@ namespace Jellystat_API_Core.Migrations
                         .HasColumnType("bigint")
                         .HasDefaultValue(0L);
 
-                    b.PrimitiveCollection<IList<string>>("Genres")
+                    b.PrimitiveCollection<string>("Genres")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
                         .HasColumnType("jsonb")
@@ -507,7 +551,7 @@ namespace Jellystat_API_Core.Migrations
                         .HasColumnType("real")
                         .HasDefaultValue(0f);
 
-                    b.PrimitiveCollection<List<string>>("Messages")
+                    b.PrimitiveCollection<string>("Messages")
                         .IsRequired()
                         .HasColumnType("jsonb");
 
@@ -646,7 +690,7 @@ namespace Jellystat_API_Core.Migrations
                     b.Property<long>("Duration")
                         .HasColumnType("bigint");
 
-                    b.PrimitiveCollection<IList<string>>("Genres")
+                    b.PrimitiveCollection<string>("Genres")
                         .IsRequired()
                         .HasColumnType("jsonb");
 
@@ -716,6 +760,16 @@ namespace Jellystat_API_Core.Migrations
                     b.ToTable((string)null);
 
                     b.ToView("ItemsWithParentData", (string)null);
+                });
+
+            modelBuilder.Entity("Jellystat_API_Core.Data.Schema.ApiKeys", b =>
+                {
+                    b.HasOne("Jellystat_API_Core.Data.Schema.Server", "Server")
+                        .WithMany()
+                        .HasForeignKey("ServerId")
+                        .OnDelete(DeleteBehavior.Cascade);
+
+                    b.Navigation("Server");
                 });
 
             modelBuilder.Entity("Jellystat_API_Core.Data.Schema.ExcludedLibraries", b =>
