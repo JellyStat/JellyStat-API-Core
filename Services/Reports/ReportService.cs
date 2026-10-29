@@ -19,6 +19,10 @@ namespace Jellystat_API_Core.Services.Reports
             IReadOnlyDictionary<string, JsonElement>? parameters, int? maxRows = null, CancellationToken cancellationToken = default);
 
         Dictionary<string, JsonElement?> ResolveParameters(ReportDefinition definition, IReadOnlyDictionary<string, JsonElement>? values);
+
+        /// <summary>The choices of a lookup parameter: distinct values of its data source column (at most 1000).</summary>
+        Task<List<ReportParameterOption>> GetParameterOptionsAsync(ReportDefinition definition, string parameter, ReportScope scope,
+            IReadOnlyDictionary<string, JsonElement>? values, CancellationToken cancellationToken = default);
     }
 
     public partial class ReportService : IReportService
@@ -88,6 +92,8 @@ namespace Jellystat_API_Core.Services.Reports
                 if (!ParameterName().IsMatch(p.Name ?? ""))
                     throw new ReportDefinitionException($"Parameter name '{p.Name}' must start with a letter and use only letters, digits and _");
                 if (!parameterNames.Add(p.Name!)) throw new ReportDefinitionException($"Parameter '{p.Name}' is defined twice");
+                if (p.Type == "lookup" && (p.Lookup == null || !sourceIds.Contains(p.Lookup.DataSourceId) || string.IsNullOrWhiteSpace(p.Lookup.ValueField)))
+                    throw new ReportDefinitionException($"Lookup parameter '{p.Name}' needs a data source and a value column");
             }
 
             foreach (var page in d.Pages)
@@ -121,6 +127,38 @@ namespace Jellystat_API_Core.Services.Reports
                 resolved[p.Name] = value;
             }
             return resolved;
+        }
+
+        public async Task<List<ReportParameterOption>> GetParameterOptionsAsync(ReportDefinition definition, string parameter, ReportScope scope,
+            IReadOnlyDictionary<string, JsonElement>? values, CancellationToken cancellationToken = default)
+        {
+            var p = definition.Parameters.FirstOrDefault(x => x.Name.Equals(parameter, StringComparison.OrdinalIgnoreCase))
+                ?? throw new ReportDefinitionException($"Unknown parameter '{parameter}'");
+            if (p.Type != "lookup" || p.Lookup == null) throw new ReportDefinitionException($"'{p.Name}' is not a lookup parameter");
+            var source = definition.DataSources.FirstOrDefault(d => d.Id == p.Lookup.DataSourceId)
+                ?? throw new ReportDefinitionException($"The data source of '{p.Name}' doesn't exist");
+
+            // The lookup's own value never filters its choices, otherwise picking one value would hide all the others
+            var resolved = ResolveParameters(definition, values);
+            resolved.Remove(p.Name);
+            var data = await _executor.ExecuteAsync(source, scope, resolved, 1000, cancellationToken);
+            if (data.Error != null) throw new ReportDefinitionException(data.Error);
+
+            var valueColumn = data.Columns.FirstOrDefault(c => c.Name.Equals(p.Lookup.ValueField, StringComparison.OrdinalIgnoreCase))
+                ?? throw new ReportDefinitionException($"Column '{p.Lookup.ValueField}' isn't in data source '{source.Name}'");
+            var labelColumn = string.IsNullOrWhiteSpace(p.Lookup.LabelField) ? valueColumn
+                : data.Columns.FirstOrDefault(c => c.Name.Equals(p.Lookup.LabelField, StringComparison.OrdinalIgnoreCase)) ?? valueColumn;
+
+            var seen = new HashSet<string>();
+            var options = new List<ReportParameterOption>();
+            foreach (var row in data.Rows)
+            {
+                object? value = row.GetValueOrDefault(valueColumn.Name);
+                if (value == null || !seen.Add(Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "")) continue;
+                string label = ReportFormatter.Format(row.GetValueOrDefault(labelColumn.Name) ?? value, null, labelColumn.Type);
+                options.Add(new ReportParameterOption { Value = value, Label = label.Length == 0 ? "(empty)" : label });
+            }
+            return options;
         }
 
         public async Task<ReportRenderModel> BuildAsync(ReportDefinition definition, string name, string? reportId, ReportScope scope,

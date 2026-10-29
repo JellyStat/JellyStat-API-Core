@@ -197,6 +197,25 @@ namespace Jellystat_API_Core.Controllers
 
         // ------------------------------------------------------------------ data
 
+        /// <summary>Choices for a lookup parameter of a saved report (ReportId) or an unsaved definition.</summary>
+        [HttpPost("ParameterOptions", Name = "ReportParameterOptions")]
+        public async Task<ActionResult<List<ReportParameterOption>>> ParameterOptions([FromBody] ReportParameterOptionsRequest request, CancellationToken cancellationToken)
+        {
+            try
+            {
+                var (definition, _, _) = await ResolveReportAsync(request.ReportId, request.Definition, null);
+                return await _reports.GetParameterOptionsAsync(definition, request.Parameter, Scope(request.ServerId), request.Parameters, cancellationToken);
+            }
+            catch (ReportDefinitionException ex)
+            {
+                return BadRequest(ex.Message);
+            }
+            catch (KeyNotFoundException ex)
+            {
+                return NotFound(ex.Message);
+            }
+        }
+
         /// <summary>Runs one data source, e.g. for the designer's data preview.</summary>
         [HttpPost("Query", Name = "QueryReportData")]
         public async Task<ReportDataResult> Query([FromBody] ReportQueryRequest request, CancellationToken cancellationToken)

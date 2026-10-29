@@ -173,8 +173,28 @@ namespace Jellystat_API_Core.Models.Reports
     {
         public string Name { get; set; } = "";
         public string? Label { get; set; }
-        /// <summary>string | number | date | boolean</summary>
+        /// <summary>string | number | date | boolean | lookup</summary>
         public string Type { get; set; } = "string";
         public JsonElement? DefaultValue { get; set; }
+        /// <summary>lookup: where the dropdown's choices come from.</summary>
+        public ReportParameterLookup? Lookup { get; set; }
+    }
+
+    /// <summary>A parameter whose choices are the distinct values of a column of one of the report's data sources.</summary>
+    public class ReportParameterLookup
+    {
+        public string DataSourceId { get; set; } = "";
+        /// <summary>Column whose value is passed to filters.</summary>
+        public string ValueField { get; set; } = "";
+        /// <summary>Column shown in the dropdown; defaults to ValueField.</summary>
+        public string? LabelField { get; set; }
+        /// <summary>Allow several choices; the value becomes an array and equals/not-equals rules become in/not in.</summary>
+        public bool Multiple { get; set; }
+    }
+
+    public class ReportParameterOption
+    {
+        public object? Value { get; set; }
+        public required string Label { get; set; }
     }
 }

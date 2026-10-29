@@ -94,6 +94,8 @@ namespace Jellystat_API_Core.Services.Reports.Query
                 if (!parameters.TryGetValue(rule.Parameter!, out var p) || ReportValueConverter.IsMissing(p)) return null;
                 value = p;
                 if (op == Op.Between) (value, valueTo) = SplitRange(p!.Value);
+                // Multi-select lookups pass an array: equals means "is one of"
+                else if (p!.Value.ValueKind == JsonValueKind.Array && op is Op.Eq or Op.Neq) op = op == Op.Eq ? Op.In : Op.NotIn;
             }
 
             NormalizedFilter Simple(string o, object? v = null, IReadOnlyList<object?>? values = null) =>

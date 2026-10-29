@@ -48,6 +48,16 @@ namespace Jellystat_API_Core.Models.Reports
         public string? ServerId { get; set; }
     }
 
+    public class ReportParameterOptionsRequest
+    {
+        public string? ReportId { get; set; }
+        public ReportDefinition? Definition { get; set; }
+        public string Parameter { get; set; } = "";
+        /// <summary>Current values of the other parameters, which the lookup's data source may filter on.</summary>
+        public Dictionary<string, JsonElement>? Parameters { get; set; }
+        public string? ServerId { get; set; }
+    }
+
     public class ReportRenderRequest
     {
         /// <summary>A saved report, or...</summary>

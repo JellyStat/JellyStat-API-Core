@@ -111,6 +111,7 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
             JsonValueKind.True => true,
             JsonValueKind.False => false,
             JsonValueKind.Null or JsonValueKind.Undefined => null,
+            JsonValueKind.Array => string.Join(", ", je.EnumerateArray().Select(e => Convert.ToString(Unwrap(e), CultureInfo.InvariantCulture))),
             _ => je.GetRawText()
         };
     }
