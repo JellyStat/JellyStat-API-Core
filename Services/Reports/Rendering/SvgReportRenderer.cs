@@ -341,10 +341,12 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
 
         private string Image(ReportElement e, Box b, Ctx ctx)
         {
-            string? src = e.Src;
+            // Images fetched from the media server (ReportImageResolver) take precedence over the element's own Src
+            string? src = ctx.Model.Images.GetValueOrDefault(e.Id) ?? (e.Media == null ? e.Src : null);
             bool isData = src != null && src.StartsWith("data:image/", StringComparison.OrdinalIgnoreCase);
             if (string.IsNullOrEmpty(src) || (!isData && !ctx.Options.AllowRemoteImages))
-                return $"<rect x=\"{N(b.X)}\" y=\"{N(b.Y)}\" width=\"{N(b.W)}\" height=\"{N(b.H)}\" fill=\"#f3f4f6\"/>" + Message("Image", b, e.Style, ctx);
+                return $"<rect x=\"{N(b.X)}\" y=\"{N(b.Y)}\" width=\"{N(b.W)}\" height=\"{N(b.H)}\" fill=\"#f3f4f6\"/>"
+                    + Message(string.IsNullOrEmpty(e.Src) && e.Media == null ? "Image" : "Image not available", b, e.Style, ctx);
             string aspect = e.Fit switch { "cover" => "xMidYMid slice", "fill" => "none", _ => "xMidYMid meet" };
             return $"<image x=\"{N(b.X)}\" y=\"{N(b.Y)}\" width=\"{N(b.W)}\" height=\"{N(b.H)}\" preserveAspectRatio=\"{aspect}\" xlink:href=\"{Attr(src)}\" href=\"{Attr(src)}\"/>";
         }

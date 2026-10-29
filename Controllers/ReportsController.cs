@@ -246,8 +246,9 @@ namespace Jellystat_API_Core.Controllers
             try
             {
                 var (definition, name, id) = await ResolveReportAsync(request.ReportId, request.Definition, request.Name);
-                var model = await _reports.BuildAsync(definition, name, id, Scope(request.ServerId), request.Parameters, null, cancellationToken);
-                return FileResult(_exporter.Export(model, new ReportExportOptions { Format = request.Format, Page = request.Page, Scale = request.Scale ?? 2 }), Download);
+                var scope = Scope(request.ServerId);
+                var model = await _reports.BuildAsync(definition, name, id, scope, request.Parameters, null, cancellationToken);
+                return FileResult(await _exporter.ExportAsync(model, new ReportExportOptions { Format = request.Format, Page = request.Page, Scale = request.Scale ?? 2 }, scope, cancellationToken), Download);
             }
             catch (ReportDefinitionException ex)
             {
@@ -313,8 +314,9 @@ namespace Jellystat_API_Core.Controllers
             {
                 ReportWebhookSender.ValidateUrl(request.WebhookUrl);
                 var (definition, name, id) = await ResolveReportAsync(request.ReportId, request.Definition, request.Name);
-                var model = await _reports.BuildAsync(definition, name, id, Scope(request.ServerId), request.Parameters, null, cancellationToken);
-                var file = _exporter.Export(model, new ReportExportOptions { Format = request.Format });
+                var scope = Scope(request.ServerId);
+                var model = await _reports.BuildAsync(definition, name, id, scope, request.Parameters, null, cancellationToken);
+                var file = await _exporter.ExportAsync(model, new ReportExportOptions { Format = request.Format }, scope, cancellationToken);
                 await _webhooks.SendAsync(new ReportWebhookTarget { Url = request.WebhookUrl, Type = request.WebhookType, Secret = request.WebhookSecret, Message = request.Message }, model, file, cancellationToken);
                 return new ReportDeliveryResult(true, null, file.FileName, (long)(DateTime.UtcNow - started).TotalMilliseconds);
             }

@@ -27,6 +27,9 @@ namespace Jellystat_API_Core.Models.Reports
         public required ReportDefinition Definition { get; set; }
         public Dictionary<string, ReportDataResult> Data { get; set; } = [];
         public Dictionary<string, object?> Parameters { get; set; } = [];
+        /// <summary>Images fetched for server-side rendering (element id to data: URI). Never sent to clients.</summary>
+        [System.Text.Json.Serialization.JsonIgnore]
+        public Dictionary<string, string> Images { get; set; } = [];
         public DateTime GeneratedAt { get; set; } = DateTime.UtcNow;
     }
 

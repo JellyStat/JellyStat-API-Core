@@ -86,6 +86,9 @@ namespace Jellystat_API_Core.Models.Reports
         /// <summary>contain | cover | fill</summary>
         public string? Fit { get; set; }
 
+        /// <summary>image: a picture from the media server (poster, backdrop or user avatar) instead of Src.</summary>
+        public ReportImageBinding? Media { get; set; }
+
         // shape: rect | ellipse
         public string? Shape { get; set; }
     }
@@ -111,6 +114,22 @@ namespace Jellystat_API_Core.Models.Reports
         public string BorderStyle { get; set; } = "solid";
         public double BorderRadius { get; set; }
         public double Padding { get; set; }
+    }
+
+    /// <summary>
+    /// An image fetched from the report's media server. The id comes from Parameter, else the first row of
+    /// DataSourceId's Field column, else the fixed Id.
+    /// </summary>
+    public class ReportImageBinding
+    {
+        /// <summary>item | user</summary>
+        public string Type { get; set; } = "item";
+        /// <summary>Primary (poster/avatar) | Backdrop (items only)</summary>
+        public string ImageType { get; set; } = "Primary";
+        public string? Id { get; set; }
+        public string? DataSourceId { get; set; }
+        public string? Field { get; set; }
+        public string? Parameter { get; set; }
     }
 
     public class ReportTableColumn

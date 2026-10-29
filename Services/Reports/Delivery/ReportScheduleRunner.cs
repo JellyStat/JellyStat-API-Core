@@ -44,8 +44,9 @@ namespace Jellystat_API_Core.Services.Reports.Delivery
                 var definition = _reports.Parse(schedule.Report!.Definition);
                 var parameters = JsonSerializer.Deserialize<Dictionary<string, JsonElement>>(string.IsNullOrWhiteSpace(schedule.Parameters) ? "{}" : schedule.Parameters, ReportJson.Options);
                 // Scheduled runs act for the whole server: there's no signed-in user, and only admins can create schedules
-                var model = await _reports.BuildAsync(definition, schedule.Report.Name, schedule.ReportId, new ReportScope(schedule.ServerId, null), parameters, null, cancellationToken);
-                var file = _exporter.Export(model, new ReportExportOptions { Format = schedule.Format });
+                var scope = new ReportScope(schedule.ServerId, null);
+                var model = await _reports.BuildAsync(definition, schedule.Report.Name, schedule.ReportId, scope, parameters, null, cancellationToken);
+                var file = await _exporter.ExportAsync(model, new ReportExportOptions { Format = schedule.Format }, scope, cancellationToken);
                 await _sender.SendAsync(new ReportWebhookTarget
                 {
                     Url = schedule.WebhookUrl,

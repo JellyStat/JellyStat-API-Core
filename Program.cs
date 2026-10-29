@@ -121,6 +121,7 @@ builder.Services.AddScoped<IReportQueryExecutor, ReportQueryExecutor>();
 builder.Services.AddScoped<IReportService, ReportService>();
 builder.Services.AddSingleton<IReportTextMeasurer, SkiaTextMeasurer>();
 builder.Services.AddSingleton<SvgReportRenderer>();
+builder.Services.AddSingleton<IReportImageResolver, ReportImageResolver>();
 builder.Services.AddSingleton<IReportExporter, ReportExporter>();
 builder.Services.AddSingleton<IReportWebhookSender, ReportWebhookSender>();
 builder.Services.AddScoped<IReportScheduleRunner, ReportScheduleRunner>();

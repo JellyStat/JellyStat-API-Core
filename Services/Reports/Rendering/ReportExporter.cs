@@ -32,16 +32,28 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
     public interface IReportExporter
     {
         ReportFile Export(ReportRenderModel model, ReportExportOptions options);
+
+        /// <summary>Fetches the report's media server images first (except for JSON), then exports.</summary>
+        Task<ReportFile> ExportAsync(ReportRenderModel model, ReportExportOptions options, Datasets.ReportScope scope, CancellationToken cancellationToken = default);
     }
 
     public class ReportExporter : IReportExporter
     {
         private const double PageGap = 24;
         private readonly SvgReportRenderer _renderer;
+        private readonly IReportImageResolver _images;
 
-        public ReportExporter(SvgReportRenderer renderer)
+        public ReportExporter(SvgReportRenderer renderer, IReportImageResolver images)
         {
             _renderer = renderer;
+            _images = images;
+        }
+
+        public async Task<ReportFile> ExportAsync(ReportRenderModel model, ReportExportOptions options, Datasets.ReportScope scope, CancellationToken cancellationToken = default)
+        {
+            if (!string.Equals(options.Format, ReportFormats.Json, StringComparison.OrdinalIgnoreCase))
+                await _images.ResolveAsync(model, scope, cancellationToken);
+            return Export(model, options);
         }
 
         public ReportFile Export(ReportRenderModel model, ReportExportOptions options)
