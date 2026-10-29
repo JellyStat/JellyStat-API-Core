@@ -5,10 +5,11 @@ namespace Jellystat_API_Core.Services.Webhooks
         public const string PlaybackStarted = "playback.started";
         public const string PlaybackEnded = "playback.ended";
         public const string MediaAdded = "media.added";
+        public const string SyncCompleted = "sync.completed";
         /// <summary>Sent by the Test button only; webhooks can't subscribe to it.</summary>
         public const string Test = "webhook.test";
 
-        public static readonly string[] All = [PlaybackStarted, PlaybackEnded, MediaAdded];
+        public static readonly string[] All = [PlaybackStarted, PlaybackEnded, MediaAdded, SyncCompleted];
     }
 
     public static class WebhookTypes
@@ -44,6 +45,11 @@ namespace Jellystat_API_Core.Services.Webhooks
         public const int MaxItems = 50;
     }
 
+    public record WebhookSyncLibrary(string Id, string Name, string Type);
+
+    /// <summary>sync.completed: a successful full sync, with the libraries it synced and the item counts it logged.</summary>
+    public record WebhookSyncCompletedData(string SyncType, IReadOnlyList<WebhookSyncLibrary> Libraries, int Added, int Updated, int Archived, long DurationSeconds);
+
     public record WebhookTestData(string Message);
 
     public record WebhookDeliveryResult(bool Success, int? StatusCode, string? Error, long ElapsedMs);
@@ -64,6 +70,11 @@ namespace Jellystat_API_Core.Services.Webhooks
                     new("sample-movie-id", "Sample Movie", "Movie", "sample-library-id", null),
                     new("sample-episode-id", "Pilot", "Episode", "sample-library-id", "sample-season-id")
                 ])),
+            WebhookEvents.SyncCompleted => new(eventKey, serverId, serverName,
+                new WebhookSyncCompletedData("full", [
+                    new("sample-library-id", "Movies", "Movies"),
+                    new("sample-library-id-2", "Shows", "Series")
+                ], 12, 4810, 3, 95)),
             _ => new(WebhookEvents.Test, serverId, serverName, new WebhookTestData("Test notification from Jellystat"))
         };
     }

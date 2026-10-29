@@ -157,6 +157,18 @@ namespace Jellystat_API_Core.Services.Webhooks
                     if (m.Count > lines.Count) lines.Add($"...and {m.Count - lines.Count} more");
                     return Embed($"{m.Count} new item{(m.Count == 1 ? "" : "s")} added", string.Join("\n", lines), 0x2ECC71);
 
+                case WebhookSyncCompletedData s:
+                    var libraryLines = s.Libraries.Take(20).Select(l => $"- {l.Name}").ToList();
+                    if (s.Libraries.Count > libraryLines.Count) libraryLines.Add($"...and {s.Libraries.Count - libraryLines.Count} more");
+                    return Embed($"Full sync completed ({s.Libraries.Count} librar{(s.Libraries.Count == 1 ? "y" : "ies")})",
+                        libraryLines.Count > 0 ? string.Join("\n", libraryLines) : null, 0x9B59B6,
+                        [
+                            new { name = "Added", value = s.Added.ToString(), inline = true },
+                            new { name = "Updated", value = s.Updated.ToString(), inline = true },
+                            new { name = "Archived", value = s.Archived.ToString(), inline = true },
+                            new { name = "Took", value = FormatDuration(s.DurationSeconds), inline = true }
+                        ]);
+
                 case WebhookTestData t:
                     return Embed("Jellystat webhook test", t.Message, 0x3498DB);
 

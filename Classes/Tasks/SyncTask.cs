@@ -45,15 +45,21 @@ namespace Jellystat_API_Core.Classes.Tasks
                     try
                     {
                         cancellationToken.ThrowIfCancellationRequested();
+                        DateTime started = DateTime.UtcNow;
                         await loggingService.AddMessageAsync(log, $"Starting full sync for server {api.config.Name}");
                         await SyncUsers(context, log, loggingService, cancellationToken);
                         List<Libraries> libraries = await SyncLibraries(context, log, loggingService, cancellationToken);
                         List<ExcludedLibraries> excludedLibraries = await context.ExcludedLibraries.Where(l => l.ServerId == api.config.Id).ToListAsync(cancellationToken);
-                        await SyncLibraryItems(context, libraries.Where(l => !excludedLibraries.Any(el => el.LibraryId == l.Id)).ToList(), log, loggingService, cancellationToken);
-                        await UpdateFromStaging(context, log, loggingService, true, cancellationToken);
+                        List<Libraries> syncedLibraries = libraries.Where(l => !excludedLibraries.Any(el => el.LibraryId == l.Id)).ToList();
+                        await SyncLibraryItems(context, syncedLibraries, log, loggingService, cancellationToken);
+                        StagingCounts counts = await UpdateFromStaging(context, log, loggingService, true, cancellationToken);
                         await MigrateArchivedActivity(context, log, loggingService);
                         await loggingService.AddMessageAsync(log, $"Full sync completed for server {api.config.Name}");
                         await loggingService.SuccessAsync(log);
+
+                        scope.ServiceProvider.GetRequiredService<IWebhookPublisher>().Publish(new WebhookEvent(WebhookEvents.SyncCompleted, api.config.Id, api.config.Name,
+                            new WebhookSyncCompletedData("full", syncedLibraries.Select(l => new WebhookSyncLibrary(l.Id, l.Name, l.Type.ToString())).ToList(),
+                                counts.Added, counts.Updated, counts.Archived, (long)(DateTime.UtcNow - started).TotalSeconds)));
 
                         context.ChangeTracker.Clear();
                     }
@@ -355,7 +361,9 @@ namespace Jellystat_API_Core.Classes.Tasks
                     media.Take(WebhookMediaAddedData.MaxItems).Select(i => new WebhookMediaItem(i.Id, i.Name, i.Type.ToString(), i.LibraryId, i.ParentId)).ToList())));
         }
 
-        private async Task UpdateFromStaging(ApplicationDbContext context, Logs log, ITaskLogging loggingService, bool performArchiveStep = true, CancellationToken cancellationToken = default)
+        private record StagingCounts(int Added, int Updated, int Archived);
+
+        private async Task<StagingCounts> UpdateFromStaging(ApplicationDbContext context, Logs log, ITaskLogging loggingService, bool performArchiveStep = true, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
@@ -514,6 +522,7 @@ namespace Jellystat_API_Core.Classes.Tasks
                     await transaction.CommitAsync(cancellationToken);
 
                     if (hadItems) PublishMediaAdded(newItems);
+                    return new StagingCounts(insertedCount, updatedCount, archivedCount);
                 }
                 catch (OperationCanceledException)
                 {
