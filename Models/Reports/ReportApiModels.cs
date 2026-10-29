@@ -46,6 +46,8 @@ namespace Jellystat_API_Core.Models.Reports
         public Dictionary<string, JsonElement>? Parameters { get; set; }
         public int? MaxRows { get; set; }
         public string? ServerId { get; set; }
+        /// <summary>The report's time zone, so previews bucket dates like the report will.</summary>
+        public string? TimeZone { get; set; }
     }
 
     public class ReportParameterOptionsRequest
@@ -90,6 +92,7 @@ namespace Jellystat_API_Core.Models.Reports
         public required string[] Formats { get; set; }
         public required string[] ExportFormats { get; set; }
         public required string[] WebhookTypes { get; set; }
+        public required string[] TransformTypes { get; set; }
         public int MaxRows { get; set; }
     }
 

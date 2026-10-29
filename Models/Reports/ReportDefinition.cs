@@ -14,6 +14,11 @@ namespace Jellystat_API_Core.Models.Reports
         public List<ReportPage> Pages { get; set; } = [];
         public List<ReportDataSource> DataSources { get; set; } = [];
         public List<ReportParameter> Parameters { get; set; } = [];
+        /// <summary>
+        /// IANA time zone (e.g. Europe/London) for date buckets, relative date filters and displayed dates.
+        /// Null = UTC.
+        /// </summary>
+        public string? TimeZone { get; set; }
     }
 
     public class ReportPageSettings

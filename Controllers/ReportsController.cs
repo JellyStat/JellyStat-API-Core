@@ -80,6 +80,7 @@ namespace Jellystat_API_Core.Controllers
             Formats = ReportFormatter.Formats,
             ExportFormats = ReportFormats.All,
             WebhookTypes = ReportWebhookTypes.All,
+            TransformTypes = ReportTransforms.Types,
             MaxRows = ReportQueryExecutor.MaxLimit
         };
 
@@ -238,7 +239,7 @@ namespace Jellystat_API_Core.Controllers
         {
             var definition = new ReportDefinition { Parameters = request.ParameterDefinitions ?? [] };
             var parameters = _reports.ResolveParameters(definition, request.Parameters);
-            return await _executor.ExecuteAsync(request.DataSource, Scope(request.ServerId), parameters, request.MaxRows, cancellationToken);
+            return await _executor.ExecuteAsync(request.DataSource, Scope(request.ServerId), parameters, request.MaxRows, cancellationToken, request.TimeZone);
         }
 
         /// <summary>Runs every data source of an (unsaved) definition and returns the render model the UI draws.</summary>

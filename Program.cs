@@ -114,6 +114,10 @@ builder.Services.AddSingleton<IWebSocketClientService, WebSocketClientService>()
 builder.Services.AddSingleton<IWebSocketServerService, WebSocketServerService>();
 
 // Custom reports: datasets and both query engines (EF Core / Gridify), server-side rendering, webhook delivery
+if (builder.Configuration.GetValue<int?>("REPORTS_MAX_ROWS") is int maxReportRows && maxReportRows > 0)
+{
+    ReportQueryExecutor.MaxLimit = maxReportRows;
+}
 builder.Services.AddSingleton<IReportDatasetRegistry, ReportDatasetRegistry>();
 builder.Services.AddSingleton<IReportQueryEngine, EfCoreReportQueryEngine>();
 builder.Services.AddSingleton<IReportQueryEngine, GridifyReportQueryEngine>();

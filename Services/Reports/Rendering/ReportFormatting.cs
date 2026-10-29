@@ -12,9 +12,15 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
     /// </summary>
     public static class ReportFormatter
     {
+        /// <summary>The report's time zone (IANA id), or UTC when unset or unknown.</summary>
+        public static TimeZoneInfo Zone(string? timeZone) =>
+            !string.IsNullOrWhiteSpace(timeZone) && TimeZoneInfo.TryFindSystemTimeZoneById(timeZone, out var tz) ? tz : TimeZoneInfo.Utc;
+
+        public static bool IsUtc(TimeZoneInfo tz) => tz.Id is "UTC" or "Etc/UTC" or "Etc/UCT" or "Universal" or "Coordinated Universal Time" || tz == TimeZoneInfo.Utc;
+
         public static readonly string[] Formats = ["auto", "text", "number", "integer", "decimal", "percent", "duration", "bytes", "date", "datetime", "time"];
 
-        public static string Format(object? value, string? format, string? columnType = null)
+        public static string Format(object? value, string? format, string? columnType = null, TimeZoneInfo? timeZone = null)
         {
             if (value == null) return "";
             if (value is JsonElement je) value = Unwrap(je);
@@ -29,14 +35,14 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
                 case "percent": return TryDouble(value, out var p) ? p.ToString("0.#", CultureInfo.InvariantCulture) + "%" : value.ToString()!;
                 case "duration": return TryDouble(value, out var s) ? Duration(s) : value.ToString()!;
                 case "bytes": return TryDouble(value, out var b) ? Bytes(b) : value.ToString()!;
-                case "date": return TryDate(value, out var d1) ? d1.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : value.ToString()!;
-                case "datetime": return TryDate(value, out var d2) ? d2.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) : value.ToString()!;
-                case "time": return TryDate(value, out var d3) ? d3.ToString("HH:mm", CultureInfo.InvariantCulture) : value.ToString()!;
+                case "date": return TryDate(value, out var d1) ? Local(d1, timeZone).ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) : value.ToString()!;
+                case "datetime": return TryDate(value, out var d2) ? Local(d2, timeZone).ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture) : value.ToString()!;
+                case "time": return TryDate(value, out var d3) ? Local(d3, timeZone).ToString("HH:mm", CultureInfo.InvariantCulture) : value.ToString()!;
                 default:
                     return value switch
                     {
                         bool bo => bo ? "Yes" : "No",
-                        DateTime dt => dt.ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture),
+                        DateTime dt => Local(dt, timeZone).ToString("yyyy-MM-dd HH:mm", CultureInfo.InvariantCulture),
                         double or float or decimal => Number(System.Convert.ToDouble(value, CultureInfo.InvariantCulture)),
                         IFormattable fm => fm.ToString(null, CultureInfo.InvariantCulture),
                         _ => value.ToString() ?? ""
@@ -53,6 +59,9 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
             ReportFieldTypes.Number => "number",
             _ => "text"
         };
+
+        private static DateTime Local(DateTime utc, TimeZoneInfo? tz) =>
+            tz == null || IsUtc(tz) ? utc : TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utc, DateTimeKind.Utc), tz);
 
         public static string Number(double n) =>
             Math.Abs(n % 1) < 0.0000001 ? n.ToString("N0", CultureInfo.InvariantCulture) : n.ToString("#,0.##", CultureInfo.InvariantCulture);
@@ -133,7 +142,7 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
                 string path = m.Groups[1].Value;
                 string? format = m.Groups[2].Success ? m.Groups[2].Value : null;
                 var (value, type) = Lookup(path, model, pageNumber, pageCount);
-                return value == null && type == "missing" ? m.Value : ReportFormatter.Format(value, format, type);
+                return value == null && type == "missing" ? m.Value : ReportFormatter.Format(value, format, type, ReportFormatter.Zone(model.Definition.TimeZone));
             });
         }
 

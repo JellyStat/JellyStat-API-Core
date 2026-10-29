@@ -1,6 +1,7 @@
 using Jellystat_API_Core.Data;
 using Jellystat_API_Core.Models.Reports;
 using Jellystat_API_Core.Services.Reports.Datasets;
+using Jellystat_API_Core.Services.Reports.Rendering;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
 using System.Linq.Expressions;
@@ -13,13 +14,14 @@ namespace Jellystat_API_Core.Services.Reports.Query
     {
         /// <param name="maxRows">Caps the data source's own limit, e.g. for designer previews.</param>
         Task<ReportDataResult> ExecuteAsync(ReportDataSource source, ReportScope scope,
-            IReadOnlyDictionary<string, JsonElement?> parameters, int? maxRows = null, CancellationToken cancellationToken = default);
+            IReadOnlyDictionary<string, JsonElement?> parameters, int? maxRows = null, CancellationToken cancellationToken = default, string? timeZone = null);
     }
 
     public class ReportQueryExecutor : IReportQueryExecutor
     {
         public const int DefaultLimit = 1000;
-        public const int MaxLimit = 10000;
+        /// <summary>Most rows one data source may return; REPORTS_MAX_ROWS overrides it.</summary>
+        public static int MaxLimit { get; set; } = 10000;
 
         private static readonly MethodInfo RunMethod = typeof(ReportQueryExecutor).GetMethod(nameof(RunAsync), BindingFlags.NonPublic | BindingFlags.Instance)!;
 
@@ -37,7 +39,7 @@ namespace Jellystat_API_Core.Services.Reports.Query
         }
 
         public async Task<ReportDataResult> ExecuteAsync(ReportDataSource source, ReportScope scope,
-            IReadOnlyDictionary<string, JsonElement?> parameters, int? maxRows = null, CancellationToken cancellationToken = default)
+            IReadOnlyDictionary<string, JsonElement?> parameters, int? maxRows = null, CancellationToken cancellationToken = default, string? timeZone = null)
         {
             var sw = Stopwatch.StartNew();
             try
@@ -47,7 +49,7 @@ namespace Jellystat_API_Core.Services.Reports.Query
                     ?? throw new ReportDefinitionException($"Unknown query engine '{source.Engine}'");
 
                 var task = (Task<ReportDataResult>)RunMethod.MakeGenericMethod(dataset.RowType)
-                    .Invoke(this, [source, dataset, engine, scope, parameters, maxRows, cancellationToken])!;
+                    .Invoke(this, [source, dataset, engine, scope, parameters, maxRows, cancellationToken, ReportFormatter.Zone(timeZone)])!;
                 var result = await task;
                 result.ElapsedMs = sw.ElapsedMilliseconds;
                 return result;
@@ -69,20 +71,21 @@ namespace Jellystat_API_Core.Services.Reports.Query
         }
 
         private async Task<ReportDataResult> RunAsync<TRow>(ReportDataSource source, IReportDataset dataset, IReportQueryEngine engine,
-            ReportScope scope, IReadOnlyDictionary<string, JsonElement?> parameters, int? maxRows, CancellationToken cancellationToken) where TRow : class, new()
+            ReportScope scope, IReadOnlyDictionary<string, JsonElement?> parameters, int? maxRows, CancellationToken cancellationToken, TimeZoneInfo timeZone) where TRow : class, new()
         {
             int limit = Math.Clamp(source.Limit ?? DefaultLimit, 1, MaxLimit);
             if (maxRows.HasValue) limit = Math.Min(limit, Math.Max(1, maxRows.Value));
 
             var query = (IQueryable<TRow>)dataset.Query(_db, scope);
-            var filter = ReportFilterNormalizer.Normalize(source.Filter, dataset, parameters, DateTime.UtcNow);
+            var utcNow = DateTime.UtcNow;
+            var filter = ReportFilterNormalizer.Normalize(source.Filter, dataset, parameters, utcNow, timeZone);
             query = engine.ApplyFilter(query, filter, source, dataset);
 
             var result = new ReportDataResult { DataSourceId = source.Id };
 
             if (source.GroupBy.Count > 0 || source.Aggregates.Count > 0)
             {
-                var grouped = ReportGrouping.Build(query, source, dataset);
+                var grouped = ReportGrouping.Build(query, source, dataset, timeZone);
                 var rows = await TakeAsync(grouped.Query, grouped.RowType, limit + 1, cancellationToken);
                 result.Truncated = rows.Count > limit;
                 result.Columns = grouped.Columns.Select(c => new ReportColumn { Name = c.Name, Label = c.Label, Type = c.Type }).ToList();
@@ -96,6 +99,7 @@ namespace Jellystat_API_Core.Services.Reports.Query
                     }
                     result.Rows.Add(dict);
                 }
+                ReportTransforms.Apply(result, source.Transforms ?? [], parameters, timeZone, utcNow);
                 return result;
             }
 
@@ -126,6 +130,7 @@ namespace Jellystat_API_Core.Services.Reports.Query
                 foreach (var p in props) dict[p.Name] = Normalize(p.GetValue(row));
                 result.Rows.Add(dict);
             }
+            ReportTransforms.Apply(result, source.Transforms ?? [], parameters, timeZone, utcNow);
             return result;
         }
 

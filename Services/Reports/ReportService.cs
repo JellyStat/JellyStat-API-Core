@@ -73,6 +73,9 @@ namespace Jellystat_API_Core.Services.Reports
             if (d.Pages.Count > MaxPages) throw new ReportDefinitionException($"A report can have at most {MaxPages} pages");
             if (d.DataSources.Count > MaxDataSources) throw new ReportDefinitionException($"A report can have at most {MaxDataSources} data sources");
 
+            if (!string.IsNullOrWhiteSpace(d.TimeZone) && !TimeZoneInfo.TryFindSystemTimeZoneById(d.TimeZone, out _))
+                throw new ReportDefinitionException($"Unknown time zone '{d.TimeZone}'");
+
             var sourceIds = new HashSet<string>(StringComparer.Ordinal);
             foreach (var source in d.DataSources)
             {
@@ -82,8 +85,11 @@ namespace Jellystat_API_Core.Services.Reports
                     throw new ReportDefinitionException($"Data source '{source.Name}' uses unknown dataset '{source.Dataset}'");
                 if (source.Engine is not (ReportQueryEngines.EfCore or ReportQueryEngines.Gridify))
                     throw new ReportDefinitionException($"Data source '{source.Name}' uses unknown engine '{source.Engine}'");
-                if (source.Limit is < 1 or > ReportQueryExecutor.MaxLimit)
+                if (source.Limit < 1 || source.Limit > ReportQueryExecutor.MaxLimit)
                     throw new ReportDefinitionException($"Row limit of '{source.Name}' must be 1-{ReportQueryExecutor.MaxLimit}");
+                foreach (var t in source.Transforms ?? [])
+                    if (!ReportTransforms.Types.Contains(t.Type))
+                        throw new ReportDefinitionException($"Data source '{source.Name}' has an unknown step '{t.Type}'");
             }
 
             var parameterNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -141,7 +147,7 @@ namespace Jellystat_API_Core.Services.Reports
             // The lookup's own value never filters its choices, otherwise picking one value would hide all the others
             var resolved = ResolveParameters(definition, values);
             resolved.Remove(p.Name);
-            var data = await _executor.ExecuteAsync(source, scope, resolved, 1000, cancellationToken);
+            var data = await _executor.ExecuteAsync(source, scope, resolved, 1000, cancellationToken, definition.TimeZone);
             if (data.Error != null) throw new ReportDefinitionException(data.Error);
 
             var valueColumn = data.Columns.FirstOrDefault(c => c.Name.Equals(p.Lookup.ValueField, StringComparison.OrdinalIgnoreCase))
@@ -155,7 +161,7 @@ namespace Jellystat_API_Core.Services.Reports
             {
                 object? value = row.GetValueOrDefault(valueColumn.Name);
                 if (value == null || !seen.Add(Convert.ToString(value, System.Globalization.CultureInfo.InvariantCulture) ?? "")) continue;
-                string label = ReportFormatter.Format(row.GetValueOrDefault(labelColumn.Name) ?? value, null, labelColumn.Type);
+                string label = ReportFormatter.Format(row.GetValueOrDefault(labelColumn.Name) ?? value, null, labelColumn.Type, ReportFormatter.Zone(definition.TimeZone));
                 options.Add(new ReportParameterOption { Value = value, Label = label.Length == 0 ? "(empty)" : label });
             }
             return options;
@@ -177,7 +183,7 @@ namespace Jellystat_API_Core.Services.Reports
             // One DbContext can't run queries in parallel, so data sources run one after another
             foreach (var source in definition.DataSources)
             {
-                model.Data[source.Id] = await _executor.ExecuteAsync(source, scope, resolved, maxRows, cancellationToken);
+                model.Data[source.Id] = await _executor.ExecuteAsync(source, scope, resolved, maxRows, cancellationToken, definition.TimeZone);
             }
             return model;
         }

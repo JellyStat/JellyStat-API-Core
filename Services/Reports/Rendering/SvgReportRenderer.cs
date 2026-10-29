@@ -58,6 +58,7 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
             public int PageCount { get; } = pageCount;
             public SvgRenderOptions Options { get; } = options;
             public IReportTextMeasurer Measurer { get; } = measurer;
+            public TimeZoneInfo Zone { get; } = ReportFormatter.Zone(model.Definition.TimeZone);
             public string Family(ReportElementStyle s) => Options.ResolveFonts ? Measurer.ResolveFamily(s.FontFamily) : s.FontFamily;
             public double Measure(string text, ReportElementStyle s, double? size = null, string? weight = null) =>
                 Measurer.Measure(text, s.FontFamily, size ?? s.FontSize, weight ?? s.FontWeight, s.Italic);
@@ -247,7 +248,7 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
             else
             {
                 object? value = data.Rows.Count > 0 ? data.Rows[0].GetValueOrDefault(column.Name) : null;
-                valueText = value == null ? "—" : ReportFormatter.Format(value, e.Format, column.Type);
+                valueText = value == null ? "—" : ReportFormatter.Format(value, e.Format, column.Type, ctx.Zone);
             }
             valueText = (e.Prefix ?? "") + valueText + (e.Suffix ?? "");
 
@@ -326,7 +327,7 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
                 {
                     var col = columns[i];
                     var type = data.Columns.FirstOrDefault(c => c.Name == col.Field)?.Type;
-                    string text = ReportFormatter.Format(data.Rows[r].GetValueOrDefault(col.Field), col.Format, type);
+                    string text = ReportFormatter.Format(data.Rows[r].GetValueOrDefault(col.Field), col.Format, type, ctx.Zone);
                     sb.Append(Cell(text, i, x, y + rowH / 2, null, null));
                     x += widths[i];
                 }
@@ -389,14 +390,14 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
 
             var palette = c.Palette is { Count: > 0 } ? c.Palette : DefaultPalette.ToList();
             var categoryType = data.Columns.FirstOrDefault(x => x.Name == c.CategoryField)?.Type;
-            var categories = data.Rows.Select(r => ReportFormatter.Format(r.GetValueOrDefault(c.CategoryField!), c.CategoryFormat, categoryType)).ToList();
+            var categories = data.Rows.Select(r => ReportFormatter.Format(r.GetValueOrDefault(c.CategoryField!), c.CategoryFormat, categoryType, ctx.Zone)).ToList();
             var series = c.Series.Select((sr, i) => new ChartSeries(
                 sr.Label ?? data.Columns.FirstOrDefault(x => x.Name == sr.Field)?.Label ?? sr.Field,
                 sr.Color ?? palette[i % palette.Count],
                 data.Rows.Select(r => ReportFormatter.TryDouble(r.GetValueOrDefault(sr.Field), out var v) ? v : 0).ToArray(),
                 data.Columns.FirstOrDefault(x => x.Name == sr.Field)?.Type)).ToList();
             string? valueType = series[0].Type;
-            string FormatValue(double v) => ReportFormatter.Format(v, c.ValueFormat, valueType);
+            string FormatValue(double v) => ReportFormatter.Format(v, c.ValueFormat, valueType, ctx.Zone);
 
             double axisFont = Math.Max(9, s.FontSize * 0.8);
             var sb = new StringBuilder();

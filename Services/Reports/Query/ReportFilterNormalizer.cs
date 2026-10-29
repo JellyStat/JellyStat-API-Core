@@ -33,11 +33,30 @@ namespace Jellystat_API_Core.Services.Reports.Query
         private static readonly HashSet<string> DateOnly = [Op.LastNDays, Op.LastNHours, Op.Today, Op.ThisMonth, Op.ThisYear];
 
         public static NormalizedFilter? Normalize(ReportFilterNode? node, IReportDataset dataset,
-            IReadOnlyDictionary<string, JsonElement?> parameters, DateTime utcNow)
+            IReadOnlyDictionary<string, JsonElement?> parameters, DateTime utcNow, TimeZoneInfo? timeZone = null)
         {
             if (node == null) return null;
+            Zone = timeZone ?? TimeZoneInfo.Utc;
             return node.IsGroup ? NormalizeGroup(node, dataset, parameters, utcNow, negate: false)
                                 : NormalizeRule(node, dataset, parameters, utcNow, negate: false);
+        }
+
+        // "Today", "this month" etc. are calendar periods in the report's time zone, converted back to UTC for the query
+        [ThreadStatic] private static TimeZoneInfo? Zone;
+
+        private static (DateTime From, DateTime To) Period(DateTime utcNow, string op)
+        {
+            var tz = Zone ?? TimeZoneInfo.Utc;
+            var local = TimeZoneInfo.ConvertTimeFromUtc(DateTime.SpecifyKind(utcNow, DateTimeKind.Utc), tz);
+            DateTime start = op switch
+            {
+                Op.ThisMonth => new DateTime(local.Year, local.Month, 1),
+                Op.ThisYear => new DateTime(local.Year, 1, 1),
+                _ => local.Date
+            };
+            DateTime end = op switch { Op.ThisMonth => start.AddMonths(1), Op.ThisYear => start.AddYears(1), _ => start.AddDays(1) };
+            DateTime Utc(DateTime d) => DateTime.SpecifyKind(TimeZoneInfo.ConvertTimeToUtc(DateTime.SpecifyKind(d, DateTimeKind.Unspecified), tz), DateTimeKind.Utc);
+            return (Utc(start), Utc(end));
         }
 
         private static NormalizedFilter? NormalizeGroup(ReportFilterNode node, IReportDataset dataset,
@@ -136,13 +155,10 @@ namespace Jellystat_API_Core.Services.Reports.Query
                 case Op.LastNHours:
                     return Simple(Op.Gte, utcNow.AddHours(-ReportValueConverter.ToDouble(value, field)));
                 case Op.Today:
-                    return Range(utcNow.Date, Op.Gte, utcNow.Date.AddDays(1), Op.Lt);
                 case Op.ThisMonth:
-                    var month = new DateTime(utcNow.Year, utcNow.Month, 1, 0, 0, 0, DateTimeKind.Utc);
-                    return Range(month, Op.Gte, month.AddMonths(1), Op.Lt);
                 case Op.ThisYear:
-                    var year = new DateTime(utcNow.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-                    return Range(year, Op.Gte, year.AddYears(1), Op.Lt);
+                    var (periodFrom, periodTo) = Period(utcNow, op);
+                    return Range(periodFrom, Op.Gte, periodTo, Op.Lt);
 
                 default:
                     if (ReportValueConverter.IsMissing(value)) return null;

@@ -12,6 +12,8 @@ namespace Jellystat_API_Core.Services.Reports.Query
     public class ReportGroupKey<T1, T2> { public T1 K1 { get; set; } = default!; public T2 K2 { get; set; } = default!; }
     public class ReportGroupKey<T1, T2, T3> { public T1 K1 { get; set; } = default!; public T2 K2 { get; set; } = default!; public T3 K3 { get; set; } = default!; }
     public class ReportGroupKey<T1, T2, T3, T4> { public T1 K1 { get; set; } = default!; public T2 K2 { get; set; } = default!; public T3 K3 { get; set; } = default!; public T4 K4 { get; set; } = default!; }
+    public class ReportGroupKey<T1, T2, T3, T4, T5> { public T1 K1 { get; set; } = default!; public T2 K2 { get; set; } = default!; public T3 K3 { get; set; } = default!; public T4 K4 { get; set; } = default!; public T5 K5 { get; set; } = default!; }
+    public class ReportGroupKey<T1, T2, T3, T4, T5, T6> { public T1 K1 { get; set; } = default!; public T2 K2 { get; set; } = default!; public T3 K3 { get; set; } = default!; public T4 K4 { get; set; } = default!; public T5 K5 { get; set; } = default!; public T6 K6 { get; set; } = default!; }
 
     public class ReportAggRow<TKey>
     {
@@ -24,10 +26,16 @@ namespace Jellystat_API_Core.Services.Reports.Query
         public double? A5 { get; set; }
         public double? A6 { get; set; }
         public double? A7 { get; set; }
+        public double? A8 { get; set; }
+        public double? A9 { get; set; }
+        public double? A10 { get; set; }
+        public double? A11 { get; set; }
         public DateTime? D0 { get; set; }
         public DateTime? D1 { get; set; }
         public DateTime? D2 { get; set; }
         public DateTime? D3 { get; set; }
+        public DateTime? D4 { get; set; }
+        public DateTime? D5 { get; set; }
     }
 
     /// <summary>One output column of a grouped query and where its value lives on ReportAggRow.</summary>
@@ -42,14 +50,14 @@ namespace Jellystat_API_Core.Services.Reports.Query
 
     public static class ReportGrouping
     {
-        public const int MaxGroups = 4;
-        public const int MaxNumericAggregates = 8;
-        public const int MaxDateAggregates = 4;
+        public const int MaxGroups = 6;
+        public const int MaxNumericAggregates = 12;
+        public const int MaxDateAggregates = 6;
 
         private static readonly HashSet<string> NumericTypes =
             [ReportFieldTypes.Number, ReportFieldTypes.Integer, ReportFieldTypes.Duration, ReportFieldTypes.Bytes];
 
-        public static ReportGroupedQuery Build<TRow>(IQueryable<TRow> query, ReportDataSource source, IReportDataset dataset)
+        public static ReportGroupedQuery Build<TRow>(IQueryable<TRow> query, ReportDataSource source, IReportDataset dataset, TimeZoneInfo? timeZone = null)
         {
             if (source.GroupBy.Count > MaxGroups)
                 throw new ReportDefinitionException($"A data source can group by at most {MaxGroups} fields");
@@ -67,7 +75,7 @@ namespace Jellystat_API_Core.Services.Reports.Query
                 string type = info.Type;
                 if (!string.IsNullOrEmpty(group.Bucket))
                 {
-                    key = DateBucket(key, group.Bucket!, info);
+                    key = DateBucket(key, group.Bucket!, info, timeZone);
                     type = group.Bucket is ReportDateBuckets.Year or ReportDateBuckets.HourOfDay ? ReportFieldTypes.Integer : ReportFieldTypes.String;
                 }
                 string label = string.IsNullOrEmpty(group.Bucket) ? info.Label : $"{info.Label} ({group.Bucket})";
@@ -90,7 +98,9 @@ namespace Jellystat_API_Core.Services.Reports.Query
                     1 => typeof(ReportGroupKey<>),
                     2 => typeof(ReportGroupKey<,>),
                     3 => typeof(ReportGroupKey<,,>),
-                    _ => typeof(ReportGroupKey<,,,>)
+                    4 => typeof(ReportGroupKey<,,,>),
+                    5 => typeof(ReportGroupKey<,,,,>),
+                    _ => typeof(ReportGroupKey<,,,,,>)
                 };
                 keyType = generic.MakeGenericType(keyParts.Select(k => k.Type).ToArray());
                 keyBody = Expression.MemberInit(Expression.New(keyType),
@@ -171,11 +181,17 @@ namespace Jellystat_API_Core.Services.Reports.Query
         /// Date buckets as integers (yyyyMMdd, yyyyMM, ...) because DateTime parts translate on every provider while
         /// date truncation does not. ReportQueryExecutor turns them back into readable labels.
         /// </summary>
-        private static Expression DateBucket(Expression member, string bucket, ReportFieldInfo info)
+        private static readonly System.Reflection.MethodInfo ConvertTimeById =
+            typeof(TimeZoneInfo).GetMethod(nameof(TimeZoneInfo.ConvertTimeBySystemTimeZoneId), [typeof(DateTime), typeof(string)])!;
+
+        private static Expression DateBucket(Expression member, string bucket, ReportFieldInfo info, TimeZoneInfo? timeZone)
         {
             if (info.Type != ReportFieldTypes.Date) throw new ReportDefinitionException($"Date buckets only work on date fields ({info.Label})");
             bool nullable = Nullable.GetUnderlyingType(member.Type) != null;
             Expression d = nullable ? Expression.Property(member, "Value") : member;
+            // Buckets follow the report's calendar; Npgsql turns this into AT TIME ZONE
+            if (timeZone != null && !Rendering.ReportFormatter.IsUtc(timeZone))
+                d = Expression.Call(ConvertTimeById, d, Expression.Constant(timeZone.Id));
 
             Expression Part(string name) => Expression.Property(d, name);
             Expression Times(Expression e, long factor) => Expression.Multiply(e, Expression.Constant((int)factor));

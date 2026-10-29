@@ -34,6 +34,39 @@ namespace Jellystat_API_Core.Models.Reports
         /// <summary>Field keys, or group/aggregate aliases when grouping.</summary>
         public List<ReportSort> Sort { get; set; } = [];
         public int? Limit { get; set; }
+
+        /// <summary>Steps applied to the query result, in order (see ReportTransforms).</summary>
+        public List<ReportTransform> Transforms { get; set; } = [];
+    }
+
+    /// <summary>
+    /// One post-query step. Which properties apply depends on Type:
+    /// filter (Field, Operator, Value|Parameter), topN (Field, Count, Desc, PartitionBy, LabelField, OtherLabel),
+    /// pivot (RowField, ColumnField, Field, Aggregate, FillZero, SortColumns), runningTotal / percentOfTotal / rank / change
+    /// (Field, Alias, PartitionBy, Desc, Mode = difference|percent), fillDates (Field, Bucket, Count|Parameter = last N days),
+    /// sort (Sort), limit (Count).
+    /// </summary>
+    public class ReportTransform
+    {
+        public string Type { get; set; } = "filter";
+        public string? Field { get; set; }
+        public string? Operator { get; set; }
+        public JsonElement? Value { get; set; }
+        public string? Parameter { get; set; }
+        public int? Count { get; set; }
+        public bool Desc { get; set; } = true;
+        public string? PartitionBy { get; set; }
+        public string? LabelField { get; set; }
+        public string? OtherLabel { get; set; }
+        public string? RowField { get; set; }
+        public string? ColumnField { get; set; }
+        public string? Aggregate { get; set; }
+        public bool FillZero { get; set; } = true;
+        public bool SortColumns { get; set; } = true;
+        public string? Alias { get; set; }
+        public string? Mode { get; set; }
+        public string? Bucket { get; set; }
+        public List<ReportSort>? Sort { get; set; }
     }
 
     public static class ReportDateBuckets
