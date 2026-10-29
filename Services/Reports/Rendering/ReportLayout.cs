@@ -19,7 +19,7 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
             for (int p = 0; p < model.Definition.Pages.Count && pages.Count < MaxPages; p++)
             {
                 var growing = model.Definition.Pages[p].Elements
-                    .Where(e => !e.Hidden && e.Grow && e.Type is ReportElementTypes.Table or ReportElementTypes.Cards)
+                    .Where(IsGrowing)
                     .Select(e => (Element: e, Total: TotalRows(e, model)))
                     .Where(g => g.Total > 0)
                     .ToList();
@@ -50,6 +50,23 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
                 }
             }
             return pages;
+        }
+
+        public static bool IsGrowing(ReportElement e) => !e.Hidden && e.Grow && e.Type is ReportElementTypes.Table or ReportElementTypes.Cards;
+
+        /// <summary>
+        /// Whether an element is drawn on the extra pages its page's growing elements add: anything entirely in the
+        /// header zone (above the header line) or the footer zone (below the growing elements), like page headers
+        /// and footers in banded report tools. Elements in between belong to the first page.
+        /// </summary>
+        public static bool RepeatsOnExtraPages(ReportPage page, ReportElement e)
+        {
+            if (e.FirstPageOnly || IsGrowing(e)) return false;
+            var growing = page.Elements.Where(IsGrowing).ToList();
+            if (growing.Count == 0) return false;
+            double header = growing.Min(g => Math.Min(g.ContinueTop ?? DefaultContinueTop, g.Y));
+            double footer = growing.Max(g => g.Y + g.Height);
+            return e.Y + e.Height <= header + 0.5 || e.Y >= footer - 0.5;
         }
 
         /// <summary>Rows the element shows in total (all pages), after its own row limit.</summary>

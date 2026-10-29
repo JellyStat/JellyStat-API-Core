@@ -106,10 +106,13 @@ namespace Jellystat_API_Core.Models.Reports
 
         /// <summary>table, cards: rows that don't fit continue on extra pages added after this page.</summary>
         public bool Grow { get; set; }
-        /// <summary>Where a growing element starts on those extra pages (px from the top); its bottom edge stays put.</summary>
+        /// <summary>
+        /// Header height for the extra pages (px from the top): the growing element starts there, and elements
+        /// entirely above it repeat on every extra page (see ReportPaginator.RepeatsOnExtraPages).
+        /// </summary>
         public double? ContinueTop { get; set; }
-        /// <summary>Also draw this element on the extra pages growing elements add (titles, footers, page numbers).</summary>
-        public bool Repeat { get; set; }
+        /// <summary>Keeps an element in the header or footer zone off the extra pages.</summary>
+        public bool FirstPageOnly { get; set; }
 
         /// <summary>table, cards, metric: styles applied to rows (or cells) that match.</summary>
         public List<ReportCondition>? Conditions { get; set; }

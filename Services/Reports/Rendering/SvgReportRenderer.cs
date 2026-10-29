@@ -56,8 +56,8 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
             foreach (var element in reportPage.Elements.Where(e => !e.Hidden))
             {
                 var slice = layout.Slices.GetValueOrDefault(element.Id);
-                // Extra pages only carry the growing elements still showing rows, and the ones marked to repeat
-                if (layout.Continuation > 0 && slice == null && !element.Repeat) continue;
+                // Extra pages carry the growing elements still showing rows, plus the header and footer zones
+                if (layout.Continuation > 0 && slice == null && !ReportPaginator.RepeatsOnExtraPages(reportPage, element)) continue;
                 sb.Append(RenderElement(element, ctx, slice));
             }
             sb.Append("</svg>");
