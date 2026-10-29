@@ -1,3 +1,4 @@
+using Jellystat_API_Core.Services.API;
 using System.Diagnostics;
 using System.Net.Http.Headers;
 using System.Security.Cryptography;
@@ -34,11 +35,39 @@ namespace Jellystat_API_Core.Services.Webhooks
         [GeneratedRegex(@"\{\{\s*([A-Za-z0-9_.]+)\s*\}\}")]
         private static partial Regex TokenPattern();
 
-        private readonly IHttpClientFactory _httpClientFactory;
+        private const int PosterWidth = 300;
 
-        public WebhookSender(IHttpClientFactory httpClientFactory)
+        private readonly IHttpClientFactory _httpClientFactory;
+        private readonly IAPIInstanceManager _apiInstanceManager;
+
+        public WebhookSender(IHttpClientFactory httpClientFactory, IAPIInstanceManager apiInstanceManager)
         {
             _httpClientFactory = httpClientFactory;
+            _apiInstanceManager = apiInstanceManager;
+        }
+
+        private record Poster(byte[] Content, string ContentType, string FileName);
+
+        /// <summary>
+        /// The item's Primary image from its media server, attached to the message so Discord can show it even when the
+        /// server isn't reachable from the internet. Null when there's none; the message then goes without it.
+        /// </summary>
+        private async Task<Poster?> FetchPosterAsync(string? serverId, string imageId, CancellationToken cancellationToken)
+        {
+            var api = serverId == null ? null : _apiInstanceManager.GetInstance(serverId);
+            if (api == null) return null;
+            try
+            {
+                using var response = await api.GetItemImage(imageId, PosterWidth, 90);
+                string? contentType = response.Content.Headers.ContentType?.MediaType;
+                if (!response.IsSuccessStatusCode || contentType is not ("image/jpeg" or "image/png" or "image/webp")) return null;
+                byte[] content = await response.Content.ReadAsByteArrayAsync(cancellationToken);
+                return new Poster(content, contentType, "poster." + contentType["image/".Length..].Replace("jpeg", "jpg"));
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException || !cancellationToken.IsCancellationRequested)
+            {
+                return null;
+            }
         }
 
         public static bool IsValidUrl(string? url) =>
@@ -91,16 +120,31 @@ namespace Jellystat_API_Core.Services.Webhooks
             {
                 if (!IsValidUrl(webhook.Url)) return new(false, null, "The webhook URL must be an absolute http(s) URL", Elapsed());
 
-                string body = !string.IsNullOrWhiteSpace(webhook.PayloadTemplate)
-                    ? ApplyTemplate(webhook.PayloadTemplate, evt)
+                bool templated = !string.IsNullOrWhiteSpace(webhook.PayloadTemplate);
+                Poster? poster = !templated && webhook.Type == WebhookTypes.Discord && evt.Data is WebhookPlaybackData playback
+                    ? await FetchPosterAsync(evt.ServerId, playback.Item.ImageId, cancellationToken)
+                    : null;
+                string body = templated
+                    ? ApplyTemplate(webhook.PayloadTemplate!, evt)
                     : webhook.Type == WebhookTypes.Discord
-                        ? JsonSerializer.Serialize(DiscordMessage(evt), DiscordJsonOptions)
+                        ? JsonSerializer.Serialize(DiscordMessage(evt, poster == null ? null : "attachment://" + poster.FileName), DiscordJsonOptions)
                         : JsonSerializer.Serialize(Envelope(evt), JsonOptions);
                 byte[] bytes = Encoding.UTF8.GetBytes(body);
 
                 using var request = new HttpRequestMessage(HttpMethod.Post, webhook.Url);
-                request.Content = new ByteArrayContent(bytes);
-                request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json") { CharSet = "utf-8" };
+                var json = new ByteArrayContent(bytes);
+                json.Headers.ContentType = new MediaTypeHeaderValue("application/json") { CharSet = "utf-8" };
+                if (poster != null)
+                {
+                    // Discord: the message as payload_json, the poster as an attachment the embed points at
+                    var image = new ByteArrayContent(poster.Content);
+                    image.Headers.ContentType = new MediaTypeHeaderValue(poster.ContentType);
+                    request.Content = new MultipartFormDataContent { { json, "payload_json" }, { image, "files[0]", poster.FileName } };
+                }
+                else
+                {
+                    request.Content = json;
+                }
                 foreach (var (name, value) in ParseHeaders(webhook.Headers))
                 {
                     if (!request.Headers.TryAddWithoutValidation(name, value)) request.Content.Headers.TryAddWithoutValidation(name, value);
@@ -128,12 +172,24 @@ namespace Jellystat_API_Core.Services.Webhooks
             }
         }
 
-        private static object DiscordMessage(WebhookEvent evt)
+        private static object DiscordMessage(WebhookEvent evt, string? thumbnailUrl = null)
         {
             string footer = evt.ServerName ?? "Jellystat";
             object Embed(string title, string? description, int color, object[]? fields = null) => new
             {
-                embeds = new[] { new { title = Clip(title, 256), description = description == null ? null : Clip(description, 4096), color, fields, footer = new { text = footer }, timestamp = evt.Timestamp } }
+                embeds = new[]
+                {
+                    new
+                    {
+                        title = Clip(title, 256),
+                        description = description == null ? null : Clip(description, 4096),
+                        color,
+                        fields,
+                        thumbnail = thumbnailUrl == null ? null : new { url = thumbnailUrl },
+                        footer = new { text = footer },
+                        timestamp = evt.Timestamp
+                    }
+                }
             };
 
             switch (evt.Data)

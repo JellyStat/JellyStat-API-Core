@@ -217,7 +217,8 @@ namespace Jellystat_API_Core.Classes.Tasks
             _webhooks.Publish(new WebhookEvent(eventKey, playback.ServerId, api.config.Name, new WebhookPlaybackData(
                 new WebhookUser(playback.UserId, playback.UserName),
                 new WebhookPlaybackItem(playback.ItemId, playback.Name, playback.ItemType.ToString(), playback.SeriesId, playback.SeriesName, playback.SeasonId,
-                    playback.SeasonNumber, playback.EpisodeNumber, playback.RuntimeTicks / TimeSpan.TicksPerSecond),
+                    playback.SeasonNumber, playback.EpisodeNumber, playback.RuntimeTicks / TimeSpan.TicksPerSecond,
+                    WebhookPlaybackItem.PosterId(playback.ItemId, playback.SeriesId)),
                 playback.Client, playback.Device, playback.DeviceId, playback.PlayMethod, watchedSeconds)));
         }
 

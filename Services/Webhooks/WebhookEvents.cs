@@ -30,8 +30,12 @@ namespace Jellystat_API_Core.Services.Webhooks
 
     public record WebhookUser(string Id, string Name);
 
+    /// <summary>ImageId is the item whose Primary image represents it, as the web UI's session cards pick it: the series, else the item.</summary>
     public record WebhookPlaybackItem(string Id, string Name, string Type, string? SeriesId, string? SeriesName, string? SeasonId,
-        int? SeasonNumber, int? EpisodeNumber, long RuntimeSeconds);
+        int? SeasonNumber, int? EpisodeNumber, long RuntimeSeconds, string ImageId)
+    {
+        public static string PosterId(string id, string? seriesId) => seriesId ?? id;
+    }
 
     /// <summary>playback.started and playback.ended; WatchedSeconds is only set when playback ends.</summary>
     public record WebhookPlaybackData(WebhookUser User, WebhookPlaybackItem Item, string? Client, string? Device, string? DeviceId,
@@ -56,7 +60,7 @@ namespace Jellystat_API_Core.Services.Webhooks
 
     public static class WebhookSamples
     {
-        private static readonly WebhookPlaybackItem SampleEpisode = new("sample-item-id", "Pilot", "Episode", "sample-series-id", "Sample Series", "sample-season-id", 1, 1, 2700);
+        private static readonly WebhookPlaybackItem SampleEpisode = new("sample-item-id", "Pilot", "Episode", "sample-series-id", "Sample Series", "sample-season-id", 1, 1, 2700, "sample-series-id");
 
         /// <summary>A realistic payload for each event, for tests and the token reference in the UI.</summary>
         public static WebhookEvent For(string eventKey, string? serverId, string? serverName) => eventKey switch

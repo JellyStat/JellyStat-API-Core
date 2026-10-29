@@ -148,6 +148,28 @@ namespace Jellystat_API_Core.Controllers
             string serverId = webhook.ServerId ?? HttpContext.User.GetServerId();
             string? serverName = await context.Servers.Where(s => s.Id == serverId).Select(s => s.Name).FirstOrDefaultAsync(cancellationToken);
             var evt = WebhookSamples.For(Event ?? WebhookEvents.Test, serverId, serverName);
+            if (evt.Data is WebhookPlaybackData playback)
+            {
+                // Show the latest real playback, so the test message carries an actual poster
+                var recent = await context.Activity.AsNoTracking()
+                    .Where(a => a.ServerId == serverId)
+                    .OrderByDescending(a => a.DateCreated)
+                    .Select(a => new { a.ItemId, a.Name, a.SeriesId, a.SeriesName, a.SeasonId, a.RuntimeTicks, a.UserId, a.UserName, a.Client, a.Device, a.DeviceId, a.PlayMethod, a.Duration,
+                        Item = context.Items.Where(i => i.Id == a.ItemId).Select(i => new { i.Type, i.ParentIndex, i.Index }).FirstOrDefault() })
+                    .FirstOrDefaultAsync(cancellationToken);
+                if (recent != null)
+                {
+                    string type = (recent.Item?.Type ?? (recent.SeriesId != null ? ItemTypes.Episode : ItemTypes.Movie)).ToString();
+                    evt = evt with
+                    {
+                        Data = new WebhookPlaybackData(new WebhookUser(recent.UserId, recent.UserName),
+                            new WebhookPlaybackItem(recent.ItemId, recent.Name, type, recent.SeriesId, recent.SeriesName, recent.SeasonId,
+                                recent.Item?.ParentIndex, recent.Item?.Index, recent.RuntimeTicks / TimeSpan.TicksPerSecond,
+                                WebhookPlaybackItem.PosterId(recent.ItemId, recent.SeriesId)),
+                            recent.Client, recent.Device, recent.DeviceId, recent.PlayMethod, playback.WatchedSeconds == null ? null : recent.Duration)
+                    };
+                }
+            }
 
             var result = await _sender.SendAsync(webhook, evt, cancellationToken);
             WebhookDispatcher.Record(webhook, evt, result);
