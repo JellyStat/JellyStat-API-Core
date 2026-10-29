@@ -23,6 +23,10 @@ namespace Jellystat_API_Core.Services.Reports
         /// <summary>The choices of a lookup parameter: distinct values of its data source column (at most 1000).</summary>
         Task<List<ReportParameterOption>> GetParameterOptionsAsync(ReportDefinition definition, string parameter, ReportScope scope,
             IReadOnlyDictionary<string, JsonElement>? values, CancellationToken cancellationToken = default);
+
+        /// <summary>Runs one data source of a definition, including any sources a combined source is built from.</summary>
+        Task<ReportDataResult> ExecuteSourceAsync(ReportDefinition definition, ReportDataSource source, ReportScope scope,
+            IReadOnlyDictionary<string, JsonElement>? values, int? maxRows = null, CancellationToken cancellationToken = default);
     }
 
     public partial class ReportService : IReportService
@@ -81,15 +85,47 @@ namespace Jellystat_API_Core.Services.Reports
             {
                 if (string.IsNullOrWhiteSpace(source.Id) || !sourceIds.Add(source.Id))
                     throw new ReportDefinitionException("Every data source needs a unique id");
-                if (_datasets.Get(source.Dataset) == null)
-                    throw new ReportDefinitionException($"Data source '{source.Name}' uses unknown dataset '{source.Dataset}'");
-                if (source.Engine is not (ReportQueryEngines.EfCore or ReportQueryEngines.Gridify))
-                    throw new ReportDefinitionException($"Data source '{source.Name}' uses unknown engine '{source.Engine}'");
+                if (source.Derive != null)
+                {
+                    if (!ReportDeriveModes.All.Contains(source.Derive.Mode))
+                        throw new ReportDefinitionException($"Data source '{source.Name}' uses unknown combine mode '{source.Derive.Mode}'");
+                    if (source.Derive.Sources.Count == 0)
+                        throw new ReportDefinitionException($"Choose the data sources '{source.Name}' combines");
+                    if (source.Derive.Mode == ReportDeriveModes.Join && (source.Derive.Sources.Count != 2 || source.Derive.On.Count == 0 || !ReportDerivation.JoinTypes.Contains(source.Derive.JoinType)))
+                        throw new ReportDefinitionException($"The join in '{source.Name}' needs two data sources, a join type and at least one column pair");
+                }
+                else
+                {
+                    var dataset = _datasets.Get(source.Dataset)
+                        ?? throw new ReportDefinitionException($"Data source '{source.Name}' uses unknown dataset '{source.Dataset}'");
+                    if (source.Engine is not (ReportQueryEngines.EfCore or ReportQueryEngines.Gridify))
+                        throw new ReportDefinitionException($"Data source '{source.Name}' uses unknown engine '{source.Engine}'");
+                    // Parses (and safety-checks) the calculated fields
+                    _ = new ReportFieldSet(dataset, source.Calculated);
+                }
                 if (source.Limit < 1 || source.Limit > ReportQueryExecutor.MaxLimit)
                     throw new ReportDefinitionException($"Row limit of '{source.Name}' must be 1-{ReportQueryExecutor.MaxLimit}");
                 foreach (var t in source.Transforms ?? [])
                     if (!ReportTransforms.Types.Contains(t.Type))
                         throw new ReportDefinitionException($"Data source '{source.Name}' has an unknown step '{t.Type}'");
+            }
+
+            // Combined sources must point at existing sources, without loops
+            var byId = d.DataSources.ToDictionary(x => x.Id);
+            foreach (var source in d.DataSources.Where(x => x.Derive != null))
+            {
+                foreach (var input in source.Derive!.Sources)
+                    if (!byId.ContainsKey(input) || input == source.Id)
+                        throw new ReportDefinitionException($"'{source.Name}' combines a data source that doesn't exist");
+                var path = new HashSet<string>();
+                bool Loops(string id)
+                {
+                    if (!path.Add(id)) return true;
+                    bool loops = byId[id].Derive?.Sources.Any(Loops) ?? false;
+                    path.Remove(id);
+                    return loops;
+                }
+                if (Loops(source.Id)) throw new ReportDefinitionException($"'{source.Name}' is built from itself (directly or through other sources)");
             }
 
             var parameterNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -147,7 +183,7 @@ namespace Jellystat_API_Core.Services.Reports
             // The lookup's own value never filters its choices, otherwise picking one value would hide all the others
             var resolved = ResolveParameters(definition, values);
             resolved.Remove(p.Name);
-            var data = await _executor.ExecuteAsync(source, scope, resolved, 1000, cancellationToken, definition.TimeZone);
+            var data = await ExecuteSourceAsync(definition, source, scope, resolved, 1000, [], [], cancellationToken);
             if (data.Error != null) throw new ReportDefinitionException(data.Error);
 
             var valueColumn = data.Columns.FirstOrDefault(c => c.Name.Equals(p.Lookup.ValueField, StringComparison.OrdinalIgnoreCase))
@@ -167,6 +203,49 @@ namespace Jellystat_API_Core.Services.Reports
             return options;
         }
 
+        public Task<ReportDataResult> ExecuteSourceAsync(ReportDefinition definition, ReportDataSource source, ReportScope scope,
+            IReadOnlyDictionary<string, JsonElement>? values, int? maxRows = null, CancellationToken cancellationToken = default) =>
+            ExecuteSourceAsync(definition, source, scope, ResolveParameters(definition, values), maxRows, [], [], cancellationToken);
+
+        private async Task<ReportDataResult> ExecuteSourceAsync(ReportDefinition definition, ReportDataSource source, ReportScope scope,
+            Dictionary<string, JsonElement?> parameters, int? maxRows, Dictionary<string, ReportDataResult> memo, HashSet<string> visiting,
+            CancellationToken cancellationToken)
+        {
+            if (memo.TryGetValue(source.Id, out var done)) return done;
+            ReportDataResult result;
+            if (source.Derive == null)
+            {
+                result = await _executor.ExecuteAsync(source, scope, parameters, maxRows, cancellationToken, definition.TimeZone);
+            }
+            else
+            {
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                try
+                {
+                    if (!visiting.Add(source.Id)) throw new ReportDefinitionException($"'{source.Name}' is built from itself");
+                    var inputs = new List<(ReportDataSource, ReportDataResult)>();
+                    foreach (var id in source.Derive.Sources)
+                    {
+                        var input = definition.DataSources.FirstOrDefault(x => x.Id == id)
+                            ?? throw new ReportDefinitionException($"'{source.Name}' combines a data source that doesn't exist");
+                        var inputResult = await ExecuteSourceAsync(definition, input, scope, parameters, maxRows, memo, visiting, cancellationToken);
+                        if (inputResult.Error != null) throw new ReportDefinitionException($"'{input.Name}' failed: {inputResult.Error}");
+                        inputs.Add((input, inputResult));
+                    }
+                    visiting.Remove(source.Id);
+                    result = ReportDerivation.Combine(source, inputs, ReportQueryExecutor.MaxLimit);
+                    ReportTransforms.Apply(result, source.Transforms ?? [], parameters, ReportFormatter.Zone(definition.TimeZone), DateTime.UtcNow);
+                }
+                catch (ReportDefinitionException ex)
+                {
+                    result = new ReportDataResult { DataSourceId = source.Id, Error = ex.Message };
+                }
+                result.ElapsedMs = sw.ElapsedMilliseconds;
+            }
+            memo[source.Id] = result;
+            return result;
+        }
+
         public async Task<ReportRenderModel> BuildAsync(ReportDefinition definition, string name, string? reportId, ReportScope scope,
             IReadOnlyDictionary<string, JsonElement>? parameters, int? maxRows = null, CancellationToken cancellationToken = default)
         {
@@ -180,10 +259,12 @@ namespace Jellystat_API_Core.Services.Reports
                 Parameters = resolved.ToDictionary(kv => kv.Key, kv => kv.Value.HasValue ? ReportFormatter.Unwrap(kv.Value.Value) : null, StringComparer.OrdinalIgnoreCase)
             };
 
-            // One DbContext can't run queries in parallel, so data sources run one after another
+            // One DbContext can't run queries in parallel, so data sources run one after another. Results are
+            // remembered, so a source that combined sources use only runs once.
+            var memo = new Dictionary<string, ReportDataResult>();
             foreach (var source in definition.DataSources)
             {
-                model.Data[source.Id] = await _executor.ExecuteAsync(source, scope, resolved, maxRows, cancellationToken, definition.TimeZone);
+                model.Data[source.Id] = await ExecuteSourceAsync(definition, source, scope, resolved, maxRows, memo, [], cancellationToken);
             }
             return model;
         }

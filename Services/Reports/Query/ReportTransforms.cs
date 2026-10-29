@@ -13,7 +13,7 @@ namespace Jellystat_API_Core.Services.Reports.Query
     /// </summary>
     public static class ReportTransforms
     {
-        public static readonly string[] Types = ["filter", "topN", "pivot", "runningTotal", "percentOfTotal", "rank", "change", "fillDates", "sort", "limit"];
+        public static readonly string[] Types = ["filter", "calculate", "topN", "pivot", "runningTotal", "percentOfTotal", "rank", "change", "fillDates", "sort", "limit"];
 
         private static readonly HashSet<string> NumericTypes =
             [ReportFieldTypes.Number, ReportFieldTypes.Integer, ReportFieldTypes.Duration, ReportFieldTypes.Bytes];
@@ -32,6 +32,7 @@ namespace Jellystat_API_Core.Services.Reports.Query
                 switch (t.Type)
                 {
                     case "filter": Filter(result, t, parameters); break;
+                    case "calculate": Calculate(result, t); break;
                     case "topN": TopN(result, t); break;
                     case "pivot": Pivot(result, t); break;
                     case "runningTotal": Window(result, t, "running", RunningTotal); break;
@@ -71,7 +72,13 @@ namespace Jellystat_API_Core.Services.Reports.Query
             return string.Compare(Convert.ToString(a, CultureInfo.InvariantCulture), Convert.ToString(b, CultureInfo.InvariantCulture), StringComparison.OrdinalIgnoreCase);
         }
 
-        private static string Key(object? value) => Convert.ToString(value, CultureInfo.InvariantCulture) ?? "";
+        /// <summary>A value as a comparable string key (grouping, joining).</summary>
+        public static string Key(object? value) => value switch
+        {
+            DateTime d => d.ToString("O", CultureInfo.InvariantCulture),
+            double or float or decimal => Convert.ToDouble(value, CultureInfo.InvariantCulture).ToString("R", CultureInfo.InvariantCulture),
+            _ => Convert.ToString(value, CultureInfo.InvariantCulture) ?? ""
+        };
 
         private static IEnumerable<List<Dictionary<string, object?>>> Partitions(List<Dictionary<string, object?>> rows, ReportColumn? partition) =>
             partition == null ? [rows] : rows.GroupBy(r => Key(r.GetValueOrDefault(partition.Name))).Select(g => g.ToList());
@@ -114,6 +121,58 @@ namespace Jellystat_API_Core.Services.Reports.Query
                 _ => throw new ReportDefinitionException($"Unknown filter operator '{op}'")
             };
             result.Rows = result.Rows.Where(r => Match(r.GetValueOrDefault(column.Name))).ToList();
+        }
+
+        /// <summary>
+        /// Adds a column computed from the row's other columns, e.g. "watch / plays" or "iif(plays > 10, \"Regular\", \"Casual\")".
+        /// Columns whose names aren't identifiers (e.g. pivoted ones with spaces) can't be referenced.
+        /// </summary>
+        private static void Calculate(ReportDataResult result, ReportTransform t)
+        {
+            string alias = (t.Alias ?? "").Trim();
+            if (alias.Length == 0) throw new ReportDefinitionException("The calculate step needs a column name");
+
+            var columns = result.Columns.Where(c => IdentifierRegex.IsMatch(c.Name)).ToList();
+            var parameters = columns.Select(c => System.Linq.Expressions.Expression.Parameter(ClrType(c.Type), c.Name)).ToList();
+            var lambda = ReportExpressionGuard.ParseValues(parameters, t.Expression, alias);
+            var compiled = lambda.Compile();
+            string type = string.IsNullOrWhiteSpace(t.Mode) || t.Mode == "auto" ? ReportFieldSet.InferType(lambda.ReturnType) : t.Mode!;
+
+            foreach (var row in result.Rows)
+            {
+                var args = columns.Select((c, i) => ToClr(row.GetValueOrDefault(c.Name), parameters[i].Type)).ToArray();
+                object? value;
+                try
+                {
+                    value = compiled.DynamicInvoke(args);
+                }
+                catch (System.Reflection.TargetInvocationException)
+                {
+                    // e.g. a null used where a value is needed: leave the cell empty
+                    value = null;
+                }
+                row[alias] = value is double d && !double.IsFinite(d) ? null : value;
+            }
+            AddColumn(result, alias, alias, type);
+        }
+
+        private static readonly System.Text.RegularExpressions.Regex IdentifierRegex = new("^[A-Za-z_][A-Za-z0-9_]*$");
+
+        private static Type ClrType(string columnType) => columnType switch
+        {
+            ReportFieldTypes.Number or ReportFieldTypes.Integer or ReportFieldTypes.Duration or ReportFieldTypes.Bytes => typeof(double?),
+            ReportFieldTypes.Date => typeof(DateTime?),
+            ReportFieldTypes.Boolean => typeof(bool?),
+            _ => typeof(string)
+        };
+
+        private static object? ToClr(object? value, Type type)
+        {
+            if (value == null) return null;
+            if (type == typeof(double?)) return Number(value);
+            if (type == typeof(DateTime?)) return ReportFormatter.TryDate(value, out var d) ? d : null;
+            if (type == typeof(bool?)) return value is bool b ? b : bool.TryParse(Key(value), out var p) ? p : null;
+            return value as string ?? Key(value);
         }
 
         /// <summary>The N rows with the highest (or lowest) value, per partition, optionally folding the rest into "Other".</summary>

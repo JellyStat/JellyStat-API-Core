@@ -77,15 +77,16 @@ namespace Jellystat_API_Core.Services.Reports.Query
             if (maxRows.HasValue) limit = Math.Min(limit, Math.Max(1, maxRows.Value));
 
             var query = (IQueryable<TRow>)dataset.Query(_db, scope);
+            var fieldSet = new ReportFieldSet(dataset, source.Calculated);
             var utcNow = DateTime.UtcNow;
-            var filter = ReportFilterNormalizer.Normalize(source.Filter, dataset, parameters, utcNow, timeZone);
-            query = engine.ApplyFilter(query, filter, source, dataset);
+            var filter = ReportFilterNormalizer.Normalize(source.Filter, fieldSet, parameters, utcNow, timeZone);
+            query = engine.ApplyFilter(query, filter, source, fieldSet);
 
             var result = new ReportDataResult { DataSourceId = source.Id };
 
             if (source.GroupBy.Count > 0 || source.Aggregates.Count > 0)
             {
-                var grouped = ReportGrouping.Build(query, source, dataset, timeZone);
+                var grouped = ReportGrouping.Build(query, source, fieldSet, timeZone);
                 var rows = await TakeAsync(grouped.Query, grouped.RowType, limit + 1, cancellationToken);
                 result.Truncated = rows.Count > limit;
                 result.Columns = grouped.Columns.Select(c => new ReportColumn { Name = c.Name, Label = c.Label, Type = c.Type }).ToList();
@@ -104,30 +105,24 @@ namespace Jellystat_API_Core.Services.Reports.Query
             }
 
             var fields = source.Fields.Count == 0
-                ? dataset.Fields.Select(f => f.Key).ToList()
-                : source.Fields.Select(f => dataset.GetProperty(f)?.Name ?? throw new ReportDefinitionException($"Unknown field '{f}' in dataset '{dataset.Key}'")).Distinct().ToList();
+                ? fieldSet.All.ToList()
+                : source.Fields.Select(fieldSet.Require).DistinctBy(f => f.Name).ToList();
 
-            var sort = source.Sort.Select(s => new ReportSortKey(
-                dataset.GetProperty(s.Field) ?? throw new ReportDefinitionException($"Can't sort by unknown field '{s.Field}'"), s.Desc)).ToList();
-            query = engine.ApplySort(query, sort, dataset);
+            var sort = source.Sort.Select(s => new ReportSortKey(fieldSet.Require(s.Field), s.Desc)).ToList();
+            query = engine.ApplySort(query, sort, fieldSet);
 
-            // Only the selected columns are read, so expensive fields (play counts) aren't computed unless asked for
+            // Only the selected columns (and calculated fields) are read, as one object[] per row
             var x = Expression.Parameter(typeof(TRow), "x");
-            var props = fields.Select(f => dataset.GetProperty(f)!).ToList();
-            var projection = Expression.Lambda<Func<TRow, TRow>>(
-                Expression.MemberInit(Expression.New(typeof(TRow)), props.Select(p => Expression.Bind(p, Expression.Property(x, p)))), x);
+            var projection = Expression.Lambda<Func<TRow, object?[]>>(
+                Expression.NewArrayInit(typeof(object), fields.Select(f => Expression.Convert(f.Access(x), typeof(object)))), x);
 
             var list = await query.Select(projection).Take(limit + 1).ToListAsync(cancellationToken);
             result.Truncated = list.Count > limit;
-            result.Columns = props.Select(p =>
-            {
-                var info = dataset.Fields.First(f => f.Key == p.Name);
-                return new ReportColumn { Name = p.Name, Label = info.Label, Type = info.Type };
-            }).ToList();
+            result.Columns = fields.Select(f => new ReportColumn { Name = f.Name, Label = f.Info.Label, Type = f.Info.Type }).ToList();
             foreach (var row in list.Take(limit))
             {
-                var dict = new Dictionary<string, object?>(props.Count);
-                foreach (var p in props) dict[p.Name] = Normalize(p.GetValue(row));
+                var dict = new Dictionary<string, object?>(fields.Count);
+                for (int i = 0; i < fields.Count; i++) dict[fields[i].Name] = Normalize(row[i]);
                 result.Rows.Add(dict);
             }
             ReportTransforms.Apply(result, source.Transforms ?? [], parameters, timeZone, utcNow);

@@ -14,7 +14,7 @@ namespace Jellystat_API_Core.Services.Reports.Query
     /// A rule reduced to a basic comparison with typed values. Op is one of the comparison operators plus
     /// notStartsWith/notEndsWith; between, relative dates and parameters are already expanded and negation pushed down.
     /// </summary>
-    public record NormalizedRule(PropertyInfo Property, string Op, object? Value, IReadOnlyList<object?> Values) : NormalizedFilter
+    public record NormalizedRule(ReportFieldRef Property, string Op, object? Value, IReadOnlyList<object?> Values) : NormalizedFilter
     {
         public Type ValueType => Property.PropertyType;
     }
@@ -32,7 +32,7 @@ namespace Jellystat_API_Core.Services.Reports.Query
         private static readonly HashSet<string> Ordered = [Op.Gt, Op.Gte, Op.Lt, Op.Lte, Op.Between];
         private static readonly HashSet<string> DateOnly = [Op.LastNDays, Op.LastNHours, Op.Today, Op.ThisMonth, Op.ThisYear];
 
-        public static NormalizedFilter? Normalize(ReportFilterNode? node, IReportDataset dataset,
+        public static NormalizedFilter? Normalize(ReportFilterNode? node, ReportFieldSet dataset,
             IReadOnlyDictionary<string, JsonElement?> parameters, DateTime utcNow, TimeZoneInfo? timeZone = null)
         {
             if (node == null) return null;
@@ -59,7 +59,7 @@ namespace Jellystat_API_Core.Services.Reports.Query
             return (Utc(start), Utc(end));
         }
 
-        private static NormalizedFilter? NormalizeGroup(ReportFilterNode node, IReportDataset dataset,
+        private static NormalizedFilter? NormalizeGroup(ReportFilterNode node, ReportFieldSet dataset,
             IReadOnlyDictionary<string, JsonElement?> parameters, DateTime utcNow, bool negate)
         {
             bool not = negate ^ node.Not;
@@ -84,13 +84,12 @@ namespace Jellystat_API_Core.Services.Reports.Query
             };
         }
 
-        private static NormalizedFilter? NormalizeRule(ReportFilterNode rule, IReportDataset dataset,
+        private static NormalizedFilter? NormalizeRule(ReportFilterNode rule, ReportFieldSet dataset,
             IReadOnlyDictionary<string, JsonElement?> parameters, DateTime utcNow, bool negate)
         {
             if (string.IsNullOrWhiteSpace(rule.Field)) return null;
 
-            PropertyInfo prop = dataset.GetProperty(rule.Field)
-                ?? throw new ReportDefinitionException($"Unknown field '{rule.Field}' in dataset '{dataset.Key}'");
+            ReportFieldRef prop = dataset.Require(rule.Field);
             string op = rule.Operator ?? Op.Eq;
             if (!Op.All.Contains(op)) throw new ReportDefinitionException($"Unknown filter operator '{op}'");
 

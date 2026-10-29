@@ -37,6 +37,52 @@ namespace Jellystat_API_Core.Models.Reports
 
         /// <summary>Steps applied to the query result, in order (see ReportTransforms).</summary>
         public List<ReportTransform> Transforms { get; set; } = [];
+
+        /// <summary>Extra fields computed from the dataset's fields; usable anywhere a field is (see ReportFieldSet).</summary>
+        public List<ReportCalculatedField> Calculated { get; set; } = [];
+
+        /// <summary>When set, the source combines other data sources' results instead of querying a dataset.</summary>
+        public ReportDerive? Derive { get; set; }
+    }
+
+    /// <summary>A field computed per row, e.g. "Duration / 3600.0" or "iif(CompletionPercentage >= 90, \"Finished\", \"Partial\")".</summary>
+    public class ReportCalculatedField
+    {
+        public string Name { get; set; } = "";
+        public string? Label { get; set; }
+        public string Expression { get; set; } = "";
+        /// <summary>auto (from the expression) or a ReportFieldTypes value such as duration or bytes, for formatting.</summary>
+        public string? Type { get; set; }
+    }
+
+    public static class ReportDeriveModes
+    {
+        /// <summary>Rows of Sources[0] matched with rows of Sources[1] on the On columns.</summary>
+        public const string Join = "join";
+        /// <summary>Rows of every source, one after another.</summary>
+        public const string Union = "union";
+
+        public static readonly string[] All = [Join, Union];
+    }
+
+    public class ReportDerive
+    {
+        public string Mode { get; set; } = ReportDeriveModes.Join;
+        public List<string> Sources { get; set; } = [];
+        /// <summary>join: column pairs that must match.</summary>
+        public List<ReportJoinKey> On { get; set; } = [];
+        /// <summary>join: inner | left | full</summary>
+        public string JoinType { get; set; } = "left";
+        /// <summary>join: put in front of right-hand columns whose names are taken (default: the right source's name + "_").</summary>
+        public string? RightPrefix { get; set; }
+        /// <summary>union: optional column naming the source each row came from.</summary>
+        public string? SourceColumn { get; set; }
+    }
+
+    public class ReportJoinKey
+    {
+        public string Left { get; set; } = "";
+        public string Right { get; set; } = "";
     }
 
     /// <summary>
@@ -44,7 +90,7 @@ namespace Jellystat_API_Core.Models.Reports
     /// filter (Field, Operator, Value|Parameter), topN (Field, Count, Desc, PartitionBy, LabelField, OtherLabel),
     /// pivot (RowField, ColumnField, Field, Aggregate, FillZero, SortColumns), runningTotal / percentOfTotal / rank / change
     /// (Field, Alias, PartitionBy, Desc, Mode = difference|percent), fillDates (Field, Bucket, Count|Parameter = last N days),
-    /// sort (Sort), limit (Count).
+    /// sort (Sort), limit (Count), calculate (Alias, Expression, Mode = number|string|... result type).
     /// </summary>
     public class ReportTransform
     {
@@ -67,6 +113,8 @@ namespace Jellystat_API_Core.Models.Reports
         public string? Mode { get; set; }
         public string? Bucket { get; set; }
         public List<ReportSort>? Sort { get; set; }
+        /// <summary>calculate: expression over the result's columns, e.g. "watch / plays".</summary>
+        public string? Expression { get; set; }
     }
 
     public static class ReportDateBuckets

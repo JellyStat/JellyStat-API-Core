@@ -77,6 +77,7 @@ namespace Jellystat_API_Core.Controllers
             Operators = ReportFilterOperators.All,
             Aggregates = ReportAggregateFunctions.All,
             DateBuckets = ReportDateBuckets.All,
+            DeriveModes = ReportDeriveModes.All,
             Formats = ReportFormatter.Formats,
             ExportFormats = ReportFormats.All,
             WebhookTypes = ReportWebhookTypes.All,
@@ -237,9 +238,13 @@ namespace Jellystat_API_Core.Controllers
         [HttpPost("Query", Name = "QueryReportData")]
         public async Task<ReportDataResult> Query([FromBody] ReportQueryRequest request, CancellationToken cancellationToken)
         {
-            var definition = new ReportDefinition { Parameters = request.ParameterDefinitions ?? [] };
-            var parameters = _reports.ResolveParameters(definition, request.Parameters);
-            return await _executor.ExecuteAsync(request.DataSource, Scope(request.ServerId), parameters, request.MaxRows, cancellationToken, request.TimeZone);
+            var definition = new ReportDefinition
+            {
+                Parameters = request.ParameterDefinitions ?? [],
+                TimeZone = request.TimeZone,
+                DataSources = [.. (request.DataSources ?? []).Where(d => d.Id != request.DataSource.Id), request.DataSource]
+            };
+            return await _reports.ExecuteSourceAsync(definition, request.DataSource, Scope(request.ServerId), request.Parameters, request.MaxRows, cancellationToken);
         }
 
         /// <summary>Runs every data source of an (unsaved) definition and returns the render model the UI draws.</summary>

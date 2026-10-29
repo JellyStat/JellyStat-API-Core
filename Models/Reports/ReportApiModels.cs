@@ -48,6 +48,8 @@ namespace Jellystat_API_Core.Models.Reports
         public string? ServerId { get; set; }
         /// <summary>The report's time zone, so previews bucket dates like the report will.</summary>
         public string? TimeZone { get; set; }
+        /// <summary>The report's other data sources, which a combined data source may be built from.</summary>
+        public List<ReportDataSource>? DataSources { get; set; }
     }
 
     public class ReportParameterOptionsRequest
@@ -89,6 +91,7 @@ namespace Jellystat_API_Core.Models.Reports
         public required string[] Operators { get; set; }
         public required string[] Aggregates { get; set; }
         public required string[] DateBuckets { get; set; }
+        public required string[] DeriveModes { get; set; }
         public required string[] Formats { get; set; }
         public required string[] ExportFormats { get; set; }
         public required string[] WebhookTypes { get; set; }

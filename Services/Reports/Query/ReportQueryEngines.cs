@@ -9,7 +9,7 @@ using Op = Jellystat_API_Core.Models.Reports.ReportFilterOperators;
 
 namespace Jellystat_API_Core.Services.Reports.Query
 {
-    public record ReportSortKey(PropertyInfo Property, bool Desc);
+    public record ReportSortKey(ReportFieldRef Property, bool Desc);
 
     /// <summary>
     /// Applies a data source's filter and row sort to a dataset query. Aggregation is shared (ReportGrouping) because
@@ -18,15 +18,15 @@ namespace Jellystat_API_Core.Services.Reports.Query
     public interface IReportQueryEngine
     {
         string Key { get; }
-        IQueryable<T> ApplyFilter<T>(IQueryable<T> query, NormalizedFilter? filter, ReportDataSource source, IReportDataset dataset);
-        IQueryable<T> ApplySort<T>(IQueryable<T> query, IReadOnlyList<ReportSortKey> sort, IReportDataset dataset);
+        IQueryable<T> ApplyFilter<T>(IQueryable<T> query, NormalizedFilter? filter, ReportDataSource source, ReportFieldSet dataset);
+        IQueryable<T> ApplySort<T>(IQueryable<T> query, IReadOnlyList<ReportSortKey> sort, ReportFieldSet dataset);
     }
 
     public class EfCoreReportQueryEngine : IReportQueryEngine
     {
         public string Key => ReportQueryEngines.EfCore;
 
-        public IQueryable<T> ApplyFilter<T>(IQueryable<T> query, NormalizedFilter? filter, ReportDataSource source, IReportDataset dataset)
+        public IQueryable<T> ApplyFilter<T>(IQueryable<T> query, NormalizedFilter? filter, ReportDataSource source, ReportFieldSet dataset)
         {
             if (!string.IsNullOrWhiteSpace(source.GridifyFilter))
                 throw new ReportDefinitionException($"Data source '{source.Name}' has a Gridify filter but uses the EF Core engine");
@@ -36,10 +36,10 @@ namespace Jellystat_API_Core.Services.Reports.Query
             return query.Where(Expression.Lambda<Func<T, bool>>(ReportExpressions.Filter(filter, x), x));
         }
 
-        public IQueryable<T> ApplySort<T>(IQueryable<T> query, IReadOnlyList<ReportSortKey> sort, IReportDataset dataset)
+        public IQueryable<T> ApplySort<T>(IQueryable<T> query, IReadOnlyList<ReportSortKey> sort, ReportFieldSet dataset)
         {
             var x = Expression.Parameter(typeof(T), "x");
-            return ReportExpressions.OrderBy(query, sort.Select(s => ((Expression)Expression.Property(x, s.Property), s.Desc)).ToList(), x);
+            return ReportExpressions.OrderBy(query, sort.Select(s => (s.Property.Access(x), s.Desc)).ToList(), x);
         }
     }
 
@@ -47,7 +47,7 @@ namespace Jellystat_API_Core.Services.Reports.Query
     {
         public string Key => ReportQueryEngines.Gridify;
 
-        public IQueryable<T> ApplyFilter<T>(IQueryable<T> query, NormalizedFilter? filter, ReportDataSource source, IReportDataset dataset)
+        public IQueryable<T> ApplyFilter<T>(IQueryable<T> query, NormalizedFilter? filter, ReportDataSource source, ReportFieldSet dataset)
         {
             var parts = new List<string>();
             if (filter != null) parts.Add(ToGridify(filter));
@@ -57,7 +57,7 @@ namespace Jellystat_API_Core.Services.Reports.Query
             string gridifyFilter = parts.Count == 1 ? parts[0] : string.Join(",", parts.Select(p => $"({p})"));
             try
             {
-                return query.ApplyFiltering(gridifyFilter, CreateMapper<T>(dataset));
+                return Invariant(() => query.ApplyFiltering(gridifyFilter, CreateMapper<T>(dataset)));
             }
             catch (Exception ex) when (ex is GridifyFilteringException or GridifyQueryException or GridifyMapperException)
             {
@@ -65,13 +65,13 @@ namespace Jellystat_API_Core.Services.Reports.Query
             }
         }
 
-        public IQueryable<T> ApplySort<T>(IQueryable<T> query, IReadOnlyList<ReportSortKey> sort, IReportDataset dataset)
+        public IQueryable<T> ApplySort<T>(IQueryable<T> query, IReadOnlyList<ReportSortKey> sort, ReportFieldSet dataset)
         {
             if (sort.Count == 0) return query;
             string orderBy = string.Join(", ", sort.Select(s => s.Desc ? $"{s.Property.Name} desc" : s.Property.Name));
             try
             {
-                return query.ApplyOrdering(orderBy, CreateMapper<T>(dataset));
+                return Invariant(() => query.ApplyOrdering(orderBy, CreateMapper<T>(dataset)));
             }
             catch (GridifyOrderingException ex)
             {
@@ -79,15 +79,33 @@ namespace Jellystat_API_Core.Services.Reports.Query
             }
         }
 
-        /// <summary>Only the dataset's [ReportField] properties are mapped, so raw Gridify input can't reach anything else.</summary>
-        public static GridifyMapper<T> CreateMapper<T>(IReportDataset dataset)
+        /// <summary>
+        /// Gridify converts filter values with the current culture; values are always written invariant ("0.5"), so
+        /// parse them that way too, or decimals fail on servers whose locale uses a decimal comma.
+        /// </summary>
+        private static TResult Invariant<TResult>(Func<TResult> build)
+        {
+            var culture = CultureInfo.CurrentCulture;
+            CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+            try
+            {
+                return build();
+            }
+            finally
+            {
+                CultureInfo.CurrentCulture = culture;
+            }
+        }
+
+        /// <summary>Only the data source's fields (dataset and calculated) are mapped, so raw Gridify input can't reach anything else.</summary>
+        public static GridifyMapper<T> CreateMapper<T>(ReportFieldSet dataset)
         {
             var mapper = new GridifyMapper<T>(new GridifyMapperConfiguration { CaseSensitive = false, AllowNullSearch = true, DefaultDateTimeKind = DateTimeKind.Utc });
-            foreach (var field in dataset.Fields)
+            foreach (var field in dataset.All)
             {
                 var x = Expression.Parameter(typeof(T), "x");
-                var body = Expression.Convert(Expression.Property(x, field.Key), typeof(object));
-                mapper.AddMap(field.Key, Expression.Lambda<Func<T, object?>>(body, x));
+                var body = Expression.Convert(field.Access(x), typeof(object));
+                mapper.AddMap(field.Name, Expression.Lambda<Func<T, object?>>(body, x));
             }
             return mapper;
         }
@@ -174,7 +192,7 @@ namespace Jellystat_API_Core.Services.Reports.Query
             }
 
             var r = (NormalizedRule)filter;
-            Expression member = Expression.Property(x, r.Property);
+            Expression member = r.Property.Access(x);
             Type type = r.ValueType;
             bool canBeNull = !type.IsValueType || Nullable.GetUnderlyingType(type) != null;
             // Only used when canBeNull: a typed null constant can't exist for non-nullable value types

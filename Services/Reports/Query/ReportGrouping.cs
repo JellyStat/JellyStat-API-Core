@@ -57,7 +57,7 @@ namespace Jellystat_API_Core.Services.Reports.Query
         private static readonly HashSet<string> NumericTypes =
             [ReportFieldTypes.Number, ReportFieldTypes.Integer, ReportFieldTypes.Duration, ReportFieldTypes.Bytes];
 
-        public static ReportGroupedQuery Build<TRow>(IQueryable<TRow> query, ReportDataSource source, IReportDataset dataset, TimeZoneInfo? timeZone = null)
+        public static ReportGroupedQuery Build<TRow>(IQueryable<TRow> query, ReportDataSource source, ReportFieldSet dataset, TimeZoneInfo? timeZone = null)
         {
             if (source.GroupBy.Count > MaxGroups)
                 throw new ReportDefinitionException($"A data source can group by at most {MaxGroups} fields");
@@ -71,7 +71,7 @@ namespace Jellystat_API_Core.Services.Reports.Query
             {
                 var (prop, info) = Field(dataset, group.Field);
                 if (!info.Groupable) throw new ReportDefinitionException($"{info.Label} can't be grouped on");
-                Expression key = Expression.Property(x, prop);
+                Expression key = prop.Access(x);
                 string type = info.Type;
                 if (!string.IsNullOrEmpty(group.Bucket))
                 {
@@ -170,11 +170,10 @@ namespace Jellystat_API_Core.Services.Reports.Query
 
         private static Expression Path(Expression root, string[] path) => path.Aggregate(root, Expression.Property);
 
-        private static (PropertyInfo, ReportFieldInfo) Field(IReportDataset dataset, string? field)
+        private static (ReportFieldRef, ReportFieldInfo) Field(ReportFieldSet dataset, string? field)
         {
-            var prop = string.IsNullOrEmpty(field) ? null : dataset.GetProperty(field);
-            if (prop == null) throw new ReportDefinitionException($"Unknown field '{field}' in dataset '{dataset.Key}'");
-            return (prop, dataset.Fields.First(f => f.Key == prop.Name));
+            var prop = dataset.Require(field);
+            return (prop, prop.Info);
         }
 
         /// <summary>
@@ -211,7 +210,7 @@ namespace Jellystat_API_Core.Services.Reports.Query
             return nullable ? Expression.Convert(value, typeof(Nullable<>).MakeGenericType(value.Type)) : value;
         }
 
-        private static (Expression Value, bool IsDate, string Type, string Label) Aggregate(ReportAggregate agg, ParameterExpression g, IReportDataset dataset)
+        private static (Expression Value, bool IsDate, string Type, string Label) Aggregate(ReportAggregate agg, ParameterExpression g, ReportFieldSet dataset)
         {
             Type rowType = g.Type.GetGenericArguments()[1];
             var x = Expression.Parameter(rowType, "x");
@@ -221,7 +220,7 @@ namespace Jellystat_API_Core.Services.Reports.Query
 
             if (!Fn.All.Contains(agg.Fn)) throw new ReportDefinitionException($"Unknown aggregate '{agg.Fn}'");
             var (prop, info) = Field(dataset, agg.Field);
-            Expression member = Expression.Property(x, prop);
+            Expression member = prop.Access(x);
 
             switch (agg.Fn)
             {
