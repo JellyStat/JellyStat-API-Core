@@ -1,0 +1,433 @@
+[
+  {
+    "family": "Inter",
+    "category": "sans-serif",
+    "files": [
+      {
+        "file": "Inter-400.ttf",
+        "weight": 400,
+        "italic": false
+      },
+      {
+        "file": "Inter-400-italic.ttf",
+        "weight": 400,
+        "italic": true
+      },
+      {
+        "file": "Inter-600.ttf",
+        "weight": 600,
+        "italic": false
+      },
+      {
+        "file": "Inter-700.ttf",
+        "weight": 700,
+        "italic": false
+      },
+      {
+        "file": "Inter-800.ttf",
+        "weight": 800,
+        "italic": false
+      }
+    ]
+  },
+  {
+    "family": "Roboto",
+    "category": "sans-serif",
+    "files": [
+      {
+        "file": "Roboto-400.ttf",
+        "weight": 400,
+        "italic": false
+      },
+      {
+        "file": "Roboto-400-italic.ttf",
+        "weight": 400,
+        "italic": true
+      },
+      {
+        "file": "Roboto-600.ttf",
+        "weight": 600,
+        "italic": false
+      },
+      {
+        "file": "Roboto-700.ttf",
+        "weight": 700,
+        "italic": false
+      },
+      {
+        "file": "Roboto-800.ttf",
+        "weight": 800,
+        "italic": false
+      }
+    ]
+  },
+  {
+    "family": "Open Sans",
+    "category": "sans-serif",
+    "files": [
+      {
+        "file": "OpenSans-400.ttf",
+        "weight": 400,
+        "italic": false
+      },
+      {
+        "file": "OpenSans-400-italic.ttf",
+        "weight": 400,
+        "italic": true
+      },
+      {
+        "file": "OpenSans-600.ttf",
+        "weight": 600,
+        "italic": false
+      },
+      {
+        "file": "OpenSans-700.ttf",
+        "weight": 700,
+        "italic": false
+      },
+      {
+        "file": "OpenSans-800.ttf",
+        "weight": 800,
+        "italic": false
+      }
+    ]
+  },
+  {
+    "family": "Lato",
+    "category": "sans-serif",
+    "files": [
+      {
+        "file": "Lato-400.ttf",
+        "weight": 400,
+        "italic": false
+      },
+      {
+        "file": "Lato-400-italic.ttf",
+        "weight": 400,
+        "italic": true
+      },
+      {
+        "file": "Lato-700.ttf",
+        "weight": 700,
+        "italic": false
+      }
+    ]
+  },
+  {
+    "family": "Montserrat",
+    "category": "sans-serif",
+    "files": [
+      {
+        "file": "Montserrat-400.ttf",
+        "weight": 400,
+        "italic": false
+      },
+      {
+        "file": "Montserrat-400-italic.ttf",
+        "weight": 400,
+        "italic": true
+      },
+      {
+        "file": "Montserrat-600.ttf",
+        "weight": 600,
+        "italic": false
+      },
+      {
+        "file": "Montserrat-700.ttf",
+        "weight": 700,
+        "italic": false
+      },
+      {
+        "file": "Montserrat-800.ttf",
+        "weight": 800,
+        "italic": false
+      }
+    ]
+  },
+  {
+    "family": "Poppins",
+    "category": "sans-serif",
+    "files": [
+      {
+        "file": "Poppins-400.ttf",
+        "weight": 400,
+        "italic": false
+      },
+      {
+        "file": "Poppins-400-italic.ttf",
+        "weight": 400,
+        "italic": true
+      },
+      {
+        "file": "Poppins-600.ttf",
+        "weight": 600,
+        "italic": false
+      },
+      {
+        "file": "Poppins-700.ttf",
+        "weight": 700,
+        "italic": false
+      },
+      {
+        "file": "Poppins-800.ttf",
+        "weight": 800,
+        "italic": false
+      }
+    ]
+  },
+  {
+    "family": "Nunito",
+    "category": "sans-serif",
+    "files": [
+      {
+        "file": "Nunito-400.ttf",
+        "weight": 400,
+        "italic": false
+      },
+      {
+        "file": "Nunito-400-italic.ttf",
+        "weight": 400,
+        "italic": true
+      },
+      {
+        "file": "Nunito-600.ttf",
+        "weight": 600,
+        "italic": false
+      },
+      {
+        "file": "Nunito-700.ttf",
+        "weight": 700,
+        "italic": false
+      },
+      {
+        "file": "Nunito-800.ttf",
+        "weight": 800,
+        "italic": false
+      }
+    ]
+  },
+  {
+    "family": "DM Sans",
+    "category": "sans-serif",
+    "files": [
+      {
+        "file": "DMSans-400.ttf",
+        "weight": 400,
+        "italic": false
+      },
+      {
+        "file": "DMSans-400-italic.ttf",
+        "weight": 400,
+        "italic": true
+      },
+      {
+        "file": "DMSans-600.ttf",
+        "weight": 600,
+        "italic": false
+      },
+      {
+        "file": "DMSans-700.ttf",
+        "weight": 700,
+        "italic": false
+      },
+      {
+        "file": "DMSans-800.ttf",
+        "weight": 800,
+        "italic": false
+      }
+    ]
+  },
+  {
+    "family": "Manrope",
+    "category": "sans-serif",
+    "files": [
+      {
+        "file": "Manrope-400.ttf",
+        "weight": 400,
+        "italic": false
+      },
+      {
+        "file": "Manrope-600.ttf",
+        "weight": 600,
+        "italic": false
+      },
+      {
+        "file": "Manrope-700.ttf",
+        "weight": 700,
+        "italic": false
+      },
+      {
+        "file": "Manrope-800.ttf",
+        "weight": 800,
+        "italic": false
+      }
+    ]
+  },
+  {
+    "family": "Space Grotesk",
+    "category": "sans-serif",
+    "files": [
+      {
+        "file": "SpaceGrotesk-400.ttf",
+        "weight": 400,
+        "italic": false
+      },
+      {
+        "file": "SpaceGrotesk-600.ttf",
+        "weight": 600,
+        "italic": false
+      },
+      {
+        "file": "SpaceGrotesk-700.ttf",
+        "weight": 700,
+        "italic": false
+      }
+    ]
+  },
+  {
+    "family": "Outfit",
+    "category": "sans-serif",
+    "files": [
+      {
+        "file": "Outfit-400.ttf",
+        "weight": 400,
+        "italic": false
+      },
+      {
+        "file": "Outfit-600.ttf",
+        "weight": 600,
+        "italic": false
+      },
+      {
+        "file": "Outfit-700.ttf",
+        "weight": 700,
+        "italic": false
+      },
+      {
+        "file": "Outfit-800.ttf",
+        "weight": 800,
+        "italic": false
+      }
+    ]
+  },
+  {
+    "family": "Playfair Display",
+    "category": "serif",
+    "files": [
+      {
+        "file": "PlayfairDisplay-400.ttf",
+        "weight": 400,
+        "italic": false
+      },
+      {
+        "file": "PlayfairDisplay-400-italic.ttf",
+        "weight": 400,
+        "italic": true
+      },
+      {
+        "file": "PlayfairDisplay-600.ttf",
+        "weight": 600,
+        "italic": false
+      },
+      {
+        "file": "PlayfairDisplay-700.ttf",
+        "weight": 700,
+        "italic": false
+      },
+      {
+        "file": "PlayfairDisplay-800.ttf",
+        "weight": 800,
+        "italic": false
+      }
+    ]
+  },
+  {
+    "family": "Lora",
+    "category": "serif",
+    "files": [
+      {
+        "file": "Lora-400.ttf",
+        "weight": 400,
+        "italic": false
+      },
+      {
+        "file": "Lora-400-italic.ttf",
+        "weight": 400,
+        "italic": true
+      },
+      {
+        "file": "Lora-600.ttf",
+        "weight": 600,
+        "italic": false
+      },
+      {
+        "file": "Lora-700.ttf",
+        "weight": 700,
+        "italic": false
+      }
+    ]
+  },
+  {
+    "family": "JetBrains Mono",
+    "category": "monospace",
+    "files": [
+      {
+        "file": "JetBrainsMono-400.ttf",
+        "weight": 400,
+        "italic": false
+      },
+      {
+        "file": "JetBrainsMono-400-italic.ttf",
+        "weight": 400,
+        "italic": true
+      },
+      {
+        "file": "JetBrainsMono-600.ttf",
+        "weight": 600,
+        "italic": false
+      },
+      {
+        "file": "JetBrainsMono-700.ttf",
+        "weight": 700,
+        "italic": false
+      },
+      {
+        "file": "JetBrainsMono-800.ttf",
+        "weight": 800,
+        "italic": false
+      }
+    ]
+  },
+  {
+    "family": "Bebas Neue",
+    "category": "display",
+    "files": [
+      {
+        "file": "BebasNeue-400.ttf",
+        "weight": 400,
+        "italic": false
+      }
+    ]
+  },
+  {
+    "family": "Oswald",
+    "category": "display",
+    "files": [
+      {
+        "file": "Oswald-400.ttf",
+        "weight": 400,
+        "italic": false
+      },
+      {
+        "file": "Oswald-600.ttf",
+        "weight": 600,
+        "italic": false
+      },
+      {
+        "file": "Oswald-700.ttf",
+        "weight": 700,
+        "italic": false
+      }
+    ]
+  }
+]

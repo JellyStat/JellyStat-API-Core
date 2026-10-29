@@ -38,6 +38,8 @@ namespace Jellystat_API_Core.Data
         public DbSet<Logs> Logs { get; set; }
         public DbSet<GlobalTasks> GlobalTasks { get; set; }
         public DbSet<ApiKeys> ApiKeys { get; set; }
+        public DbSet<Reports> Reports { get; set; }
+        public DbSet<ReportSchedules> ReportSchedules { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -344,6 +346,34 @@ namespace Jellystat_API_Core.Data
                 entity.Property(e => e.Permission).HasConversion<string>().IsRequired();
 
                 // Read-only keys are scoped to one server; removing the server removes its keys
+                entity.HasOne(e => e.Server)
+                      .WithMany()
+                      .HasForeignKey(e => e.ServerId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<Reports>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+                entity.Property(e => e.Definition).IsRequired().HasColumnType("jsonb");
+            });
+
+            modelBuilder.Entity<ReportSchedules>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+                entity.Property(e => e.Format).IsRequired().HasDefaultValue("pdf");
+                entity.Property(e => e.WebhookUrl).IsRequired();
+                entity.Property(e => e.WebhookType).IsRequired().HasDefaultValue("generic");
+                entity.Property(e => e.Parameters).IsRequired().HasColumnType("jsonb").HasDefaultValueSql("'{}'");
+                entity.Property(e => e.Enabled).HasDefaultValue(true);
+
+                entity.HasOne(e => e.Report)
+                      .WithMany()
+                      .HasForeignKey(e => e.ReportId)
+                      .OnDelete(DeleteBehavior.Cascade);
+
                 entity.HasOne(e => e.Server)
                       .WithMany()
                       .HasForeignKey(e => e.ServerId)
