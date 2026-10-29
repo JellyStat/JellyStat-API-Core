@@ -40,7 +40,7 @@ namespace Jellystat_API_Core.Services.Reports
         private static readonly HashSet<string> ElementTypes =
         [
             ReportElementTypes.Text, ReportElementTypes.Metric, ReportElementTypes.Table, ReportElementTypes.Chart,
-            ReportElementTypes.Image, ReportElementTypes.Shape, ReportElementTypes.Line
+            ReportElementTypes.Image, ReportElementTypes.Shape, ReportElementTypes.Line, ReportElementTypes.Cards
         ];
 
         [GeneratedRegex("^[A-Za-z_][A-Za-z0-9_]{0,49}$")]
@@ -266,6 +266,7 @@ namespace Jellystat_API_Core.Services.Reports
             {
                 model.Data[source.Id] = await ExecuteSourceAsync(definition, source, scope, resolved, maxRows, memo, [], cancellationToken);
             }
+            model.Layout = ReportPaginator.Paginate(model);
             return model;
         }
     }

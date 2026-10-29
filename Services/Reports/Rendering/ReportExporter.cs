@@ -98,7 +98,8 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
 
         private static List<int> PageIndexes(ReportRenderModel model, int? page)
         {
-            int count = model.Definition.Pages.Count;
+            if (model.Layout.Count == 0) model.Layout = ReportPaginator.Paginate(model);
+            int count = model.Layout.Count;
             if (page is null or 0) return Enumerable.Range(0, count).ToList();
             if (page < 1 || page > count) throw new ReportDefinitionException($"Page {page} doesn't exist; the report has {count}");
             return [page.Value - 1];

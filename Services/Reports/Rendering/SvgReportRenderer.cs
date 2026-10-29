@@ -40,19 +40,25 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
             _measurer = measurer;
         }
 
+        /// <summary>Draws one page of model.Layout: a design page, or one of the extra pages a growing element adds.</summary>
         public string RenderPage(ReportRenderModel model, int pageIndex, SvgRenderOptions? options = null)
         {
             options ??= new SvgRenderOptions();
+            if (model.Layout.Count == 0) model.Layout = ReportPaginator.Paginate(model);
             var page = model.Definition.Page;
-            var reportPage = model.Definition.Pages[pageIndex];
-            var ctx = new Ctx(model, pageIndex + 1, model.Definition.Pages.Count, options, _measurer);
+            var layout = model.Layout[pageIndex];
+            var reportPage = model.Definition.Pages[layout.Page];
+            var ctx = new Ctx(model, pageIndex + 1, model.Layout.Count, options, _measurer);
 
             var sb = new StringBuilder();
             sb.Append($"<svg xmlns=\"http://www.w3.org/2000/svg\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" width=\"{N(page.Width)}\" height=\"{N(page.Height)}\" viewBox=\"0 0 {N(page.Width)} {N(page.Height)}\">");
             sb.Append($"<rect x=\"0\" y=\"0\" width=\"{N(page.Width)}\" height=\"{N(page.Height)}\" fill=\"{Attr(page.Background)}\"/>");
             foreach (var element in reportPage.Elements.Where(e => !e.Hidden))
             {
-                sb.Append(RenderElement(element, ctx));
+                var slice = layout.Slices.GetValueOrDefault(element.Id);
+                // Extra pages only carry the growing elements still showing rows, and the ones marked to repeat
+                if (layout.Continuation > 0 && slice == null && !element.Repeat) continue;
+                sb.Append(RenderElement(element, ctx, slice));
             }
             sb.Append("</svg>");
             return sb.ToString();
@@ -73,16 +79,19 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
 
         private record struct Box(double X, double Y, double W, double H);
 
-        private string RenderElement(ReportElement e, Ctx ctx)
+        private string RenderElement(ReportElement e, Ctx ctx, ReportSlice? slice)
         {
             var sb = new StringBuilder();
-            string clipId = "clip-" + Id(e.Id);
-            sb.Append($"<defs><clipPath id=\"{clipId}\"><rect x=\"{N(e.X)}\" y=\"{N(e.Y)}\" width=\"{N(e.Width)}\" height=\"{N(e.Height)}\" rx=\"{N(e.Style.BorderRadius)}\"/></clipPath></defs>");
+            // Ids are unique per page: HTML exports put every page in one document
+            string clipId = $"clip-{ctx.PageNumber}-{Id(e.Id)}";
+            // A growing element on an extra page sits higher and is taller than in the design
+            double ey = slice?.Y ?? e.Y, eh = slice?.Height ?? e.Height;
+            sb.Append($"<defs><clipPath id=\"{clipId}\"><rect x=\"{N(e.X)}\" y=\"{N(ey)}\" width=\"{N(e.Width)}\" height=\"{N(eh)}\" rx=\"{N(e.Style.BorderRadius)}\"/></clipPath></defs>");
             sb.Append($"<g opacity=\"{N(Math.Clamp(e.Opacity, 0, 1))}\" clip-path=\"url(#{clipId})\">");
 
-            var outer = new Box(e.X, e.Y, e.Width, e.Height);
+            var outer = new Box(e.X, ey, e.Width, eh);
             if (e.Type is not (ReportElementTypes.Shape or ReportElementTypes.Line)) sb.Append(Background(outer, e.Style));
-            var content = new Box(e.X + e.Style.Padding, e.Y + e.Style.Padding, Math.Max(0, e.Width - 2 * e.Style.Padding), Math.Max(0, e.Height - 2 * e.Style.Padding));
+            var content = new Box(e.X + e.Style.Padding, ey + e.Style.Padding, Math.Max(0, e.Width - 2 * e.Style.Padding), Math.Max(0, eh - 2 * e.Style.Padding));
 
             // Text and images link as a whole element
             string? elementLink = e.Type is ReportElementTypes.Text or ReportElementTypes.Image && !string.IsNullOrWhiteSpace(e.Link)
@@ -96,10 +105,13 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
                     sb.Append(TextBlock(ReportTokenResolver.Resolve(e.Text, ctx.Model, ctx.PageNumber, ctx.PageCount), content, e.Style, ctx));
                     break;
                 case ReportElementTypes.Metric:
-                    sb.Append(Metric(e, content, ctx));
+                    sb.Append(Metric(e, outer, content, ctx));
                     break;
                 case ReportElementTypes.Table:
-                    sb.Append(Table(e, content, ctx));
+                    sb.Append(Table(e, content, ctx, slice));
+                    break;
+                case ReportElementTypes.Cards:
+                    sb.Append(Cards(e, content, ctx, slice));
                     break;
                 case ReportElementTypes.Chart:
                     sb.Append(Chart(e, content, ctx));
@@ -270,12 +282,13 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
 
         // ------------------------------------------------------------------ elements
 
-        private string Metric(ReportElement e, Box b, Ctx ctx)
+        private string Metric(ReportElement e, Box outer, Box b, Ctx ctx)
         {
             var s = e.Style;
             var data = ReportTokenResolver.FindData(ctx.Model, e.DataSourceId);
             string valueText;
             string? link = null;
+            ReportConditionStyle? cond = null;
             if (data?.Error != null) return Message(data.Error, b, s, ctx, "#ef4444");
             var column = data?.Columns.FirstOrDefault(c => c.Name.Equals(e.ValueField ?? "", StringComparison.OrdinalIgnoreCase));
             if (data == null || column == null) valueText = "—";
@@ -286,6 +299,7 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
                 valueText = value == null ? "—" : ReportFormatter.Format(value, e.Format, column.Type, ctx.Zone);
                 if (e.Format == "link" && value != null)
                     link = ReportTokenResolver.ResolveLink(e.Link, value, row, ctx.Model, ctx.PageNumber, ctx.PageCount);
+                if (row != null) cond = ReportConditions.Style(e.Conditions, row, null);
             }
             valueText = (e.Prefix ?? "") + valueText + (e.Suffix ?? "");
 
@@ -302,17 +316,21 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
             };
             var (x, anchor) = Align(s.TextAlign, b);
             var sb = new StringBuilder();
+            if (!string.IsNullOrEmpty(cond?.Background))
+                sb.Append($"<rect x=\"{N(outer.X)}\" y=\"{N(outer.Y)}\" width=\"{N(outer.W)}\" height=\"{N(outer.H)}\" rx=\"{N(s.BorderRadius)}\" fill=\"{Attr(cond.Background)}\"/>");
+            string? valueColor = cond?.Color;
+            string? valueWeight = cond?.Bold switch { true => "bold", false => "normal", _ => null };
             if (label.Length > 0)
                 sb.Append(Label(Ellipsis(label, b.W, s, ctx, labelSize, "normal"), x, top + labelH / 2, anchor, s, ctx, labelSize, "normal", null, 0.65));
-            string shown = Ellipsis(valueText, b.W, s, ctx, s.FontSize);
+            string shown = Ellipsis(valueText, b.W, s, ctx, s.FontSize, valueWeight);
             double valueY = top + labelH + valueH / 2;
             if (link != null) sb.Append(LinkStart(b, link, ctx));
-            sb.Append(Label(shown, x, valueY, anchor, s, ctx, s.FontSize));
-            if (link != null) sb.Append(Underline(shown, x, valueY, anchor, s, ctx, s.FontSize, null, null)).Append(LinkEnd(ctx));
+            sb.Append(Label(shown, x, valueY, anchor, s, ctx, s.FontSize, valueWeight, valueColor));
+            if (link != null) sb.Append(Underline(shown, x, valueY, anchor, s, ctx, s.FontSize, valueWeight, valueColor)).Append(LinkEnd(ctx));
             return sb.ToString();
         }
 
-        private string Table(ReportElement e, Box b, Ctx ctx)
+        private string Table(ReportElement e, Box b, Ctx ctx, ReportSlice? slice)
         {
             var s = e.Style;
             var t = e.Table ?? new ReportTableOptions();
@@ -357,15 +375,21 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
                 sb.Append(HLine(b.X, b.X + b.W, y, t.GridColor));
             }
 
+            // A slice (growing tables) says which rows this page shows; otherwise the rows that fit, from the first
             int fit = (int)Math.Floor((b.Y + b.H - y) / rowH);
-            int count = Math.Min(data.Rows.Count, Math.Max(0, Math.Min(fit, t.MaxRows ?? int.MaxValue)));
+            int start = slice?.Start ?? 0;
+            int count = slice?.Count ?? Math.Min(data.Rows.Count, Math.Max(0, Math.Min(fit, t.MaxRows ?? int.MaxValue)));
+            count = Math.Max(0, Math.Min(count, data.Rows.Count - start));
             if (data.Rows.Count == 0)
                 sb.Append(Message("No rows", new Box(b.X, y, b.W, Math.Min(rowH * 2, b.Y + b.H - y)), s, ctx));
 
-            for (int r = 0; r < count; r++)
+            for (int n = 0; n < count; n++)
             {
-                if (r % 2 == 1 && !string.IsNullOrEmpty(t.StripeBackground))
-                    sb.Append($"<rect x=\"{N(b.X)}\" y=\"{N(y)}\" width=\"{N(b.W)}\" height=\"{N(rowH)}\" fill=\"{Attr(t.StripeBackground)}\"/>");
+                int r = start + n;
+                var rowStyle = ReportConditions.Style(e.Conditions, data.Rows[r], null);
+                string? rowBackground = rowStyle?.Background ?? (r % 2 == 1 ? t.StripeBackground : null);
+                if (!string.IsNullOrEmpty(rowBackground))
+                    sb.Append($"<rect x=\"{N(b.X)}\" y=\"{N(y)}\" width=\"{N(b.W)}\" height=\"{N(rowH)}\" fill=\"{Attr(rowBackground)}\"/>");
                 double x = b.X;
                 for (int i = 0; i < columns.Count; i++)
                 {
@@ -376,11 +400,102 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
                     string? link = col.Format == "link" && value != null
                         ? ReportTokenResolver.ResolveLink(col.Link, value, data.Rows[r], ctx.Model, ctx.PageNumber, ctx.PageCount)
                         : null;
-                    sb.Append(Cell(text, i, x, y + rowH / 2, null, null, link));
+                    var cellStyle = ReportConditions.Style(e.Conditions, data.Rows[r], col.Field);
+                    if (!string.IsNullOrEmpty(cellStyle?.Background))
+                        sb.Append($"<rect x=\"{N(x)}\" y=\"{N(y)}\" width=\"{N(widths[i])}\" height=\"{N(rowH)}\" fill=\"{Attr(cellStyle.Background)}\"/>");
+                    string? color = cellStyle?.Color ?? rowStyle?.Color;
+                    string? weight = (cellStyle?.Bold ?? rowStyle?.Bold) switch { true => "bold", false => "normal", _ => null };
+                    sb.Append(Cell(text, i, x, y + rowH / 2, weight, color, link));
                     x += widths[i];
                 }
                 y += rowH;
                 sb.Append(HLine(b.X, b.X + b.W, y, t.GridColor));
+            }
+            return sb.ToString();
+        }
+
+        /// <summary>
+        /// A grid of cards, one per row: an optional media picture and up to three text lines. Same layout as the
+        /// browser's ReportElementView.
+        /// </summary>
+        private string Cards(ReportElement e, Box b, Ctx ctx, ReportSlice? slice)
+        {
+            var s = e.Style;
+            var o = e.Cards ?? new ReportCardOptions();
+            var data = ReportTokenResolver.FindData(ctx.Model, e.DataSourceId);
+            if (data == null) return Message("No data source", b, s, ctx);
+            if (data.Error != null) return Message(data.Error, b, s, ctx, "#ef4444");
+            if (data.Rows.Count == 0) return Message("No rows", b, s, ctx);
+
+            var grid = CardGrid.Of(o, b.W);
+            int total = ReportPaginator.TotalRows(e, ctx.Model);
+            int start = slice?.Start ?? 0;
+            int count = slice?.Count ?? Math.Min(total, ReportPaginator.Capacity(e, b.H + 2 * s.Padding));
+            count = Math.Max(0, Math.Min(count, total - start));
+            bool picture = o.ImagePosition is "top" or "left" && !string.IsNullOrWhiteSpace(o.ImageField);
+            double share = Math.Clamp(o.ImageSize, 0.1, 0.95);
+            var sb = new StringBuilder();
+
+            for (int n = 0; n < count; n++)
+            {
+                int r = start + n;
+                var row = data.Rows[r];
+                var (cx, cy) = grid.Position(n, b.X, b.Y);
+                var card = new Box(cx, cy, grid.CardWidth, grid.CardHeight);
+                var cond = ReportConditions.Style(e.Conditions, row, null);
+                string? link = string.IsNullOrWhiteSpace(e.Link) ? null : ReportTokenResolver.ResolveLink(e.Link, null, row, ctx.Model, ctx.PageNumber, ctx.PageCount);
+
+                string clipId = $"card-{Id(e.Id)}-{r}";
+                if (link != null) sb.Append(LinkStart(card, link, ctx));
+                sb.Append($"<defs><clipPath id=\"{clipId}\"><rect x=\"{N(card.X)}\" y=\"{N(card.Y)}\" width=\"{N(card.W)}\" height=\"{N(card.H)}\" rx=\"{N(o.CardRadius)}\"/></clipPath></defs>");
+                sb.Append($"<g clip-path=\"url(#{clipId})\">");
+                string? background = cond?.Background ?? o.CardBackground;
+                if (!string.IsNullOrEmpty(background))
+                    sb.Append($"<rect x=\"{N(card.X)}\" y=\"{N(card.Y)}\" width=\"{N(card.W)}\" height=\"{N(card.H)}\" fill=\"{Attr(background)}\"/>");
+
+                Box text;
+                if (picture)
+                {
+                    var image = o.ImagePosition == "left"
+                        ? new Box(card.X, card.Y, card.W * share, card.H)
+                        : new Box(card.X, card.Y, card.W, card.H * share);
+                    string? src = ctx.Model.Images.GetValueOrDefault($"{e.Id}#{r}");
+                    sb.Append(src != null
+                        ? $"<image x=\"{N(image.X)}\" y=\"{N(image.Y)}\" width=\"{N(image.W)}\" height=\"{N(image.H)}\" preserveAspectRatio=\"xMidYMid slice\" xlink:href=\"{Attr(src)}\" href=\"{Attr(src)}\"/>"
+                        : $"<rect x=\"{N(image.X)}\" y=\"{N(image.Y)}\" width=\"{N(image.W)}\" height=\"{N(image.H)}\" fill=\"#e5e7eb\"/>");
+                    text = o.ImagePosition == "left"
+                        ? new Box(image.X + image.W + 10, card.Y + 8, Math.Max(0, card.W - image.W - 18), Math.Max(0, card.H - 16))
+                        : new Box(card.X + 8, image.Y + image.H + 6, Math.Max(0, card.W - 16), Math.Max(0, card.H - image.H - 12));
+                }
+                else
+                {
+                    text = new Box(card.X + 10, card.Y + 8, Math.Max(0, card.W - 20), Math.Max(0, card.H - 16));
+                }
+
+                string color = cond?.Color ?? s.Color;
+                string? valueWeight = cond?.Bold switch { true => "bold", false => "normal", _ => null };
+                double small = Math.Max(9, s.FontSize * 0.85);
+                var lines = new List<(string Text, double Size, string? Weight, double? Opacity)>();
+                void Line(string? template, double size, string? weight, double? opacity)
+                {
+                    string value = ReportTokenResolver.Resolve(template, ctx.Model, ctx.PageNumber, ctx.PageCount, row, data.Columns);
+                    if (value.Length > 0) lines.Add((value, size, weight, opacity));
+                }
+                Line(o.Title, s.FontSize, "bold", null);
+                Line(o.Subtitle, small, "normal", 0.7);
+                Line(o.Value, s.FontSize, valueWeight, null);
+
+                double ty = text.Y;
+                var (tx, anchor) = Align(s.TextAlign, text);
+                foreach (var (value, size, weight, opacity) in lines)
+                {
+                    double lineH = size * 1.35;
+                    if (ty + lineH > text.Y + text.H + 1) break;
+                    sb.Append(Label(Ellipsis(value, text.W, s, ctx, size, weight), tx, ty + lineH / 2, anchor, s, ctx, size, weight, color, opacity));
+                    ty += lineH;
+                }
+                sb.Append("</g>");
+                if (link != null) sb.Append(LinkEnd(ctx));
             }
             return sb.ToString();
         }

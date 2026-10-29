@@ -50,6 +50,7 @@ namespace Jellystat_API_Core.Models.Reports
         public const string Image = "image";
         public const string Shape = "shape";
         public const string Line = "line";
+        public const string Cards = "cards";
     }
 
     public class ReportElement
@@ -102,6 +103,56 @@ namespace Jellystat_API_Core.Models.Reports
 
         // shape: rect | ellipse
         public string? Shape { get; set; }
+
+        /// <summary>table, cards: rows that don't fit continue on extra pages added after this page.</summary>
+        public bool Grow { get; set; }
+        /// <summary>Where a growing element starts on those extra pages (px from the top); its bottom edge stays put.</summary>
+        public double? ContinueTop { get; set; }
+        /// <summary>Also draw this element on the extra pages growing elements add (titles, footers, page numbers).</summary>
+        public bool Repeat { get; set; }
+
+        /// <summary>table, cards, metric: styles applied to rows (or cells) that match.</summary>
+        public List<ReportCondition>? Conditions { get; set; }
+
+        /// <summary>cards: one card per row, with an optional poster/avatar and text lines.</summary>
+        public ReportCardOptions? Cards { get; set; }
+    }
+
+    public class ReportCondition
+    {
+        public string Field { get; set; } = "";
+        /// <summary>eq, neq, gt, gte, lt, lte, contains, notContains, isNull, isNotNull</summary>
+        public string Operator { get; set; } = "eq";
+        public JsonElement? Value { get; set; }
+        /// <summary>table: the column to style; empty styles the whole row.</summary>
+        public string? Target { get; set; }
+        public string? Color { get; set; }
+        public string? Background { get; set; }
+        public bool? Bold { get; set; }
+    }
+
+    public class ReportCardOptions
+    {
+        public int Columns { get; set; } = 4;
+        public double CardHeight { get; set; } = 240;
+        public double Gap { get; set; } = 12;
+        /// <summary>Column holding the media item (or user) id of the picture; empty for no picture.</summary>
+        public string? ImageField { get; set; }
+        /// <summary>item | user</summary>
+        public string ImageKind { get; set; } = "item";
+        /// <summary>Primary | Backdrop</summary>
+        public string ImageType { get; set; } = "Primary";
+        /// <summary>top | left | none</summary>
+        public string ImagePosition { get; set; } = "top";
+        /// <summary>The picture's share of the card height (top) or width (left).</summary>
+        public double ImageSize { get; set; } = 0.72;
+        /// <summary>Text lines; {{row.FIELD}} and {{row.FIELD|format}} insert the card's row.</summary>
+        public string? Title { get; set; }
+        public string? Subtitle { get; set; }
+        public string? Value { get; set; }
+        public string? CardBackground { get; set; } = "#f3f4f6";
+        public double CardRadius { get; set; } = 8;
+        public int? MaxItems { get; set; }
     }
 
     public class ReportElementStyle

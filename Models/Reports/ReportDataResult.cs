@@ -31,6 +31,29 @@ namespace Jellystat_API_Core.Models.Reports
         [System.Text.Json.Serialization.JsonIgnore]
         public Dictionary<string, string> Images { get; set; } = [];
         public DateTime GeneratedAt { get; set; } = DateTime.UtcNow;
+        /// <summary>
+        /// The pages as drawn: each design page, then any extra pages its growing tables and card grids need.
+        /// Filled in by ReportPaginator when the model is built.
+        /// </summary>
+        public List<ReportLayoutPage> Layout { get; set; } = [];
+    }
+
+    public class ReportLayoutPage
+    {
+        /// <summary>Index of the design page this page is drawn from.</summary>
+        public int Page { get; set; }
+        /// <summary>0 for the design page itself, 1+ for the extra pages after it.</summary>
+        public int Continuation { get; set; }
+        /// <summary>Growing elements on this page (by element id): which rows they show and where.</summary>
+        public Dictionary<string, ReportSlice> Slices { get; set; } = [];
+    }
+
+    public class ReportSlice
+    {
+        public int Start { get; set; }
+        public int Count { get; set; }
+        public double Y { get; set; }
+        public double Height { get; set; }
     }
 
     public class ReportDefinitionException : Exception

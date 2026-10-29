@@ -134,30 +134,38 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
         [GeneratedRegex(@"\{\{\s*([^{}|]+?)\s*(?:\|\s*([a-zA-Z]+)\s*)?\}\}")]
         private static partial Regex TokenRegex();
 
-        public static string Resolve(string? text, ReportRenderModel model, int pageNumber, int pageCount)
+        /// <summary>Replaces {{tokens}}; with a row (card grids), {{row.FIELD}} is that row's value.</summary>
+        public static string Resolve(string? text, ReportRenderModel model, int pageNumber, int pageCount,
+            IReadOnlyDictionary<string, object?>? row = null, IReadOnlyList<ReportColumn>? columns = null)
         {
             if (string.IsNullOrEmpty(text)) return "";
             return TokenRegex().Replace(text, m =>
             {
                 string path = m.Groups[1].Value;
                 string? format = m.Groups[2].Success ? m.Groups[2].Value : null;
-                var (value, type) = Lookup(path, model, pageNumber, pageCount);
+                var (value, type) = Lookup(path, model, pageNumber, pageCount, row, columns);
                 return value == null && type == "missing" ? m.Value : ReportFormatter.Format(value, format, type, ReportFormatter.Zone(model.Definition.TimeZone));
             });
         }
 
-        private static (object? Value, string? Type) Lookup(string path, ReportRenderModel model, int pageNumber, int pageCount)
+        private static (object? Value, string? Type) Lookup(string path, ReportRenderModel model, int pageNumber, int pageCount,
+            IReadOnlyDictionary<string, object?>? row = null, IReadOnlyList<ReportColumn>? columns = null)
         {
             string[] parts = path.Split('.', 3);
             switch (parts[0].ToLowerInvariant())
             {
+                case "row" when row != null && parts.Length > 1:
+                    string field = path[4..];
+                    var key = row.Keys.FirstOrDefault(k => k.Equals(field, StringComparison.OrdinalIgnoreCase));
+                    if (key == null) return (null, "missing");
+                    return (row[key], columns?.FirstOrDefault(c => c.Name == key)?.Type);
                 case "now": return (model.GeneratedAt, ReportFieldTypes.Date);
                 case "report" when parts.Length > 1 && parts[1].Equals("name", StringComparison.OrdinalIgnoreCase): return (model.Name, null);
                 case "page" when parts.Length > 1:
                     return parts[1].Equals("count", StringComparison.OrdinalIgnoreCase) ? (pageCount, ReportFieldTypes.Integer) : (pageNumber, ReportFieldTypes.Integer);
                 case "param" when parts.Length > 1:
-                    var key = model.Parameters.Keys.FirstOrDefault(k => k.Equals(parts[1], StringComparison.OrdinalIgnoreCase));
-                    return key == null ? (null, "missing") : (model.Parameters[key], null);
+                    var paramKey = model.Parameters.Keys.FirstOrDefault(k => k.Equals(parts[1], StringComparison.OrdinalIgnoreCase));
+                    return paramKey == null ? (null, "missing") : (model.Parameters[paramKey], null);
                 case "ds" when parts.Length > 2:
                     var data = FindData(model, parts[1]);
                     if (data == null) return (null, "missing");
