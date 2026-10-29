@@ -1,4 +1,5 @@
-﻿using Jellystat_API_Core.Models.API.Base;
+﻿using Jellystat_API_Core.Enums;
+using Jellystat_API_Core.Models.API.Base;
 
 namespace Jellystat_API_Core.Models.Jellystat
 {
@@ -28,6 +29,10 @@ namespace Jellystat_API_Core.Models.Jellystat
         public string IpAddress { get; set; }
         public bool IsPaused { get; set; } = false;
         public long RuntimeTicks { get; set; } = 0;
+        // Only kept for webhook payloads
+        public ItemTypes ItemType { get; set; } = ItemTypes.Unknown;
+        public int? SeasonNumber { get; set; }
+        public int? EpisodeNumber { get; set; }
 
         public ActivityStaging() { }
 

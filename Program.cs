@@ -13,6 +13,7 @@ using Jellystat_API_Core.Services.Reports.Query;
 using Jellystat_API_Core.Services.Reports.Rendering;
 using Jellystat_API_Core.Services.TaskLogging;
 using Jellystat_API_Core.Services.Tasks;
+using Jellystat_API_Core.Services.Webhooks;
 using Jellystat_API_Core.Services.WebSocket;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -132,6 +133,13 @@ builder.Services.AddSingleton<IReportWebhookSender, ReportWebhookSender>();
 builder.Services.AddScoped<IReportScheduleRunner, ReportScheduleRunner>();
 builder.Services.AddHostedService<ReportScheduleHostedService>();
 builder.Services.AddHttpClient(ReportWebhookSender.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(60));
+
+// Event webhooks: tasks publish playback and new-media events, a background queue delivers them
+builder.Services.AddSingleton<IWebhookSender, WebhookSender>();
+builder.Services.AddSingleton<WebhookDispatcher>();
+builder.Services.AddSingleton<IWebhookPublisher>(sp => sp.GetRequiredService<WebhookDispatcher>());
+builder.Services.AddHostedService(sp => sp.GetRequiredService<WebhookDispatcher>());
+builder.Services.AddHttpClient(WebhookSender.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(15));
 
 
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, DefaultAccessTokenPolicyProvider>();

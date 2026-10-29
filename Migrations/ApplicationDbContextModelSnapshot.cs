@@ -871,6 +871,75 @@ namespace Jellystat_API_Core.Migrations
                     b.ToView("ItemsWithParentData", (string)null);
                 });
 
+            modelBuilder.Entity("Jellystat_API_Core.Data.Schema.Webhooks", b =>
+                {
+                    b.Property<string>("Id")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("Enabled")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("boolean")
+                        .HasDefaultValue(true);
+
+                    b.PrimitiveCollection<string[]>("Events")
+                        .IsRequired()
+                        .HasColumnType("text[]");
+
+                    b.Property<string>("Headers")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("jsonb")
+                        .HasDefaultValueSql("'{}'");
+
+                    b.Property<string>("LastError")
+                        .HasColumnType("text");
+
+                    b.Property<string>("LastEvent")
+                        .HasColumnType("text");
+
+                    b.Property<bool?>("LastSuccess")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastTriggeredAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("PayloadTemplate")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Secret")
+                        .HasColumnType("text");
+
+                    b.Property<string>("ServerId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("text")
+                        .HasDefaultValue("generic");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Url")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ServerId");
+
+                    b.ToTable("Webhooks");
+                });
+
             modelBuilder.Entity("Jellystat_API_Core.Data.Schema.ApiKeys", b =>
                 {
                     b.HasOne("Jellystat_API_Core.Data.Schema.Server", "Server")
@@ -1051,6 +1120,16 @@ namespace Jellystat_API_Core.Migrations
                         .IsRequired();
 
                     b.Navigation("Library");
+
+                    b.Navigation("Server");
+                });
+
+            modelBuilder.Entity("Jellystat_API_Core.Data.Schema.Webhooks", b =>
+                {
+                    b.HasOne("Jellystat_API_Core.Data.Schema.Server", "Server")
+                        .WithMany()
+                        .HasForeignKey("ServerId")
+                        .OnDelete(DeleteBehavior.Cascade);
 
                     b.Navigation("Server");
                 });

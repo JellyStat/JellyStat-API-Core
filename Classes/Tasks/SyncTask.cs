@@ -6,6 +6,7 @@ using Jellystat_API_Core.Enums;
 using Jellystat_API_Core.Extensions;
 using Jellystat_API_Core.Models.API.Base;
 using Jellystat_API_Core.Services.TaskLogging;
+using Jellystat_API_Core.Services.Webhooks;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
 
@@ -341,6 +342,19 @@ namespace Jellystat_API_Core.Classes.Tasks
             }
 
         }
+        private static readonly HashSet<ItemTypes> MediaAddedTypes = [ItemTypes.Movie, ItemTypes.Series, ItemTypes.Episode, ItemTypes.Audio];
+
+        private void PublishMediaAdded(List<Items> newItems)
+        {
+            List<Items> media = newItems.Where(i => MediaAddedTypes.Contains(i.Type)).ToList();
+            if (media.IsEmpty()) return;
+
+            using var scope = _serviceScopeFactory.CreateScope();
+            scope.ServiceProvider.GetRequiredService<IWebhookPublisher>().Publish(new WebhookEvent(WebhookEvents.MediaAdded, api.config.Id, api.config.Name,
+                new WebhookMediaAddedData(media.Count, media.Count > WebhookMediaAddedData.MaxItems,
+                    media.Take(WebhookMediaAddedData.MaxItems).Select(i => new WebhookMediaItem(i.Id, i.Name, i.Type.ToString(), i.LibraryId, i.ParentId)).ToList())));
+        }
+
         private async Task UpdateFromStaging(ApplicationDbContext context, Logs log, ITaskLogging loggingService, bool performArchiveStep = true, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -432,7 +446,10 @@ namespace Jellystat_API_Core.Classes.Tasks
                             Resolution = s.Resolution,
                         });
 
-                    await context.Items.AddRangeAsync(newItemsQuery, cancellationToken);
+                    // A server's first sync imports its whole library; that isn't news for the media.added webhook
+                    bool hadItems = await context.Items.AnyAsync(i => i.ServerId == serverId, cancellationToken);
+                    List<Items> newItems = await newItemsQuery.ToListAsync(cancellationToken);
+                    await context.Items.AddRangeAsync(newItems, cancellationToken);
                     int insertedCount = await context.SaveChangesAsync(cancellationToken);
                     await loggingService.AddMessageAsync(log, $"Inserted {insertedCount} new items from staging for server {api.config.Name}");
 
@@ -495,6 +512,8 @@ namespace Jellystat_API_Core.Classes.Tasks
                     await loggingService.AddMessageAsync(log, $"Updated {activityUpdatedCount} activity records with new item names for server {api.config.Name}");
 
                     await transaction.CommitAsync(cancellationToken);
+
+                    if (hadItems) PublishMediaAdded(newItems);
                 }
                 catch (OperationCanceledException)
                 {

@@ -40,6 +40,7 @@ namespace Jellystat_API_Core.Data
         public DbSet<ApiKeys> ApiKeys { get; set; }
         public DbSet<Reports> Reports { get; set; }
         public DbSet<ReportSchedules> ReportSchedules { get; set; }
+        public DbSet<Webhooks> Webhooks { get; set; }
 
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
@@ -374,6 +375,23 @@ namespace Jellystat_API_Core.Data
                       .HasForeignKey(e => e.ReportId)
                       .OnDelete(DeleteBehavior.Cascade);
 
+                entity.HasOne(e => e.Server)
+                      .WithMany()
+                      .HasForeignKey(e => e.ServerId)
+                      .OnDelete(DeleteBehavior.Cascade);
+            });
+
+            modelBuilder.Entity<Webhooks>(entity =>
+            {
+                entity.HasKey(e => e.Id);
+                entity.Property(e => e.Name).IsRequired().HasMaxLength(200);
+                entity.Property(e => e.Url).IsRequired();
+                entity.Property(e => e.Type).IsRequired().HasDefaultValue("generic");
+                entity.Property(e => e.Events).IsRequired();
+                entity.Property(e => e.Headers).IsRequired().HasColumnType("jsonb").HasDefaultValueSql("'{}'");
+                entity.Property(e => e.Enabled).HasDefaultValue(true);
+
+                // A webhook scoped to a server goes with it; null ServerId means every server
                 entity.HasOne(e => e.Server)
                       .WithMany()
                       .HasForeignKey(e => e.ServerId)

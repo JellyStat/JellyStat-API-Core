@@ -7,6 +7,7 @@ using Jellystat_API_Core.Extensions;
 using Jellystat_API_Core.Models.API.Base;
 using Jellystat_API_Core.Models.Jellystat;
 using Jellystat_API_Core.Models.WebSocket;
+using Jellystat_API_Core.Services.Webhooks;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
 
@@ -28,12 +29,17 @@ namespace Jellystat_API_Core.Classes.Tasks
         private IList<BaseSessionItem> LastSessionData = [];
 
         private IServiceScopeFactory _serviceScopeFactory { get; set; }
+        private readonly IWebhookPublisher _webhooks;
+        // Sessions already playing when monitoring starts aren't new playbacks, so the first poll raises no started events
+        private bool _primed = false;
 
         public ActivityMonitor(iAPI api, IServiceScopeFactory serviceScopeFactory, int intervalMilliseconds = 1000)
         {
             this.api = api;
             this.IntervalMilliseconds = intervalMilliseconds;
             _serviceScopeFactory = serviceScopeFactory;
+            using var scope = serviceScopeFactory.CreateScope();
+            _webhooks = scope.ServiceProvider.GetRequiredService<IWebhookPublisher>();
         }
 
         public void Start()
@@ -45,6 +51,7 @@ namespace Jellystat_API_Core.Classes.Tasks
 
                 _cancellationTokenSource = new CancellationTokenSource();
                 watchdogData = [];
+                _primed = false;
                 _monitoringTask = Task.Run(() => MonitoringLoopAsync(_cancellationTokenSource.Token));
             }
         }
@@ -87,7 +94,8 @@ namespace Jellystat_API_Core.Classes.Tasks
 
                 if (dataToFlush.IsNotEmpty())
                 {
-                    await ProcessActivityData(dataToFlush);
+                    // Monitoring stopped, the playback didn't end
+                    await ProcessActivityData(dataToFlush, raiseEvents: false);
                 }
             }
             finally
@@ -147,6 +155,8 @@ namespace Jellystat_API_Core.Classes.Tasks
         {
             List<ExcludedUsers> excludedUsers = api.excludedUsers;
             List<BaseSessionItem> sessionData = api.GetSessionData().Where(s => !excludedUsers.Any(eu => eu.UserId == s.UserId && eu.ServerId == s.ServerId)).ToList();
+            bool raiseStarted = _primed;
+            _primed = true;
 
             if (sessionData.IsEmpty() && watchdogData.IsEmpty())
             {
@@ -179,10 +189,20 @@ namespace Jellystat_API_Core.Classes.Tasks
                     Container = s.NowPlayingItem!.Container,
                     IpAddress = s.IPAddress,
                     IsPaused = s.IsPaused,
-                    RuntimeTicks = s.NowPlayingItem!.RuntimeTicks
+                    RuntimeTicks = s.NowPlayingItem!.RuntimeTicks,
+                    ItemType = s.NowPlayingItem!.Type,
+                    SeasonNumber = s.NowPlayingItem!.ParentIndexNumber,
+                    EpisodeNumber = s.NowPlayingItem!.IndexNumber
 
                 }).ToList());
 
+                if (raiseStarted)
+                {
+                    foreach (ActivityStaging started in watchdogData.TakeLast(dataToInsert.Count))
+                    {
+                        PublishPlayback(WebhookEvents.PlaybackStarted, started, null);
+                    }
+                }
             }
 
 
@@ -192,7 +212,16 @@ namespace Jellystat_API_Core.Classes.Tasks
         }
 
 
-        private async Task ProcessActivityData(List<ActivityStaging> activityData)
+        private void PublishPlayback(string eventKey, ActivityStaging playback, long? watchedSeconds)
+        {
+            _webhooks.Publish(new WebhookEvent(eventKey, playback.ServerId, api.config.Name, new WebhookPlaybackData(
+                new WebhookUser(playback.UserId, playback.UserName),
+                new WebhookPlaybackItem(playback.ItemId, playback.Name, playback.ItemType.ToString(), playback.SeriesId, playback.SeriesName, playback.SeasonId,
+                    playback.SeasonNumber, playback.EpisodeNumber, playback.RuntimeTicks / TimeSpan.TicksPerSecond),
+                playback.Client, playback.Device, playback.DeviceId, playback.PlayMethod, watchedSeconds)));
+        }
+
+        private async Task ProcessActivityData(List<ActivityStaging> activityData, bool raiseEvents = true)
         {
             if (activityData.IsEmpty()) return;
             using (var scope = _serviceScopeFactory.CreateScope())
@@ -213,6 +242,8 @@ namespace Jellystat_API_Core.Classes.Tasks
                 }
 
                 List<ActivityStaging> playbackToInsert = activityData.Where(d => d.Duration > Global.MinimumDurationThreshold).ToList();
+                // Every started event gets an ended one, including plays too short to record as activity
+                List<ActivityStaging> endedPlayback = raiseEvents ? activityData.ToList() : [];
 
                 //Do update existing from Activity logic here
 
@@ -289,6 +320,11 @@ namespace Jellystat_API_Core.Classes.Tasks
 
 
                 watchdogData = watchdogData.Where(wd => !activityData.Any(d => d.UserId == wd.UserId && d.DeviceId == wd.DeviceId && d.ItemId == wd.ItemId)).ToList();
+
+                foreach (ActivityStaging ended in endedPlayback)
+                {
+                    PublishPlayback(WebhookEvents.PlaybackEnded, ended, ended.Duration);
+                }
             }
         }
         ///////////////////
