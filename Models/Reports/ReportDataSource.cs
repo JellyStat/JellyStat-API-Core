@@ -187,12 +187,15 @@ namespace Jellystat_API_Core.Models.Reports
         /// <summary>Date fields: Value = number of days back from now.</summary>
         public const string LastNDays = "lastNDays";
         public const string LastNHours = "lastNHours";
+        /// <summary>Date fields: older than N days/hours ago, or empty (e.g. users not seen in 30 days, including never).</summary>
+        public const string NotLastNDays = "notLastNDays";
+        public const string NotLastNHours = "notLastNHours";
         public const string Today = "today";
         public const string ThisMonth = "thisMonth";
         public const string ThisYear = "thisYear";
 
         public static readonly string[] All =
-            [Eq, Neq, Gt, Gte, Lt, Lte, Contains, NotContains, StartsWith, EndsWith, IsNull, IsNotNull, In, NotIn, Between, LastNDays, LastNHours, Today, ThisMonth, ThisYear];
+            [Eq, Neq, Gt, Gte, Lt, Lte, Contains, NotContains, StartsWith, EndsWith, IsNull, IsNotNull, In, NotIn, Between, LastNDays, LastNHours, NotLastNDays, NotLastNHours, Today, ThisMonth, ThisYear];
     }
 
     /// <summary>

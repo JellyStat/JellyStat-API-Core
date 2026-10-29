@@ -30,7 +30,7 @@ namespace Jellystat_API_Core.Services.Reports.Query
 
         private static readonly HashSet<string> StringOnly = [Op.Contains, Op.NotContains, Op.StartsWith, Op.EndsWith];
         private static readonly HashSet<string> Ordered = [Op.Gt, Op.Gte, Op.Lt, Op.Lte, Op.Between];
-        private static readonly HashSet<string> DateOnly = [Op.LastNDays, Op.LastNHours, Op.Today, Op.ThisMonth, Op.ThisYear];
+        private static readonly HashSet<string> DateOnly = [Op.LastNDays, Op.LastNHours, Op.NotLastNDays, Op.NotLastNHours, Op.Today, Op.ThisMonth, Op.ThisYear];
 
         public static NormalizedFilter? Normalize(ReportFilterNode? node, ReportFieldSet dataset,
             IReadOnlyDictionary<string, JsonElement?> parameters, DateTime utcNow, TimeZoneInfo? timeZone = null)
@@ -153,6 +153,15 @@ namespace Jellystat_API_Core.Services.Reports.Query
                     return Simple(Op.Gte, utcNow.AddDays(-ReportValueConverter.ToDouble(value, field)));
                 case Op.LastNHours:
                     return Simple(Op.Gte, utcNow.AddHours(-ReportValueConverter.ToDouble(value, field)));
+                case Op.NotLastNDays:
+                case Op.NotLastNHours:
+                    double n = ReportValueConverter.ToDouble(value, field);
+                    var cutoff = op == Op.NotLastNDays ? utcNow.AddDays(-n) : utcNow.AddHours(-n);
+                    var older = Simple(Op.Lt, cutoff);
+                    bool nullable = !prop.PropertyType.IsValueType || Nullable.GetUnderlyingType(prop.PropertyType) != null;
+                    if (!nullable) return older;
+                    // Empty dates count too; negated, both parts flip and must both hold
+                    return new NormalizedGroup(!negate, [older, Simple(Op.IsNull)]);
                 case Op.Today:
                 case Op.ThisMonth:
                 case Op.ThisYear:
