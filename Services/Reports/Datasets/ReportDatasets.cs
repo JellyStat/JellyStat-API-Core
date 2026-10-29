@@ -26,6 +26,7 @@ namespace Jellystat_API_Core.Services.Reports.Datasets
         [ReportField("Item Id", T.String)] public string ItemId { get; set; } = "";
         [ReportField("Title", T.String)] public string Name { get; set; } = "";
         [ReportField("Series", T.String)] public string? SeriesName { get; set; }
+        [ReportField("Series Id", T.String)] public string? SeriesId { get; set; }
         [ReportField("Item Type", T.Enum)] public ItemTypes? ItemType { get; set; }
         [ReportField("Library Id", T.String)] public string? LibraryId { get; set; }
         [ReportField("Library", T.String)] public string? LibraryName { get; set; }
@@ -69,6 +70,7 @@ namespace Jellystat_API_Core.Services.Reports.Datasets
                        ItemId = a.ItemId,
                        Name = a.Name,
                        SeriesName = a.SeriesName,
+                       SeriesId = a.SeriesId,
                        ItemType = (ItemTypes?)i.Type,
                        LibraryId = i.LibraryId,
                        LibraryName = l.Name,
@@ -103,6 +105,7 @@ namespace Jellystat_API_Core.Services.Reports.Datasets
         [ReportField("Library", T.String)] public string? LibraryName { get; set; }
         [ReportField("Parent Id", T.String)] public string? ParentId { get; set; }
         [ReportField("Series", T.String, Description = "For seasons and episodes")] public string? SeriesName { get; set; }
+        [ReportField("Series Id", T.String, Description = "For seasons and episodes")] public string? SeriesId { get; set; }
         [ReportField("Season #", T.Integer)] public int? SeasonNumber { get; set; }
         [ReportField("Episode #", T.Integer)] public int? EpisodeNumber { get; set; }
         [ReportField("Date Added", T.Date, Aggregatable = true)] public DateTime? DateAdded { get; set; }
@@ -146,6 +149,10 @@ namespace Jellystat_API_Core.Services.Reports.Datasets
                                      join s in db.Items on p.AncestorId equals s.Id
                                      where p.DescendantId == i.Id && p.Depth > 0 && s.Type == ItemTypes.Series
                                      select s.Name).FirstOrDefault(),
+                       SeriesId = (from p in db.ItemsPath
+                                   join s in db.Items on p.AncestorId equals s.Id
+                                   where p.DescendantId == i.Id && p.Depth > 0 && s.Type == ItemTypes.Series
+                                   select s.Id).FirstOrDefault(),
                        SeasonNumber = i.ParentIndex,
                        EpisodeNumber = i.Index,
                        DateAdded = i.DateCreated,
@@ -253,6 +260,7 @@ namespace Jellystat_API_Core.Services.Reports.Datasets
         [ReportField("User", T.String)] public string UserName { get; set; } = "";
         [ReportField("Title", T.String)] public string Name { get; set; } = "";
         [ReportField("Series", T.String)] public string? SeriesName { get; set; }
+        [ReportField("Series Id", T.String)] public string? SeriesId { get; set; }
         [ReportField("Library", T.String)] public string? LibraryName { get; set; }
         [ReportField("Client", T.String)] public string? Client { get; set; }
         [ReportField("Device", T.String)] public string? Device { get; set; }
@@ -295,6 +303,7 @@ namespace Jellystat_API_Core.Services.Reports.Datasets
                        UserName = a.UserName,
                        Name = a.Name,
                        SeriesName = a.SeriesName,
+                       SeriesId = a.SeriesId,
                        LibraryName = l.Name,
                        Client = a.Client,
                        Device = a.Device,
@@ -337,6 +346,7 @@ namespace Jellystat_API_Core.Services.Reports.Datasets
         [ReportField("Item Id", T.String)] public string ItemId { get; set; } = "";
         [ReportField("Title", T.String)] public string Name { get; set; } = "";
         [ReportField("Series", T.String)] public string? SeriesName { get; set; }
+        [ReportField("Series Id", T.String)] public string? SeriesId { get; set; }
         [ReportField("Client", T.String)] public string? Client { get; set; }
         [ReportField("Watch Time", T.Duration, Groupable = false, Aggregatable = true)] public long Duration { get; set; }
     }
@@ -368,6 +378,7 @@ namespace Jellystat_API_Core.Services.Reports.Datasets
                        ItemId = a.ItemId,
                        Name = a.Name,
                        SeriesName = a.SeriesName,
+                       SeriesId = a.SeriesId,
                        Client = a.Client,
                        Duration = a.Duration
                    };
