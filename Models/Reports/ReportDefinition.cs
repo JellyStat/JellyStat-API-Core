@@ -94,6 +94,12 @@ namespace Jellystat_API_Core.Models.Reports
         /// <summary>image: a picture from the media server (poster, backdrop or user avatar) instead of Src.</summary>
         public ReportImageBinding? Media { get; set; }
 
+        /// <summary>
+        /// text, image, metric: makes the element a hyperlink. A URL with {{tokens}}; for a metric with the "link"
+        /// format, {{value}} is its value and an empty link uses the value itself as the URL.
+        /// </summary>
+        public string? Link { get; set; }
+
         // shape: rect | ellipse
         public string? Shape { get; set; }
     }
@@ -145,6 +151,11 @@ namespace Jellystat_API_Core.Models.Reports
         public double Width { get; set; } = 1;
         public string Align { get; set; } = "left";
         public string? Format { get; set; }
+        /// <summary>
+        /// "link" format: the URL, with {{value}} for the cell and {{row.FIELD}} for other columns of the row
+        /// (plus the usual tokens). Empty uses the cell value itself as the URL.
+        /// </summary>
+        public string? Link { get; set; }
     }
 
     public class ReportTableOptions

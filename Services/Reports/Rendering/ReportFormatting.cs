@@ -18,7 +18,7 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
 
         public static bool IsUtc(TimeZoneInfo tz) => tz.Id is "UTC" or "Etc/UTC" or "Etc/UCT" or "Universal" or "Coordinated Universal Time" || tz == TimeZoneInfo.Utc;
 
-        public static readonly string[] Formats = ["auto", "text", "number", "integer", "decimal", "percent", "duration", "bytes", "date", "datetime", "time"];
+        public static readonly string[] Formats = ["auto", "text", "link", "number", "integer", "decimal", "percent", "duration", "bytes", "date", "datetime", "time"];
 
         public static string Format(object? value, string? format, string? columnType = null, TimeZoneInfo? timeZone = null)
         {
@@ -167,6 +167,55 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
                     return (data.Rows.Count > 0 ? data.Rows[0].GetValueOrDefault(column.Name) : null, column.Type);
             }
             return (null, "missing");
+        }
+
+        /// <summary>
+        /// Builds a hyperlink from a template: {{value}} is the linked value, {{row.FIELD}} another column of the same
+        /// row, and the usual tokens work too. A token at the very start goes in as it is (it is the URL or its base);
+        /// anywhere else it is URL-encoded. Only http, https and mailto links are returned, anything else gives null.
+        /// </summary>
+        public static string? ResolveLink(string? template, object? value, IReadOnlyDictionary<string, object?>? row,
+            ReportRenderModel model, int pageNumber, int pageCount)
+        {
+            string t = string.IsNullOrWhiteSpace(template) ? "{{value}}" : template.Trim();
+            var zone = ReportFormatter.Zone(model.Definition.TimeZone);
+            string url = TokenRegex().Replace(t, m =>
+            {
+                string path = m.Groups[1].Value.Trim();
+                string? format = m.Groups[2].Success ? m.Groups[2].Value : null;
+                object? v;
+                if (path.Equals("value", StringComparison.OrdinalIgnoreCase)) v = value;
+                else if (path.StartsWith("row.", StringComparison.OrdinalIgnoreCase) && row != null)
+                {
+                    string field = path[4..];
+                    v = row.FirstOrDefault(kv => kv.Key.Equals(field, StringComparison.OrdinalIgnoreCase)).Value;
+                }
+                else
+                {
+                    var (found, type) = Lookup(path, model, pageNumber, pageCount);
+                    if (found == null && type == "missing") return "";
+                    v = format == null ? found : ReportFormatter.Format(found, format, type, zone);
+                }
+                if (v is JsonElement je) v = ReportFormatter.Unwrap(je);
+                string text = v switch
+                {
+                    null => "",
+                    string s => s,
+                    DateTime dt => dt.ToString("O", CultureInfo.InvariantCulture),
+                    bool b => b ? "true" : "false",
+                    IFormattable f => format == null ? f.ToString(null, CultureInfo.InvariantCulture) : ReportFormatter.Format(v, format, null, zone),
+                    _ => v.ToString() ?? ""
+                };
+                return m.Index == 0 ? text.Trim() : Uri.EscapeDataString(text);
+            });
+            return SafeLink(url);
+        }
+
+        public static string? SafeLink(string? url)
+        {
+            if (string.IsNullOrWhiteSpace(url)) return null;
+            url = url.Trim();
+            return Uri.TryCreate(url, UriKind.Absolute, out var uri) && uri.Scheme is "http" or "https" or "mailto" ? url : null;
         }
 
         public static ReportDataResult? FindData(ReportRenderModel model, string? nameOrId)

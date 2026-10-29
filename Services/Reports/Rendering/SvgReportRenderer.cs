@@ -15,7 +15,14 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
         public bool ResolveFonts { get; set; }
         /// <summary>Images that aren't data: URIs are never fetched by the server; browsers may show them.</summary>
         public bool AllowRemoteImages { get; set; }
+        /// <summary>
+        /// Collects the page's hyperlinks (areas in page px), so a PDF can add them as link annotations.
+        /// PNG/PDF output (ResolveFonts) never gets SVG &lt;a&gt; elements.
+        /// </summary>
+        public List<ReportLinkArea>? Links { get; set; }
     }
+
+    public record ReportLinkArea(double X, double Y, double Width, double Height, string Url);
 
     /// <summary>
     /// Draws a report page as SVG: the single server-side rendering that HTML, PNG and PDF exports are made from.
@@ -77,6 +84,12 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
             if (e.Type is not (ReportElementTypes.Shape or ReportElementTypes.Line)) sb.Append(Background(outer, e.Style));
             var content = new Box(e.X + e.Style.Padding, e.Y + e.Style.Padding, Math.Max(0, e.Width - 2 * e.Style.Padding), Math.Max(0, e.Height - 2 * e.Style.Padding));
 
+            // Text and images link as a whole element
+            string? elementLink = e.Type is ReportElementTypes.Text or ReportElementTypes.Image && !string.IsNullOrWhiteSpace(e.Link)
+                ? ReportTokenResolver.ResolveLink(e.Link, null, null, ctx.Model, ctx.PageNumber, ctx.PageCount)
+                : null;
+            if (elementLink != null) sb.Append(LinkStart(outer, elementLink, ctx));
+
             switch (e.Type)
             {
                 case ReportElementTypes.Text:
@@ -101,6 +114,7 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
                     sb.Append(Line(e));
                     break;
             }
+            if (elementLink != null) sb.Append(LinkEnd(ctx));
 
             sb.Append("</g>");
             // Border on top of the content and outside the clip, so it isn't cut in half
@@ -109,6 +123,25 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
         }
 
         // ------------------------------------------------------------------ primitives
+
+        /// <summary>Opens a hyperlink over an area: an SVG &lt;a&gt; for browsers, and a recorded area for PDF links.</summary>
+        private static string LinkStart(Box area, string url, Ctx ctx)
+        {
+            ctx.Options.Links?.Add(new ReportLinkArea(area.X, area.Y, area.W, area.H, url));
+            return ctx.Options.ResolveFonts ? "" : $"<a href=\"{Attr(url)}\" xlink:href=\"{Attr(url)}\" target=\"_blank\" rel=\"noopener noreferrer\">";
+        }
+
+        private static string LinkEnd(Ctx ctx) => ctx.Options.ResolveFonts ? "" : "</a>";
+
+        /// <summary>An underline under one line of text drawn by Label.</summary>
+        private static string Underline(string text, double x, double cy, string anchor, ReportElementStyle s, Ctx ctx, double size, string? weight, string? color)
+        {
+            if (text.Length == 0) return "";
+            double w = ctx.Measure(text, s, size, weight);
+            double startX = anchor switch { "middle" => x - w / 2, "end" => x - w, _ => x };
+            double uy = cy + size * 0.35 + size * 0.12;
+            return $"<line x1=\"{N(startX)}\" y1=\"{N(uy)}\" x2=\"{N(startX + w)}\" y2=\"{N(uy)}\" stroke=\"{Attr(color ?? s.Color)}\" stroke-width=\"{N(Math.Max(1, size / 14))}\"/>";
+        }
 
         private static string Background(Box b, ReportElementStyle s) =>
             string.IsNullOrEmpty(s.Background) ? "" :
@@ -242,13 +275,17 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
             var s = e.Style;
             var data = ReportTokenResolver.FindData(ctx.Model, e.DataSourceId);
             string valueText;
+            string? link = null;
             if (data?.Error != null) return Message(data.Error, b, s, ctx, "#ef4444");
             var column = data?.Columns.FirstOrDefault(c => c.Name.Equals(e.ValueField ?? "", StringComparison.OrdinalIgnoreCase));
             if (data == null || column == null) valueText = "—";
             else
             {
-                object? value = data.Rows.Count > 0 ? data.Rows[0].GetValueOrDefault(column.Name) : null;
+                var row = data.Rows.Count > 0 ? data.Rows[0] : null;
+                object? value = row?.GetValueOrDefault(column.Name);
                 valueText = value == null ? "—" : ReportFormatter.Format(value, e.Format, column.Type, ctx.Zone);
+                if (e.Format == "link" && value != null)
+                    link = ReportTokenResolver.ResolveLink(e.Link, value, row, ctx.Model, ctx.PageNumber, ctx.PageCount);
             }
             valueText = (e.Prefix ?? "") + valueText + (e.Suffix ?? "");
 
@@ -267,7 +304,11 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
             var sb = new StringBuilder();
             if (label.Length > 0)
                 sb.Append(Label(Ellipsis(label, b.W, s, ctx, labelSize, "normal"), x, top + labelH / 2, anchor, s, ctx, labelSize, "normal", null, 0.65));
-            sb.Append(Label(Ellipsis(valueText, b.W, s, ctx, s.FontSize), x, top + labelH + valueH / 2, anchor, s, ctx, s.FontSize));
+            string shown = Ellipsis(valueText, b.W, s, ctx, s.FontSize);
+            double valueY = top + labelH + valueH / 2;
+            if (link != null) sb.Append(LinkStart(b, link, ctx));
+            sb.Append(Label(shown, x, valueY, anchor, s, ctx, s.FontSize));
+            if (link != null) sb.Append(Underline(shown, x, valueY, anchor, s, ctx, s.FontSize, null, null)).Append(LinkEnd(ctx));
             return sb.ToString();
         }
 
@@ -290,13 +331,16 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
             double[] widths = columns.Select(c => b.W * Math.Max(0.1, c.Width) / totalWeight).ToArray();
             const double cellPad = 6;
 
-            string Cell(string text, int col, double x, double cy, string? weight, string? color)
+            string Cell(string text, int col, double x, double cy, string? weight, string? color, string? link = null)
             {
                 var c = columns[col];
                 double w = widths[col] - cellPad * 2;
                 text = Ellipsis(text, w, s, ctx, s.FontSize, weight);
                 var (tx, anchor) = Align(c.Align, new Box(x + cellPad, 0, w, 0));
-                return Label(text, tx, cy, anchor, s, ctx, s.FontSize, weight, color);
+                string label = Label(text, tx, cy, anchor, s, ctx, s.FontSize, weight, color);
+                if (link == null || text.Length == 0) return label;
+                return LinkStart(new Box(x, cy - rowH / 2, widths[col], rowH), link, ctx) + label
+                    + Underline(text, tx, cy, anchor, s, ctx, s.FontSize, weight, color) + LinkEnd(ctx);
             }
 
             if (t.ShowHeader)
@@ -327,8 +371,12 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
                 {
                     var col = columns[i];
                     var type = data.Columns.FirstOrDefault(c => c.Name == col.Field)?.Type;
-                    string text = ReportFormatter.Format(data.Rows[r].GetValueOrDefault(col.Field), col.Format, type, ctx.Zone);
-                    sb.Append(Cell(text, i, x, y + rowH / 2, null, null));
+                    object? value = data.Rows[r].GetValueOrDefault(col.Field);
+                    string text = ReportFormatter.Format(value, col.Format, type, ctx.Zone);
+                    string? link = col.Format == "link" && value != null
+                        ? ReportTokenResolver.ResolveLink(col.Link, value, data.Rows[r], ctx.Model, ctx.PageNumber, ctx.PageCount)
+                        : null;
+                    sb.Append(Cell(text, i, x, y + rowH / 2, null, null, link));
                     x += widths[i];
                 }
                 y += rowH;

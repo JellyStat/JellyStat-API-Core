@@ -141,9 +141,9 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
         }
 
         /// <summary>The SKSvg owns the picture: dispose it once the picture has been drawn.</summary>
-        private SKSvg Picture(ReportRenderModel model, int page, out SKPicture picture)
+        private SKSvg Picture(ReportRenderModel model, int page, out SKPicture picture, List<ReportLinkArea>? links = null)
         {
-            string svg = _renderer.RenderPage(model, page, new SvgRenderOptions { ResolveFonts = true });
+            string svg = _renderer.RenderPage(model, page, new SvgRenderOptions { ResolveFonts = true, Links = links });
             var skSvg = new SKSvg();
             // Bundled report fonts first; anything they don't cover falls through to the system fonts
             skSvg.Settings.TypefaceProviders?.Insert(0, new ReportFontTypefaceProvider(_fonts));
@@ -193,10 +193,14 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
             {
                 foreach (int i in pages)
                 {
-                    using var svg = Picture(model, i, out var picture);
+                    var links = new List<ReportLinkArea>();
+                    using var svg = Picture(model, i, out var picture, links);
                     var canvas = document.BeginPage((float)(p.Width * 0.75), (float)(p.Height * 0.75));
                     canvas.Scale(0.75f);
                     canvas.DrawPicture(picture);
+                    // Clickable areas for the report's hyperlinks (mapped through the canvas scale like the drawing)
+                    foreach (var link in links)
+                        canvas.DrawUrlAnnotation(SKRect.Create((float)link.X, (float)link.Y, (float)link.Width, (float)link.Height), link.Url);
                     document.EndPage();
                 }
                 document.Close();
