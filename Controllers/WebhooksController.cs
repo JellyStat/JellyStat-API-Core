@@ -27,6 +27,7 @@ namespace Jellystat_API_Core.Controllers
             [WebhookEvents.PlaybackStarted] = ("Playback started", "A user starts playing something."),
             [WebhookEvents.PlaybackEnded] = ("Playback ended", "A user stops playing something, with how long they watched."),
             [WebhookEvents.MediaAdded] = ("Media added", "A sync finds new movies, series, episodes or music (one event per sync, not on a server's first sync)."),
+            [WebhookEvents.SyncCompleted] = ("Full sync completed", "A full sync finishes, with the libraries synced and how many items were added, updated and archived."),
         };
 
         private readonly ApplicationDbContext context;
