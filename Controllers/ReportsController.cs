@@ -83,6 +83,22 @@ namespace Jellystat_API_Core.Controllers
             MaxRows = ReportQueryExecutor.MaxLimit
         };
 
+        /// <summary>Fonts bundled for reports (see Fonts/README.md). Public: browsers load them via @font-face.</summary>
+        [HttpGet("Fonts", Name = "ReportFonts")]
+        [AllowAnonymous]
+        public IReadOnlyList<ReportFontFamily> Fonts([FromServices] IReportFontRegistry fonts) => fonts.Families;
+
+        [HttpGet("Fonts/{file}", Name = "ReportFontFile")]
+        [AllowAnonymous]
+        public ActionResult FontFile(string file, [FromServices] IReportFontRegistry fonts)
+        {
+            // Only names from the manifest, so no other file can be requested
+            string? path = fonts.FilePath(file);
+            if (path == null) return NotFound();
+            Response.Headers.CacheControl = "public, max-age=604800";
+            return PhysicalFile(path, "font/ttf");
+        }
+
         // ------------------------------------------------------------------ reports
 
         [HttpGet("List", Name = "ListReports")]

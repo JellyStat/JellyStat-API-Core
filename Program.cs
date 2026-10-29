@@ -119,6 +119,7 @@ builder.Services.AddSingleton<IReportQueryEngine, EfCoreReportQueryEngine>();
 builder.Services.AddSingleton<IReportQueryEngine, GridifyReportQueryEngine>();
 builder.Services.AddScoped<IReportQueryExecutor, ReportQueryExecutor>();
 builder.Services.AddScoped<IReportService, ReportService>();
+builder.Services.AddSingleton<IReportFontRegistry, ReportFontRegistry>();
 builder.Services.AddSingleton<IReportTextMeasurer, SkiaTextMeasurer>();
 builder.Services.AddSingleton<SvgReportRenderer>();
 builder.Services.AddSingleton<IReportImageResolver, ReportImageResolver>();

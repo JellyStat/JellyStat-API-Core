@@ -38,6 +38,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Report fonts, loaded at run time (see Fonts/README.md) -->
+    <None Update="Fonts\**" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Folder Include=".github\workflows\" />
     <Folder Include="Filters\" />
     <Folder Include="Middleware\" />

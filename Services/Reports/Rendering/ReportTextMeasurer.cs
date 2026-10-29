@@ -13,12 +13,19 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
     /// <summary>Measures text with the same fonts Skia will draw with, so server-side wrapping matches the PNG/PDF output.</summary>
     public class SkiaTextMeasurer : IReportTextMeasurer
     {
+        private readonly IReportFontRegistry? _fonts;
+
+        public SkiaTextMeasurer(IReportFontRegistry? fonts = null)
+        {
+            _fonts = fonts;
+        }
+
         private static readonly ConcurrentDictionary<string, string> Families = new();
         private static readonly ConcurrentDictionary<(string, int, bool), SKTypeface> Typefaces = new();
         private static readonly Lazy<HashSet<string>> Installed = new(() =>
             new HashSet<string>(SKFontManager.Default.GetFontFamilies(), StringComparer.OrdinalIgnoreCase));
 
-        public string ResolveFamily(string fontFamily) => Families.GetOrAdd(fontFamily ?? "", list =>
+        public string ResolveFamily(string fontFamily) => _fonts?.Find(fontFamily)?.Family ?? Families.GetOrAdd(fontFamily ?? "", list =>
         {
             foreach (var raw in list.Split(','))
             {
@@ -31,7 +38,7 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
         public double Measure(string text, string fontFamily, double fontSize, string fontWeight, bool italic)
         {
             if (string.IsNullOrEmpty(text)) return 0;
-            var typeface = Typefaces.GetOrAdd((ResolveFamily(fontFamily), Weight(fontWeight), italic), key =>
+            var typeface = _fonts?.Match(fontFamily, Weight(fontWeight), italic) ?? Typefaces.GetOrAdd((ResolveFamily(fontFamily), Weight(fontWeight), italic), key =>
                 SKTypeface.FromFamilyName(key.Item1, new SKFontStyle(key.Item2, (int)SKFontStyleWidth.Normal, key.Item3 ? SKFontStyleSlant.Italic : SKFontStyleSlant.Upright))
                 ?? SKTypeface.Default);
             using var font = new SKFont(typeface, (float)fontSize);

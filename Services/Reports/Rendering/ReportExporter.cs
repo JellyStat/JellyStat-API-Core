@@ -42,12 +42,18 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
         private const double PageGap = 24;
         private readonly SvgReportRenderer _renderer;
         private readonly IReportImageResolver _images;
+        private readonly IReportFontRegistry _fonts;
 
-        public ReportExporter(SvgReportRenderer renderer, IReportImageResolver images)
+        public ReportExporter(SvgReportRenderer renderer, IReportImageResolver images, IReportFontRegistry fonts)
         {
             _renderer = renderer;
             _images = images;
+            _fonts = fonts;
         }
+
+        /// <summary>Bundled fonts the report uses, as embedded @font-face rules, so SVG/HTML files look right anywhere.</summary>
+        private string FontCss(ReportRenderModel model) =>
+            _fonts.FontFaceCss(model.Definition.Pages.SelectMany(p => p.Elements).Where(e => !e.Hidden).Select(e => e.Style.FontFamily));
 
         public async Task<ReportFile> ExportAsync(ReportRenderModel model, ReportExportOptions options, Datasets.ReportScope scope, CancellationToken cancellationToken = default)
         {
@@ -69,7 +75,14 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
                     return new ReportFile(JsonSerializer.SerializeToUtf8Bytes(model, ReportJson.Options), "application/json", baseName + ".json");
 
                 case ReportFormats.Svg:
-                    return new ReportFile(Encoding.UTF8.GetBytes(Stack(model, pages, new SvgRenderOptions { AllowRemoteImages = true })), "image/svg+xml", baseName + ".svg");
+                    string svg = Stack(model, pages, new SvgRenderOptions { AllowRemoteImages = true });
+                    string css = FontCss(model);
+                    if (css.Length > 0)
+                    {
+                        int end = svg.IndexOf('>') + 1;
+                        svg = svg[..end] + $"<defs><style>{css}</style></defs>" + svg[end..];
+                    }
+                    return new ReportFile(Encoding.UTF8.GetBytes(svg), "image/svg+xml", baseName + ".svg");
 
                 case ReportFormats.Html:
                     return new ReportFile(Encoding.UTF8.GetBytes(Html(model, pages)), "text/html; charset=utf-8", baseName + ".html");
@@ -119,6 +132,7 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
             sb.Append($".page{{width:100%;max-width:{SvgReportRenderer.N(p.Width)}px;box-shadow:0 4px 24px rgba(0,0,0,.15);background:{WebUtility.HtmlEncode(p.Background)}}}.page svg{{display:block;width:100%;height:auto}}");
             sb.Append($"@page{{size:{SvgReportRenderer.N(p.Width * 0.75)}pt {SvgReportRenderer.N(p.Height * 0.75)}pt;margin:0}}");
             sb.Append("@media print{html,body{background:none;padding:0;gap:0}.page{box-shadow:none;max-width:none;break-after:page}}");
+            sb.Append(FontCss(model));
             sb.Append("</style></head><body>");
             foreach (int i in pages)
                 sb.Append("<div class=\"page\">").Append(_renderer.RenderPage(model, i, new SvgRenderOptions { AllowRemoteImages = true })).Append("</div>");
@@ -131,6 +145,8 @@ namespace Jellystat_API_Core.Services.Reports.Rendering
         {
             string svg = _renderer.RenderPage(model, page, new SvgRenderOptions { ResolveFonts = true });
             var skSvg = new SKSvg();
+            // Bundled report fonts first; anything they don't cover falls through to the system fonts
+            skSvg.Settings.TypefaceProviders?.Insert(0, new ReportFontTypefaceProvider(_fonts));
             picture = skSvg.FromSvg(svg) ?? throw new InvalidOperationException("Rendering the report page failed");
             return skSvg;
         }
