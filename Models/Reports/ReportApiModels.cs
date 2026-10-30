@@ -29,6 +29,26 @@ namespace Jellystat_API_Core.Models.Reports
         public ReportDefinition Definition { get; set; } = new();
     }
 
+    public class ReportImportRequest
+    {
+        /// <summary>The file's text, unparsed: a damaged file must reach the checks rather than fail model binding.</summary>
+        public string? Content { get; set; }
+        public string? ServerId { get; set; }
+    }
+
+    public class ReportImportResult
+    {
+        public bool Valid { get; set; }
+        /// <summary>Why the file can't be imported.</summary>
+        public List<string> Errors { get; set; } = [];
+        /// <summary>Usable, but something won't work as the report's author intended.</summary>
+        public List<string> Warnings { get; set; } = [];
+        public string? Name { get; set; }
+        public string? Description { get; set; }
+        /// <summary>The checked report, when valid.</summary>
+        public ReportDefinition? Definition { get; set; }
+    }
+
     public class ReportPreviewRequest
     {
         public ReportDefinition Definition { get; set; } = new();
