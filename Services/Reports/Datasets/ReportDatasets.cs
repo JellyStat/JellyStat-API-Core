@@ -258,6 +258,7 @@ namespace Jellystat_API_Core.Services.Reports.Datasets
         [ReportField("Date", T.Date, Aggregatable = true)] public DateTime DateCreated { get; set; }
         [ReportField("User Id", T.String)] public string UserId { get; set; } = "";
         [ReportField("User", T.String)] public string UserName { get; set; } = "";
+        [ReportField("Item Id", T.String)] public string ItemId { get; set; } = "";
         [ReportField("Title", T.String)] public string Name { get; set; } = "";
         [ReportField("Series", T.String)] public string? SeriesName { get; set; }
         [ReportField("Series Id", T.String)] public string? SeriesId { get; set; }
@@ -301,6 +302,7 @@ namespace Jellystat_API_Core.Services.Reports.Datasets
                        DateCreated = a.DateCreated,
                        UserId = a.UserId,
                        UserName = a.UserName,
+                       ItemId = a.ItemId,
                        Name = a.Name,
                        SeriesName = a.SeriesName,
                        SeriesId = a.SeriesId,
