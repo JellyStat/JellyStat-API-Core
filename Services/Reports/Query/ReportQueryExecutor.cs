@@ -27,14 +27,12 @@ namespace Jellystat_API_Core.Services.Reports.Query
 
         private readonly ApplicationDbContext _db;
         private readonly IReportDatasetRegistry _datasets;
-        private readonly Dictionary<string, IReportQueryEngine> _engines;
         private readonly ILogger<ReportQueryExecutor> _logger;
 
-        public ReportQueryExecutor(ApplicationDbContext db, IReportDatasetRegistry datasets, IEnumerable<IReportQueryEngine> engines, ILogger<ReportQueryExecutor> logger)
+        public ReportQueryExecutor(ApplicationDbContext db, IReportDatasetRegistry datasets, ILogger<ReportQueryExecutor> logger)
         {
             _db = db;
             _datasets = datasets;
-            _engines = engines.ToDictionary(e => e.Key, StringComparer.OrdinalIgnoreCase);
             _logger = logger;
         }
 
@@ -45,11 +43,12 @@ namespace Jellystat_API_Core.Services.Reports.Query
             try
             {
                 var dataset = _datasets.Get(source.Dataset) ?? throw new ReportDefinitionException($"Unknown dataset '{source.Dataset}'");
-                var engine = _engines.GetValueOrDefault(source.Engine ?? ReportQueryEngines.EfCore)
-                    ?? throw new ReportDefinitionException($"Unknown query engine '{source.Engine}'");
+                // Ignoring it would return rows the report was meant to filter out, so the source fails visibly instead
+                if (!string.IsNullOrWhiteSpace(source.GridifyFilter))
+                    throw new ReportDefinitionException($"'{source.Name}' uses a raw Gridify filter, which is no longer supported. Rewrite it in the filter builder.");
 
                 var task = (Task<ReportDataResult>)RunMethod.MakeGenericMethod(dataset.RowType)
-                    .Invoke(this, [source, dataset, engine, scope, parameters, maxRows, cancellationToken, ReportFormatter.Zone(timeZone)])!;
+                    .Invoke(this, [source, dataset, scope, parameters, maxRows, cancellationToken, ReportFormatter.Zone(timeZone)])!;
                 var result = await task;
                 result.ElapsedMs = sw.ElapsedMilliseconds;
                 return result;
@@ -70,7 +69,7 @@ namespace Jellystat_API_Core.Services.Reports.Query
             }
         }
 
-        private async Task<ReportDataResult> RunAsync<TRow>(ReportDataSource source, IReportDataset dataset, IReportQueryEngine engine,
+        private async Task<ReportDataResult> RunAsync<TRow>(ReportDataSource source, IReportDataset dataset,
             ReportScope scope, IReadOnlyDictionary<string, JsonElement?> parameters, int? maxRows, CancellationToken cancellationToken, TimeZoneInfo timeZone) where TRow : class, new()
         {
             int limit = Math.Clamp(source.Limit ?? DefaultLimit, 1, MaxLimit);
@@ -80,7 +79,7 @@ namespace Jellystat_API_Core.Services.Reports.Query
             var fieldSet = new ReportFieldSet(dataset, source.Calculated);
             var utcNow = DateTime.UtcNow;
             var filter = ReportFilterNormalizer.Normalize(source.Filter, fieldSet, parameters, utcNow, timeZone);
-            query = engine.ApplyFilter(query, filter, source, fieldSet);
+            query = ReportExpressions.Where(query, filter);
 
             var result = new ReportDataResult { DataSourceId = source.Id };
 
@@ -109,10 +108,10 @@ namespace Jellystat_API_Core.Services.Reports.Query
                 : source.Fields.Select(fieldSet.Require).DistinctBy(f => f.Name).ToList();
 
             var sort = source.Sort.Select(s => new ReportSortKey(fieldSet.Require(s.Field), s.Desc)).ToList();
-            query = engine.ApplySort(query, sort, fieldSet);
+            var x = Expression.Parameter(typeof(TRow), "x");
+            query = ReportExpressions.OrderBy(query, sort.Select(s => (s.Property.Access(x), s.Desc)).ToList(), x);
 
             // Only the selected columns (and calculated fields) are read, as one object[] per row
-            var x = Expression.Parameter(typeof(TRow), "x");
             var projection = Expression.Lambda<Func<TRow, object?[]>>(
                 Expression.NewArrayInit(typeof(object), fields.Select(f => Expression.Convert(f.Access(x), typeof(object)))), x);
 
