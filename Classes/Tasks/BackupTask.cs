@@ -6,6 +6,7 @@ using Jellystat_API_Core.Services.TaskLogging;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 
 namespace Jellystat_API_Core.Classes.Tasks
@@ -14,6 +15,7 @@ namespace Jellystat_API_Core.Classes.Tasks
     {
         private readonly IServiceScopeFactory _serviceScopeFactory;
         private const int ExportBatchSize = 500;
+        private const int MaxRepeatedIdsReported = 10;
 
         public BackupTask(IServiceScopeFactory serviceScopeFactory)
         {
@@ -51,8 +53,11 @@ namespace Jellystat_API_Core.Classes.Tasks
 
                     await loggingService.AddMessageAsync(log, $"Creating Backup: {backupFilePath}");
 
+                    // Sensitive data logging only adds key values to tracking errors, so a failed export names the row it
+                    // tripped on. The backup context holds nothing that isn't already written to the backup file.
                     var backupOptions = new DbContextOptionsBuilder<BackupExportSqliteContext>()
-                        .UseSqlite($"Data Source={backupFilePath}")
+                        .UseSqlite(BackupConnectionString(backupFilePath))
+                        .EnableSensitiveDataLogging()
                         .Options;
 
                     await using var backupContext = new BackupExportSqliteContext(backupOptions);
@@ -245,11 +250,18 @@ namespace Jellystat_API_Core.Classes.Tasks
 
                     await loggingService.AddMessageAsync(log, $"Excluded Users Table Exported Successfully");
 
+                    // Sorted on an expression so the database reads the table itself: a damaged primary key index can
+                    // hide rows from an index scan, and can let the table hold two live copies of a row.
+                    List<string> repeatedLogIds = [];
+
                     await ExportInBatchesAsync(
-                     sourceContext.Logs
-                         .AsNoTracking()
-                         .OrderBy(e => e.ServerId)
-                         .AsAsyncEnumerable(),
+                     WithoutRepeatedLogs(
+                         sourceContext.Logs
+                             .AsNoTracking()
+                             .OrderBy(e => e.Id + "")
+                             .AsAsyncEnumerable(),
+                         repeatedLogIds,
+                         cancellationToken),
                      backupContext.Logs,
                      backupContext,
                      logEntry => new BackupLogs
@@ -263,6 +275,11 @@ namespace Jellystat_API_Core.Classes.Tasks
                          Success = logEntry.Success,
                      },
                      cancellationToken);
+
+                    if (repeatedLogIds.Count > 0)
+                    {
+                        await loggingService.AddMessageAsync(log, $"Skipped {repeatedLogIds.Count} repeated log row(s), which points to a damaged table or index: {string.Join(", ", repeatedLogIds.Take(MaxRepeatedIdsReported))}");
+                    }
 
                     await loggingService.AddMessageAsync(log, $"Logs Table Exported Successfully");
 
@@ -307,23 +324,63 @@ namespace Jellystat_API_Core.Classes.Tasks
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
-                    DeleteBackupFile(backupFilePath);
                     await loggingService.AddMessageAsync(log, $"Backup task has been cancelled");
+                    await RemoveFailedBackupAsync(backupFilePath, loggingService, log);
                     await loggingService.ErrorAsync(log);
                     throw;
                 }
                 catch (Exception ex)
                 {
-                    DeleteBackupFile(backupFilePath);
-                    // Handle exceptions (e.g., log them)
-                    Console.WriteLine($"Error during backup: {ex.Message}");
-                    await loggingService.AddMessageAsync(log, $"Error during backup: {ex.Message}");
+                    // Report before cleaning up, so nothing that goes wrong below can hide why the backup failed
+                    // EF's update errors only say "see the inner exception"; the database's reason is the useful part
+                    string reason = ex.GetBaseException().Message;
+                    Console.WriteLine($"Error during backup: {reason}");
+                    await loggingService.AddMessageAsync(log, $"Error during backup: {reason}");
+                    await RemoveFailedBackupAsync(backupFilePath, loggingService, log);
                     await loggingService.ErrorAsync(log);
                 }
                 finally
                 {
                     IsRunning = false;
                 }
+            }
+        }
+
+        /// <summary>
+        /// Passes on one copy of each log, the one with the most messages, from rows sorted by id. One bad row in the
+        /// database shouldn't cost every backup, so repeats are collected for the task log instead of failing the export.
+        /// </summary>
+        private static async IAsyncEnumerable<Logs> WithoutRepeatedLogs(
+            IAsyncEnumerable<Logs> logsSortedById,
+            List<string> repeatedIds,
+            [EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            Logs? kept = null;
+
+            await foreach (var row in logsSortedById.WithCancellation(cancellationToken))
+            {
+                if (kept == null)
+                {
+                    kept = row;
+                }
+                else if (row.Id == kept.Id)
+                {
+                    repeatedIds.Add(row.Id);
+                    if ((row.Messages?.Count ?? 0) > (kept.Messages?.Count ?? 0))
+                    {
+                        kept = row;
+                    }
+                }
+                else
+                {
+                    yield return kept;
+                    kept = row;
+                }
+            }
+
+            if (kept != null)
+            {
+                yield return kept;
             }
         }
 
@@ -362,11 +419,26 @@ namespace Jellystat_API_Core.Classes.Tasks
             backupContext.ChangeTracker.Clear();
         }
 
-        private static void DeleteBackupFile(string? backupFilePath)
+        private static string BackupConnectionString(string backupFilePath) => $"Data Source={backupFilePath}";
+
+        /// <summary>Removes a partial backup. Failing to is reported, and never stops the task's log being completed.</summary>
+        private static async Task RemoveFailedBackupAsync(string? backupFilePath, ITaskLogging loggingService, Logs log)
         {
-            if (!string.IsNullOrWhiteSpace(backupFilePath) && File.Exists(backupFilePath))
+            if (string.IsNullOrWhiteSpace(backupFilePath) || !File.Exists(backupFilePath))
             {
+                return;
+            }
+
+            try
+            {
+                // SQLite's pool keeps the file open after the context is disposed, and Windows won't delete an open file
+                using var connection = new SqliteConnection(BackupConnectionString(backupFilePath));
+                SqliteConnection.ClearPool(connection);
                 File.Delete(backupFilePath);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                await loggingService.AddMessageAsync(log, $"Could not delete the incomplete backup {backupFilePath}: {ex.Message}");
             }
         }
 

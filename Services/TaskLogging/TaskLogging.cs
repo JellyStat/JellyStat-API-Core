@@ -11,6 +11,7 @@ namespace Jellystat_API_Core.Services.TaskLogging
     public class TaskLogging : ITaskLogging, IAsyncDisposable
     {
         private static readonly TimeSpan DebounceDelay = TimeSpan.FromSeconds(2);
+        private static readonly TimeSpan BroadcastTimeout = TimeSpan.FromSeconds(5);
 
         private readonly IServiceScopeFactory _serviceScopeFactory;
         private readonly ILogger<TaskLogging> _logger;
@@ -47,7 +48,7 @@ namespace Jellystat_API_Core.Services.TaskLogging
                 Data = log
             };
 
-            await Global.WebSocketServerService.BroadcastObjectAsync(message, serverId);
+            await BroadcastAsync(message, serverId, log.Id);
 
             return log;
         }
@@ -126,18 +127,39 @@ namespace Jellystat_API_Core.Services.TaskLogging
                 state.Log.Duration = (float)state.Stopwatch.Elapsed.TotalSeconds;
             }
 
+            // Save first: the stored status must not depend on every WebSocket client being reachable
+            await FlushAsync(state, cancellationToken);
+
+            _pendingLogs.TryRemove(state.Log.Id, out _);
+            state.DisposeCancellation();
+
             var message = new JellystatWebsocketMessage<Logs>()
             {
                 Type = WebsocketServerTypes.TaskLogUpdate,
                 Data = state.Log
             };
 
-            await Global.WebSocketServerService.BroadcastObjectAsync(message, state.Log.ServerId);
+            await BroadcastAsync(message, state.Log.ServerId, state.Log.Id);
+        }
 
-            await FlushAsync(state, cancellationToken);
-
-            _pendingLogs.TryRemove(state.Log.Id, out _);
-            state.DisposeCancellation();
+        /// <summary>
+        /// Log updates are best effort: a failing or stalled client is reported, and never holds up the task or its log.
+        /// A stalled send keeps running in the background; only the wait for it ends.
+        /// </summary>
+        private async Task BroadcastAsync(JellystatWebsocketMessage<Logs> message, string? serverId, string logId)
+        {
+            try
+            {
+                await Global.WebSocketServerService.BroadcastObjectAsync(message, serverId).WaitAsync(BroadcastTimeout);
+            }
+            catch (TimeoutException)
+            {
+                _logger.LogWarning("Broadcasting task log {LogId} took longer than {Timeout}; continuing without waiting for it.", logId, BroadcastTimeout);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Failed to broadcast task log {LogId}.", logId);
+            }
         }
 
         private PendingLogState GetOrCreateState(Logs log)
@@ -166,7 +188,7 @@ namespace Jellystat_API_Core.Services.TaskLogging
                     Data = state.Log
                 };
 
-                await Global.WebSocketServerService.BroadcastObjectAsync(wsmessage, state.Log.ServerId);
+                await BroadcastAsync(wsmessage, state.Log.ServerId, state.Log.Id);
 
                 await Task.Delay(DebounceDelay, cancellationToken);
                 await FlushAsync(state, cancellationToken);
@@ -219,9 +241,13 @@ namespace Jellystat_API_Core.Services.TaskLogging
 
                 await context.SaveChangesAsync(cancellationToken);
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                // A newer message or the final status replaced this save
+            }
             catch (Exception ex)
             {
-                Debug.WriteLine($"[TaskLogging] Error on FlushAsync: {ex.Message}");
+                _logger.LogError(ex, "Failed to save task log {LogId} (success: {Success}).", state.Log.Id, state.Log.Success);
             }
             finally
             {
