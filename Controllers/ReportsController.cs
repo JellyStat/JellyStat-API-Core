@@ -73,7 +73,6 @@ namespace Jellystat_API_Core.Controllers
         public ReportCapabilities Capabilities() => new()
         {
             Datasets = _datasets.All.Select(d => new ReportDatasetInfo { Key = d.Key, Label = d.Label, Description = d.Description, Fields = d.Fields }).ToList(),
-            Engines = [ReportQueryEngines.EfCore, ReportQueryEngines.Gridify],
             Operators = ReportFilterOperators.All,
             Aggregates = ReportAggregateFunctions.All,
             DateBuckets = ReportDateBuckets.All,

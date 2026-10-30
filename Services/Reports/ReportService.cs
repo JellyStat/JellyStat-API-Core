@@ -98,8 +98,6 @@ namespace Jellystat_API_Core.Services.Reports
                 {
                     var dataset = _datasets.Get(source.Dataset)
                         ?? throw new ReportDefinitionException($"Data source '{source.Name}' uses unknown dataset '{source.Dataset}'");
-                    if (source.Engine is not (ReportQueryEngines.EfCore or ReportQueryEngines.Gridify))
-                        throw new ReportDefinitionException($"Data source '{source.Name}' uses unknown engine '{source.Engine}'");
                     // Parses (and safety-checks) the calculated fields
                     _ = new ReportFieldSet(dataset, source.Calculated);
                 }

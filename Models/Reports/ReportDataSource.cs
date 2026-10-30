@@ -2,28 +2,22 @@ using System.Text.Json;
 
 namespace Jellystat_API_Core.Models.Reports
 {
-    public static class ReportQueryEngines
-    {
-        /// <summary>Filters and sorting compiled straight to LINQ expression trees.</summary>
-        public const string EfCore = "efcore";
-        /// <summary>Filters and sorting translated to Gridify syntax and applied through a whitelisted GridifyMapper.</summary>
-        public const string Gridify = "gridify";
-    }
-
     /// <summary>
     /// A query against one dataset (see ReportDatasetRegistry). Either a plain row list (Fields) or, when GroupBy or
-    /// Aggregates are set, one row per group. Both engines run on the same EF Core IQueryable, so the SQL runs in the database.
+    /// Aggregates are set, one row per group. Runs as one EF Core query, so the SQL runs in the database.
     /// </summary>
     public class ReportDataSource
     {
         public string Id { get; set; } = Guid.NewGuid().ToString("N");
         public string Name { get; set; } = "Data source";
         public string Dataset { get; set; } = "activity";
-        public string Engine { get; set; } = ReportQueryEngines.EfCore;
 
         public ReportFilterNode? Filter { get; set; }
 
-        /// <summary>Extra filter in raw Gridify syntax (e.g. "UserName=*bob/i,Duration>60"). Gridify engine only.</summary>
+        /// <summary>
+        /// Raw Gridify filter from reports saved before EF Core became the only engine. It is no longer applied: a source
+        /// that still has one reports an error until the filter is rewritten in the builder.
+        /// </summary>
         public string? GridifyFilter { get; set; }
 
         /// <summary>Columns to return when not grouping. Empty = every field of the dataset.</summary>

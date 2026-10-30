@@ -87,7 +87,6 @@ namespace Jellystat_API_Core.Models.Reports
     public class ReportCapabilities
     {
         public required List<ReportDatasetInfo> Datasets { get; set; }
-        public required string[] Engines { get; set; }
         public required string[] Operators { get; set; }
         public required string[] Aggregates { get; set; }
         public required string[] DateBuckets { get; set; }

@@ -20,8 +20,7 @@ namespace Jellystat_API_Core.Services.Reports.Query
     }
 
     /// <summary>
-    /// Turns a definition filter tree into a validated NormalizedFilter that both query engines translate,
-    /// so EF Core and Gridify always apply exactly the same conditions.
+    /// Turns a definition filter tree into a validated NormalizedFilter, which ReportExpressions translates for EF Core.
     /// </summary>
     public static class ReportFilterNormalizer
     {
