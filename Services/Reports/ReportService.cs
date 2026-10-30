@@ -24,6 +24,9 @@ namespace Jellystat_API_Core.Services.Reports
         Task<List<ReportParameterOption>> GetParameterOptionsAsync(ReportDefinition definition, string parameter, ReportScope scope,
             IReadOnlyDictionary<string, JsonElement>? values, CancellationToken cancellationToken = default);
 
+        /// <summary>Checks an uploaded report file without saving it.</summary>
+        Task<ReportImportResult> CheckImportAsync(string? content, ReportScope scope, CancellationToken cancellationToken = default);
+
         /// <summary>Runs one data source of a definition, including any sources a combined source is built from.</summary>
         Task<ReportDataResult> ExecuteSourceAsync(ReportDefinition definition, ReportDataSource source, ReportScope scope,
             IReadOnlyDictionary<string, JsonElement>? values, int? maxRows = null, CancellationToken cancellationToken = default);

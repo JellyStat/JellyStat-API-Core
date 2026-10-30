@@ -176,6 +176,11 @@ namespace Jellystat_API_Core.Controllers
             return ToSummary(report);
         }
 
+        [HttpPost("ValidateImport", Name = "ValidateReportImport")]
+        [PermissionAuthorize(PermissionTypes.Administrator)]
+        public Task<ReportImportResult> ValidateImport([FromBody] ReportImportRequest request, CancellationToken cancellationToken) =>
+            _reports.CheckImportAsync(request.Content, Scope(request.ServerId), cancellationToken);
+
         [HttpPost("Duplicate", Name = "DuplicateReport")]
         [PermissionAuthorize(PermissionTypes.Administrator)]
         public async Task<ActionResult<ReportSummary>> Duplicate(string Id)
