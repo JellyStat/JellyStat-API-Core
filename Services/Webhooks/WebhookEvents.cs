@@ -41,7 +41,11 @@ namespace Jellystat_API_Core.Services.Webhooks
     public record WebhookPlaybackData(WebhookUser User, WebhookPlaybackItem Item, string? Client, string? Device, string? DeviceId,
         string? PlayMethod, long? WatchedSeconds);
 
-    public record WebhookMediaItem(string Id, string Name, string Type, string LibraryId, string? ParentId);
+    public record WebhookMediaItem(string Id, string Name, string Type, string LibraryId, string? LibraryName, string? ParentId, string? SeriesName)
+    {
+        /// <summary>"Series - Episode" for an episode, otherwise the item's name.</summary>
+        public string Title => SeriesName != null ? $"{SeriesName} - {Name}" : Name;
+    }
 
     /// <summary>media.added: Items holds the first MaxItems of Count.</summary>
     public record WebhookMediaAddedData(int Count, bool Truncated, IReadOnlyList<WebhookMediaItem> Items)
@@ -71,8 +75,8 @@ namespace Jellystat_API_Core.Services.Webhooks
                 new WebhookPlaybackData(new("sample-user-id", "Sample User"), SampleEpisode, "Jellyfin Web", "Firefox", "sample-device-id", "DirectPlay", 1520)),
             WebhookEvents.MediaAdded => new(eventKey, serverId, serverName,
                 new WebhookMediaAddedData(2, false, [
-                    new("sample-movie-id", "Sample Movie", "Movie", "sample-library-id", null),
-                    new("sample-episode-id", "Pilot", "Episode", "sample-library-id", "sample-season-id")
+                    new("sample-movie-id", "Sample Movie", "Movie", "sample-movies-id", "Movies", null, null),
+                    new("sample-episode-id", "Pilot", "Episode", "sample-shows-id", "Shows", "sample-season-id", "Sample Series")
                 ])),
             WebhookEvents.SyncCompleted => new(eventKey, serverId, serverName,
                 new WebhookSyncCompletedData("full", [

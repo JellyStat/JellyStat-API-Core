@@ -350,15 +350,40 @@ namespace Jellystat_API_Core.Classes.Tasks
         }
         private static readonly HashSet<ItemTypes> MediaAddedTypes = [ItemTypes.Movie, ItemTypes.Series, ItemTypes.Episode, ItemTypes.Audio];
 
-        private void PublishMediaAdded(List<Items> newItems)
+        /// <summary>Runs after the sync has committed, so a failure here only costs the notification, never the sync.</summary>
+        private async Task PublishMediaAdded(ApplicationDbContext context, List<Items> newItems)
         {
-            List<Items> media = newItems.Where(i => MediaAddedTypes.Contains(i.Type)).ToList();
-            if (media.IsEmpty()) return;
+            try
+            {
+                List<Items> media = newItems.Where(i => MediaAddedTypes.Contains(i.Type)).ToList();
+                if (media.IsEmpty()) return;
 
-            using var scope = _serviceScopeFactory.CreateScope();
-            scope.ServiceProvider.GetRequiredService<IWebhookPublisher>().Publish(new WebhookEvent(WebhookEvents.MediaAdded, api.config.Id, api.config.Name,
-                new WebhookMediaAddedData(media.Count, media.Count > WebhookMediaAddedData.MaxItems,
-                    media.Take(WebhookMediaAddedData.MaxItems).Select(i => new WebhookMediaItem(i.Id, i.Name, i.Type.ToString(), i.LibraryId, i.ParentId)).ToList())));
+                Dictionary<string, string> libraryNames = await context.Libraries.AsNoTracking()
+                    .Where(l => l.ServerId == api.config.Id)
+                    .ToDictionaryAsync(l => l.Id, l => l.Name);
+
+                List<string> episodeIds = media.Where(i => i.Type == ItemTypes.Episode).Select(i => i.Id).ToList();
+                var seriesNames = await (
+                    from path in context.ItemsPath
+                    join series in context.Items on path.AncestorId equals series.Id
+                    where series.Type == ItemTypes.Series && episodeIds.Contains(path.DescendantId)
+                    select new { path.DescendantId, series.Name })
+                    .ToDictionaryAsync(x => x.DescendantId, x => x.Name);
+
+                List<WebhookMediaItem> items = media
+                    .Select(i => new WebhookMediaItem(i.Id, i.Name, i.Type.ToString(), i.LibraryId, libraryNames.GetValueOrDefault(i.LibraryId), i.ParentId, seriesNames.GetValueOrDefault(i.Id)))
+                    .OrderBy(i => i.LibraryName)
+                    .ThenBy(i => i.Title)
+                    .ToList();
+
+                using var scope = _serviceScopeFactory.CreateScope();
+                scope.ServiceProvider.GetRequiredService<IWebhookPublisher>().Publish(new WebhookEvent(WebhookEvents.MediaAdded, api.config.Id, api.config.Name,
+                    new WebhookMediaAddedData(items.Count, items.Count > WebhookMediaAddedData.MaxItems, items.Take(WebhookMediaAddedData.MaxItems).ToList())));
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Failed to publish the media.added webhook for server {api.config.Name}: {ex.Message}");
+            }
         }
 
         private record StagingCounts(int Added, int Updated, int Archived);
@@ -521,7 +546,7 @@ namespace Jellystat_API_Core.Classes.Tasks
 
                     await transaction.CommitAsync(cancellationToken);
 
-                    if (hadItems) PublishMediaAdded(newItems);
+                    if (hadItems) await PublishMediaAdded(context, newItems);
                     return new StagingCounts(insertedCount, updatedCount, archivedCount);
                 }
                 catch (OperationCanceledException)

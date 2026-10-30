@@ -209,9 +209,10 @@ namespace Jellystat_API_Core.Services.Webhooks
                     return Embed($"{(ended ? "Stopped" : "Playing")}: {title}", null, ended ? 0x95A5A6 : 0x00A4DC, [.. fields]);
 
                 case WebhookMediaAddedData m:
-                    var lines = m.Items.Take(15).Select(i => $"- {i.Name} ({i.Type})").ToList();
-                    if (m.Count > lines.Count) lines.Add($"...and {m.Count - lines.Count} more");
-                    return Embed($"{m.Count} new item{(m.Count == 1 ? "" : "s")} added", string.Join("\n", lines), 0x2ECC71);
+                    var rows = m.Items.Take(15).ToList();
+                    string table = MediaTable(rows);
+                    if (m.Count > rows.Count) table += $"\n...and {m.Count - rows.Count} more";
+                    return Embed($"{m.Count} new item{(m.Count == 1 ? "" : "s")} added", table, 0x2ECC71);
 
                 case WebhookSyncCompletedData s:
                     var libraryLines = s.Libraries.Take(20).Select(l => $"- {l.Name}").ToList();
@@ -231,6 +232,36 @@ namespace Jellystat_API_Core.Services.Webhooks
                 default:
                     return new { content = evt.Event };
             }
+        }
+
+        /// <summary>Discord has no table markup, so this aligns columns in a code block, sized to stay on one line in an embed.</summary>
+        private static string MediaTable(IReadOnlyList<WebhookMediaItem> items)
+        {
+            static string Cell(string? text, int width) => Clip((text ?? "").Replace('`', '\''), width).PadRight(width);
+            int Width(string header, IEnumerable<string?> values, int max) =>
+                Math.Min(max, values.Select(v => v?.Length ?? 0).Append(header.Length).Max());
+
+            int library = Width("Library", items.Select(i => i.LibraryName), 14);
+            int name = Width("Name", items.Select(i => i.Title), 34);
+            int type = Width("Type", items.Select(i => i.Type), 7);
+
+            var lines = new List<string> { $"{Cell("Library", library)}  {Cell("Name", name)}  {Cell("Type", type)}".TrimEnd() };
+            foreach (var item in items)
+            {
+                string[] title = WrapTwoLines(item.Title.Replace('`', '\''), name);
+                lines.Add($"{Cell(item.LibraryName, library)}  {Cell(title[0], name)}  {Cell(item.Type, type)}".TrimEnd());
+                if (title.Length > 1) lines.Add($"{new string(' ', library)}  {title[1]}");
+            }
+            return "```\n" + string.Join("\n", lines) + "\n```";
+        }
+
+        /// <summary>Breaks at the last space that fits (mid-word if there's none); only text past the second line is clipped.</summary>
+        private static string[] WrapTwoLines(string text, int width)
+        {
+            if (text.Length <= width) return [text];
+            int cut = text.LastIndexOf(' ', width);
+            if (cut <= 0) cut = width;
+            return [text[..cut].TrimEnd(), Clip(text[cut..].TrimStart(), width)];
         }
 
         private static string Clip(string text, int max) => text.Length > max ? text[..(max - 1)] + "…" : text;
