@@ -20,6 +20,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Hosting.WindowsServices;
 using Microsoft.IdentityModel.Tokens;
 using NextjsStaticHosting.AspNetCore;
 using Scalar.AspNetCore;
@@ -27,7 +28,19 @@ using System.Text;
 using System.Text.Json;
 using System.Threading.RateLimiting;
 
-var builder = WebApplication.CreateBuilder(args);
+// A Windows service starts in C:\Windows\System32, so anchor the content root to the install folder
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = args,
+    ContentRootPath = WindowsServiceHelpers.IsWindowsService() ? AppContext.BaseDirectory : default
+});
+builder.Host.UseWindowsService(options => options.ServiceName = "Jellystat");
+
+// Native installs keep their settings (DB_HOST, JWT_KEY, ...) in jellystat.json next to the app.
+// Environment variables and command line args are added again after it so they still take precedence, as in Docker.
+builder.Configuration.AddJsonFile(Path.Combine(AppContext.BaseDirectory, "jellystat.json"), optional: true, reloadOnChange: false);
+builder.Configuration.AddEnvironmentVariables();
+builder.Configuration.AddCommandLine(args);
 
 // Add services to the container.
 // Build connection string from environment variables with defaults
@@ -62,7 +75,7 @@ else if (jwtKey.Length < 32)
 
 if ((dbHost == null || dbUsername == null || dbPassword == null))
 {
-    throw new InvalidOperationException("Database configuration is incomplete. Please set DB_HOST, DB_USERNAME, and DB_PASSWORD environment variables.");
+    throw new InvalidOperationException("Database configuration is incomplete. Please set DB_HOST, DB_USERNAME, and DB_PASSWORD environment variables (or in jellystat.json next to the app on native installs).");
 }
 
 Global.CompletionThreshold = CompletionThreshold;
