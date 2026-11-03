@@ -9,7 +9,7 @@ The .NET backend for [Jellystat](https://github.com/JellyStat/Jellystat). It tal
 
 - [DEVELOPMENT_USER_SECRETS.md](DEVELOPMENT_USER_SECRETS.md): setting up local configuration.
 - [EF_CORE_README.md](EF_CORE_README.md): database migrations with Entity Framework Core.
-- Every environment variable is documented in [configuration.md](https://github.com/JellyStat/Jellystat/blob/main/docs/configuration.md) in the main repo.
+- Every environment variable is listed under [Environment Variables](https://github.com/JellyStat/Jellystat#environment-variables) in the main repo.
 
 ## Docker image
 
