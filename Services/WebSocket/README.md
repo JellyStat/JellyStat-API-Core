@@ -1,294 +1,93 @@
-# WebSocket Client Service
+# WebSocket services
 
-A comprehensive WebSocket client management service for .NET 9 that allows you to manage multiple WebSocket client connections simultaneously.
+Two singleton services, both registered in `Program.cs` and also exposed as `Global.WebSocketClientService` and `Global.WebSocketServerService`:
 
-## Features
+| Service | Direction | Used for |
+|---------|-----------|----------|
+| `IWebSocketClientService` | API → Jellyfin/Emby | Listening to each media server's `/socket` for session and library events |
+| `IWebSocketServerService` | Web UI → API | Pushing live sessions and task progress to connected UI clients |
 
-- ✅ **Multiple Client Management**: Manage multiple WebSocket connections with unique identifiers
-- ✅ **Auto-Reconnect**: Automatic reconnection with configurable retry attempts and delays
-- ✅ **Event-Driven**: Subscribe to connection, disconnection, message, and error events
-- ✅ **Binary & Text Support**: Send and receive both text and binary messages
-- ✅ **Thread-Safe**: Built with concurrent collections for thread-safe operations
-- ✅ **Dependency Injection Ready**: Registered as a singleton service
-- ✅ **Logging Support**: Integrated with ILogger for comprehensive logging
-- ✅ **Keep-Alive**: Configurable keep-alive intervals
-
-## Project Structure
+## Files
 
 ```
-Services/
-  WebSocket/
-    ├── IWebSocketClientService.cs         # Service interface
-    ├── WebSocketClientService.cs          # Main service implementation
-    └── ManagedWebSocketClient.cs          # Individual WebSocket client wrapper
+Services/WebSocket/
+  IWebSocketClientService.cs, WebSocketClientService.cs   # Outbound client manager
+  ManagedWebSocketClient.cs                               # One outbound connection (reconnect, keep-alive)
+  IWebSocketServerService.cs, WebSocketServerService.cs   # Inbound connections from the UI
 
-Models/
-  WebSocket/
-    ├── WebSocketClientConfig.cs           # Configuration model
-    └── WebSocketMessage.cs                # Message model
+Models/WebSocket/
+  WebSocketClientConfig.cs       # Outbound connection settings and handlers
+  WebSocketMessage.cs            # Message received from a media server
+  JellystatWebsocketMessage.cs   # Envelope sent to the UI: { type, data }
+  TaskQueueUpdate.cs
 
 Enums/
-  └── WebSocketClientState.cs              # Client state enumeration
+  WebSocketClientState.cs        # Disconnected, Connecting, Connected, Reconnecting, Failed
+  WebsocketServerTypes.cs        # Sessions, TaskStart, TaskUpdate, TaskLogUpdate, TaskEnd
 
 Controllers/
-  └── WebSocketController.cs               # Example REST API controller
+  WebSocketController.cs         # GET /WebSocket: accepts UI connections
 ```
 
-## Usage
+## Client: media server connections
 
-### 1. Basic Setup (Already Configured)
-
-The service is already registered in `Program.cs`:
+`JellyfinAPI` and `EmbyAPI` add one client per configured server when they're created, keyed by the server id. The settings come from `Server.WebSocketConfig` (`Models/Jellystat/Server.cs`), which turns the server URL into `ws(s)://<server>/socket` and sends the API key in a `MediaBrowser Token` header. The API class then attaches its own handlers:
 
 ```csharp
-builder.Services.AddSingleton<IWebSocketClientService, WebSocketClientService>();
-```
-
-### 2. Inject the Service
-
-```csharp
-public class MyService
+if (!Global.WebSocketClientService.ClientExists(config.Id))
 {
-    private readonly IWebSocketClientService _webSocketService;
-
-    public MyService(IWebSocketClientService webSocketService)
-    {
-        _webSocketService = webSocketService;
-    }
+    WebSocketClientConfig webSocketConfig = config.WebSocketConfig;
+    webSocketConfig.OnMessageReceived = OnMessageReceived;
+    webSocketConfig.OnConnected = OnConnected;
+    webSocketConfig.OnDisconnected = OnDisconnected;
+    webSocketConfig.OnError = OnError;
+    Global.WebSocketClientService.AddClientAsync(webSocketConfig);
 }
 ```
 
-### 3. Add a WebSocket Client
+Handlers are per client and set on the config. The service has no events of its own.
 
-```csharp
-var config = new WebSocketClientConfig
-{
-    Id = "jellyfin-server-1",
-    Url = "wss://your-server.com/websocket",
-    Headers = new Dictionary<string, string>
-    {
-        { "Authorization", "Bearer your-token" }
-    },
-    AutoReconnect = true,
-    ReconnectDelay = TimeSpan.FromSeconds(5),
-    MaxReconnectAttempts = 10,
-    KeepAliveInterval = TimeSpan.FromSeconds(30),
-    // Configure per-client event handlers
-    OnMessageReceived = (message) =>
-    {
-        Console.WriteLine($"[{message.ClientId}] Received: {message.Message}");
-    },
-    OnConnected = (clientId) =>
-    {
-        Console.WriteLine($"Client {clientId} connected");
-    },
-    OnDisconnected = (clientId) =>
-    {
-        Console.WriteLine($"Client {clientId} disconnected");
-    },
-    OnError = (clientId, error) =>
-    {
-        Console.WriteLine($"Error on client {clientId}: {error.Message}");
-    }
-};
+### IWebSocketClientService
 
-await _webSocketService.AddClientAsync(config);
-```
+| Method | Description |
+|--------|-------------|
+| `AddClientAsync(config)` | Adds a client; connects it straight away when `AutoReconnect` is on |
+| `RemoveClientAsync(clientId)` | Disconnects and removes a client |
+| `ConnectClientAsync(clientId)` | Connects an existing client |
+| `DisconnectClientAsync(clientId)` / `DisconnectAllAsync()` | Closes one or all connections |
+| `SendMessageAsync(clientId, text)` | Sends a text message |
+| `SendObjectAsync(clientId, obj)` | Serialises an object to JSON and sends it |
+| `SendBinaryAsync(clientId, bytes)` | Sends a binary message |
+| `GetClientState(clientId)` | Returns a `WebSocketClientState` |
+| `GetAllClientIds()` / `ClientExists(clientId)` | Lookups |
 
-### 4. Per-Client Event Handlers
-
-Each WebSocket client can have its own event handlers configured in the `WebSocketClientConfig`:
-
-```csharp
-var config = new WebSocketClientConfig
-{
-    Id = "jellyfin-server-1",
-    Url = "wss://your-server.com/websocket",
-    // Configure event handlers specific to this client
-    OnMessageReceived = HandleMessage,
-    OnConnected = HandleConnected,
-    OnDisconnected = HandleDisconnected,
-    OnError = HandleError
-};
-
-void HandleMessage(WebSocketMessage message)
-{
-    // Handle message from this specific client
-}
-
-void HandleConnected(string clientId)
-{
-    // Handle connection for this specific client
-}
-
-void HandleDisconnected(string clientId)
-{
-    // Handle disconnection for this specific client
-}
-
-void HandleError(string clientId, Exception error)
-{
-    // Handle errors for this specific client
-}
-```
-
-### 5. Send Messages
-
-```csharp
-// Send text message
-await _webSocketService.SendMessageAsync("jellyfin-server-1", "Hello, WebSocket!");
-
-// Send binary data
-byte[] binaryData = Encoding.UTF8.GetBytes("Binary message");
-await _webSocketService.SendBinaryAsync("jellyfin-server-1", binaryData);
-```
-
-### 6. Manage Connections
-
-```csharp
-// Connect a client manually
-await _webSocketService.ConnectClientAsync("jellyfin-server-1");
-
-// Disconnect a specific client
-await _webSocketService.DisconnectClientAsync("jellyfin-server-1");
-
-// Disconnect all clients
-await _webSocketService.DisconnectAllAsync();
-
-// Remove a client (disconnects and removes from management)
-await _webSocketService.RemoveClientAsync("jellyfin-server-1");
-```
-
-### 7. Query Client Status
-
-```csharp
-// Check if client exists
-bool exists = _webSocketService.ClientExists("jellyfin-server-1");
-
-// Get client state
-WebSocketClientState state = _webSocketService.GetClientState("jellyfin-server-1");
-// States: Disconnected, Connecting, Connected, Reconnecting, Failed
-
-// Get all client IDs
-IEnumerable<string> clientIds = _webSocketService.GetAllClientIds();
-```
-
-## REST API Examples
-
-### Add a Client
-```bash
-POST /api/websocket/clients
-Content-Type: application/json
-
-{
-  "id": "jellyfin-server-1",
-  "url": "wss://your-server.com/websocket",
-  "headers": {
-    "Authorization": "Bearer your-token"
-  },
-  "autoReconnect": true,
-  "reconnectDelay": "00:00:05",
-  "maxReconnectAttempts": 10,
-  "keepAliveInterval": "00:00:30"
-}
-```
-
-### Get All Clients
-```bash
-GET /api/websocket/clients
-```
-
-### Get Client State
-```bash
-GET /api/websocket/clients/jellyfin-server-1/state
-```
-
-### Connect a Client
-```bash
-POST /api/websocket/clients/jellyfin-server-1/connect
-```
-
-### Send a Message
-```bash
-POST /api/websocket/clients/jellyfin-server-1/send
-Content-Type: application/json
-
-{
-  "message": "Hello, WebSocket!"
-}
-```
-
-### Disconnect a Client
-```bash
-POST /api/websocket/clients/jellyfin-server-1/disconnect
-```
-
-### Remove a Client
-```bash
-DELETE /api/websocket/clients/jellyfin-server-1
-```
-
-## Configuration Options
+### WebSocketClientConfig
 
 | Property | Type | Default | Description |
 |----------|------|---------|-------------|
-| `Id` | string | - | Unique identifier for the client |
-| `Url` | string | - | WebSocket server URL (ws:// or wss://) |
-| `Headers` | Dictionary<string, string> | null | Custom headers to send with connection |
-| `AutoReconnect` | bool | true | Enable automatic reconnection |
-| `ReconnectDelay` | TimeSpan | 5 seconds | Delay between reconnection attempts |
-| `MaxReconnectAttempts` | int | 10 | Maximum number of reconnection attempts |
-| `KeepAliveInterval` | TimeSpan | 30 seconds | Interval for keep-alive pings |
-| `OnMessageReceived` | Action<WebSocketMessage> | null | Handler for received messages |
-| `OnConnected` | Action<string> | null | Handler for connection events |
-| `OnDisconnected` | Action<string> | null | Handler for disconnection events |
-| `OnError` | Action<string, Exception> | null | Handler for error events |
+| `Id` | `string` | `""` | Client id (the server id) |
+| `Url` | `string` | `""` | `ws://` or `wss://` URL |
+| `ServerName` | `string` | `""` | Server name, for logging |
+| `Headers` | `Dictionary<string, string>?` | `null` | Headers sent when connecting |
+| `AutoReconnect` | `bool` | `true` | Reconnect after the connection drops |
+| `ReconnectDelay` | `TimeSpan` | 5 seconds | Wait between reconnect attempts |
+| `MaxReconnectAttempts` | `int` | `10` | Attempts before the client is marked `Failed` |
+| `KeepAliveInterval` | `TimeSpan` | 30 seconds | Keep-alive ping interval |
+| `OnMessageReceived` | `Action<WebSocketMessage>?` | debug log | Message handler |
+| `OnConnected` | `Action<string>?` | debug log | Called with the client id |
+| `OnDisconnected` | `Action<string>?` | debug log | Called with the client id |
+| `OnError` | `Action<string, Exception>?` | debug log | Called with the client id and the error |
 
-## Client States
+## Server: UI connections
 
-- **Disconnected**: Client is not connected
-- **Connecting**: Client is establishing connection
-- **Connected**: Client is successfully connected
-- **Reconnecting**: Client is attempting to reconnect
-- **Failed**: Connection attempt failed
+The UI connects to `GET /WebSocket`. The connection needs an access token; because browsers can't set headers on a WebSocket, the token can be passed as `?token=<jwt>`, which the JWT handler in `Program.cs` reads for `/WebSocket` paths only.
 
-## Thread Safety
+- Admins can pass `?ServerId=<id>` to choose a server. Everyone else is tied to the server in their token.
+- Remote logins (users signed in through Jellyfin/Emby) only receive their own live sessions.
 
-The service uses `ConcurrentDictionary` for thread-safe operations and is designed to be used as a singleton service.
+Messages are JSON in a `JellystatWebsocketMessage<T>` envelope, with `type` from `WebsocketServerTypes`:
 
-## Example: Managing Multiple Jellyfin Servers
+- `Sessions`: live sessions, sent by `ActivityMonitor` through `BroadcastSessionsAsync`, filtered per connection
+- `TaskStart`, `TaskUpdate`, `TaskLogUpdate`, `TaskEnd`: task progress, sent by the task scheduler and task logging through `BroadcastObjectAsync`
 
-```csharp
-// Add multiple Jellyfin servers
-var servers = new[]
-{
-    ("server-1", "wss://jellyfin1.example.com/socket"),
-    ("server-2", "wss://jellyfin2.example.com/socket"),
-    ("server-3", "wss://jellyfin3.example.com/socket")
-};
-
-foreach (var (id, url) in servers)
-{
-    await _webSocketService.AddClientAsync(new WebSocketClientConfig
-    {
-        Id = id,
-        Url = url,
-        AutoReconnect = true,
-        MaxReconnectAttempts = 5
-    });
-}
-
-// Listen for messages from all servers
-_webSocketService.OnMessageReceived += (sender, message) =>
-{
-    _logger.LogInformation($"Server {message.ClientId}: {message.Message}");
-};
-```
-
-## Cleanup
-
-The service implements `IDisposable` and will automatically clean up all connections when the application shuts down.
-
-## License
-
-This code is part of the JellyStat-API-Core project.
+`BroadcastMessageAsync` and `BroadcastObjectAsync` send to every connection, or only to one server's connections when a `serverId` is passed. Messages the UI sends are logged and otherwise ignored.
