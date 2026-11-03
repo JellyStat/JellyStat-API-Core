@@ -7,3 +7,6 @@
 /obj
 /appsettings.Development.json
 /wwwroot/*
+# Windows installer build output
+/publish
+/installer/Output
