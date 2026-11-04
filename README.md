@@ -11,6 +11,10 @@ The .NET backend for [Jellystat](https://github.com/JellyStat/Jellystat). It tal
 - [EF_CORE_README.md](EF_CORE_README.md): database migrations with Entity Framework Core.
 - [Services/WebSocket/README.md](Services/WebSocket/README.md): media server sockets and live updates to the UI.
 - [Fonts/README.md](Fonts/README.md): fonts used by the report designer and exports.
+- API docs are served in every environment, relative to the API's address (`http://localhost:5020` with the `http` launch profile, port `8080` in Docker):
+  - Swagger UI: `/swagger`
+  - Scalar: `/scalar`
+  - OpenAPI document: `/openapi/v1.json`
 - Every environment variable is listed under [Environment Variables](https://github.com/JellyStat/Jellystat#environment-variables) in the main repo.
 
 ## Docker image
