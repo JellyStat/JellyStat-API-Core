@@ -199,6 +199,7 @@ namespace Jellystat_API_Core.Services.Webhooks
                         ? $"{p.Item.SeriesName}{(p.Item.SeasonNumber != null && p.Item.EpisodeNumber != null ? $" S{p.Item.SeasonNumber:00}E{p.Item.EpisodeNumber:00}" : "")} - {p.Item.Name}"
                         : p.Item.Name;
                     bool ended = evt.Event == WebhookEvents.PlaybackEnded;
+                    bool belowThreshold = evt.Event == WebhookEvents.PlaybackBelowThreshold;
                     var fields = new List<object>
                     {
                         new { name = "User", value = p.User.Name, inline = true },
@@ -206,6 +207,7 @@ namespace Jellystat_API_Core.Services.Webhooks
                         new { name = "Play method", value = p.PlayMethod ?? "Unknown", inline = true }
                     };
                     if (p.WatchedSeconds is long watched) fields.Add(new { name = "Watched", value = FormatDuration(watched), inline = true });
+                    if (belowThreshold) return Embed($"Not recorded (below minimum watch time): {title}", null, 0xE67E22, [.. fields]);
                     return Embed($"{(ended ? "Stopped" : "Playing")}: {title}", null, ended ? 0x95A5A6 : 0x00A4DC, [.. fields]);
 
                 case WebhookMediaAddedData m:
