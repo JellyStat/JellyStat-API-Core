@@ -24,8 +24,9 @@ namespace Jellystat_API_Core.Controllers
 
         private static readonly Dictionary<string, (string Label, string Description)> EventInfo = new()
         {
-            [WebhookEvents.PlaybackStarted] = ("Playback started", "A user starts playing something."),
-            [WebhookEvents.PlaybackEnded] = ("Playback ended", "A user stops playing something, with how long they watched."),
+            [WebhookEvents.PlaybackStarted] = ("Playback started", "A user has been playing something past the minimum watch time (MINIMUM_SECONDS_TO_INCLUDE_PLAYBACK)."),
+            [WebhookEvents.PlaybackEnded] = ("Playback ended", "A user stops playing something they watched past the minimum watch time, with how long they watched."),
+            [WebhookEvents.PlaybackBelowThreshold] = ("Playback below threshold", "A playback ends before the minimum watch time (MINIMUM_SECONDS_TO_INCLUDE_PLAYBACK), so it isn't recorded as activity. Sent instead of playback started and ended."),
             [WebhookEvents.MediaAdded] = ("Media added", "A sync finds new movies, series, episodes or music (one event per sync, not on a server's first sync)."),
             [WebhookEvents.SyncCompleted] = ("Full sync completed", "A full sync finishes, with the libraries synced and how many items were added, updated and archived."),
         };

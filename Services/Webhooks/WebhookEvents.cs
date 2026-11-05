@@ -4,12 +4,14 @@ namespace Jellystat_API_Core.Services.Webhooks
     {
         public const string PlaybackStarted = "playback.started";
         public const string PlaybackEnded = "playback.ended";
+        /// <summary>A playback ended without passing MINIMUM_SECONDS_TO_INCLUDE_PLAYBACK, so it wasn't recorded as activity.</summary>
+        public const string PlaybackBelowThreshold = "playback.below_threshold";
         public const string MediaAdded = "media.added";
         public const string SyncCompleted = "sync.completed";
         /// <summary>Sent by the Test button only; webhooks can't subscribe to it.</summary>
         public const string Test = "webhook.test";
 
-        public static readonly string[] All = [PlaybackStarted, PlaybackEnded, MediaAdded, SyncCompleted];
+        public static readonly string[] All = [PlaybackStarted, PlaybackEnded, PlaybackBelowThreshold, MediaAdded, SyncCompleted];
     }
 
     public static class WebhookTypes
@@ -37,7 +39,7 @@ namespace Jellystat_API_Core.Services.Webhooks
         public static string PosterId(string id, string? seriesId) => seriesId ?? id;
     }
 
-    /// <summary>playback.started and playback.ended; WatchedSeconds is only set when playback ends.</summary>
+    /// <summary>playback.started, playback.ended and playback.below_threshold; WatchedSeconds is only set when playback ends.</summary>
     public record WebhookPlaybackData(WebhookUser User, WebhookPlaybackItem Item, string? Client, string? Device, string? DeviceId,
         string? PlayMethod, long? WatchedSeconds);
 
@@ -73,6 +75,8 @@ namespace Jellystat_API_Core.Services.Webhooks
                 new WebhookPlaybackData(new("sample-user-id", "Sample User"), SampleEpisode, "Jellyfin Web", "Firefox", "sample-device-id", "DirectPlay", null)),
             WebhookEvents.PlaybackEnded => new(eventKey, serverId, serverName,
                 new WebhookPlaybackData(new("sample-user-id", "Sample User"), SampleEpisode, "Jellyfin Web", "Firefox", "sample-device-id", "DirectPlay", 1520)),
+            WebhookEvents.PlaybackBelowThreshold => new(eventKey, serverId, serverName,
+                new WebhookPlaybackData(new("sample-user-id", "Sample User"), SampleEpisode, "Jellyfin Web", "Firefox", "sample-device-id", "DirectPlay", 12)),
             WebhookEvents.MediaAdded => new(eventKey, serverId, serverName,
                 new WebhookMediaAddedData(2, false, [
                     new("sample-movie-id", "Sample Movie", "Movie", "sample-movies-id", "Movies", null, null),

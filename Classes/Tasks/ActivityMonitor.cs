@@ -32,6 +32,8 @@ namespace Jellystat_API_Core.Classes.Tasks
         private readonly IWebhookPublisher _webhooks;
         // Sessions already playing when monitoring starts aren't new playbacks, so the first poll raises no started events
         private bool _primed = false;
+        // Plays whose started event waits on MINIMUM_SECONDS_TO_INCLUDE_PLAYBACK
+        private readonly List<ActivityStaging> _pendingStart = [];
 
         public ActivityMonitor(iAPI api, IServiceScopeFactory serviceScopeFactory, int intervalMilliseconds = 1000)
         {
@@ -52,6 +54,7 @@ namespace Jellystat_API_Core.Classes.Tasks
                 _cancellationTokenSource = new CancellationTokenSource();
                 watchdogData = [];
                 _primed = false;
+                _pendingStart.Clear();
                 _monitoringTask = Task.Run(() => MonitoringLoopAsync(_cancellationTokenSource.Token));
             }
         }
@@ -198,15 +201,25 @@ namespace Jellystat_API_Core.Classes.Tasks
 
                 if (raiseStarted)
                 {
-                    foreach (ActivityStaging started in watchdogData.TakeLast(dataToInsert.Count))
-                    {
-                        PublishPlayback(WebhookEvents.PlaybackStarted, started, null);
-                    }
+                    _pendingStart.AddRange(watchdogData.TakeLast(dataToInsert.Count));
                 }
             }
 
 
             UpdateWatchdogData(sessionData);
+
+            if (_pendingStart.IsNotEmpty())
+            {
+                DateTime now = DateTime.UtcNow;
+                _pendingStart.RemoveAll(p =>
+                {
+                    // Paused plays don't gain watch time; ended ones are settled in ProcessActivityData
+                    if (p.IsPaused || dataToRemove.Contains(p)) return false;
+                    if ((now - p.DateCreated).TotalSeconds <= Global.MinimumDurationThreshold - p.Duration) return false;
+                    PublishPlayback(WebhookEvents.PlaybackStarted, p, null);
+                    return true;
+                });
+            }
 
             return dataToRemove;
         }
@@ -243,8 +256,9 @@ namespace Jellystat_API_Core.Classes.Tasks
                 }
 
                 List<ActivityStaging> playbackToInsert = activityData.Where(d => d.Duration > Global.MinimumDurationThreshold).ToList();
-                // Every started event gets an ended one, including plays too short to record as activity
-                List<ActivityStaging> endedPlayback = raiseEvents ? activityData.ToList() : [];
+                // Plays that pass the insert filter get playback.ended; the rest are short plays
+                List<ActivityStaging> endedPlayback = raiseEvents ? playbackToInsert.ToList() : [];
+                List<ActivityStaging> shortPlayback = raiseEvents ? activityData.Except(playbackToInsert).ToList() : [];
 
                 //Do update existing from Activity logic here
 
@@ -324,7 +338,18 @@ namespace Jellystat_API_Core.Classes.Tasks
 
                 foreach (ActivityStaging ended in endedPlayback)
                 {
+                    // Passed the threshold between polls: send the started it missed first
+                    if (_pendingStart.Remove(ended))
+                    {
+                        PublishPlayback(WebhookEvents.PlaybackStarted, ended, null);
+                    }
                     PublishPlayback(WebhookEvents.PlaybackEnded, ended, ended.Duration);
+                }
+
+                foreach (ActivityStaging skipped in shortPlayback)
+                {
+                    _pendingStart.Remove(skipped);
+                    PublishPlayback(WebhookEvents.PlaybackBelowThreshold, skipped, skipped.Duration);
                 }
             }
         }
