@@ -24,11 +24,11 @@ namespace Jellystat_API_Core.Controllers
 
         private static readonly Dictionary<string, (string Label, string Description)> EventInfo = new()
         {
-            [WebhookEvents.PlaybackStarted] = ("Playback started", "A user has been playing something past the minimum watch time (MINIMUM_SECONDS_TO_INCLUDE_PLAYBACK)."),
-            [WebhookEvents.PlaybackEnded] = ("Playback ended", "A user stops playing something they watched past the minimum watch time, with how long they watched."),
-            [WebhookEvents.PlaybackBelowThreshold] = ("Playback below threshold", "A playback ends before the minimum watch time (MINIMUM_SECONDS_TO_INCLUDE_PLAYBACK), so it isn't recorded as activity. Sent instead of playback started and ended."),
-            [WebhookEvents.MediaAdded] = ("Media added", "A sync finds new movies, series, episodes or music (one event per sync, not on a server's first sync)."),
-            [WebhookEvents.SyncCompleted] = ("Full sync completed", "A full sync finishes, with the libraries synced and how many items were added, updated and archived."),
+            [WebhookEvents.PlaybackStarted] = ("Playback started", "When a user starts a playback."),
+            [WebhookEvents.PlaybackEnded] = ("Playback ended", "When a user stops a playback."),
+            [WebhookEvents.PlaybackBelowThreshold] = ("Playback below threshold", "When a playback ends before the minimum watch time so it isn't recorded as activity."),
+            [WebhookEvents.MediaAdded] = ("Media added", "When a sync finds new item."),
+            [WebhookEvents.SyncCompleted] = ("Full sync completed", "When a full sync finishes, with the libraries synced and how many items were added, updated and archived."),
         };
 
         private readonly ApplicationDbContext context;
@@ -155,8 +155,23 @@ namespace Jellystat_API_Core.Controllers
                 var recent = await context.Activity.AsNoTracking()
                     .Where(a => a.ServerId == serverId)
                     .OrderByDescending(a => a.DateCreated)
-                    .Select(a => new { a.ItemId, a.Name, a.SeriesId, a.SeriesName, a.SeasonId, a.RuntimeTicks, a.UserId, a.UserName, a.Client, a.Device, a.DeviceId, a.PlayMethod, a.Duration,
-                        Item = context.Items.Where(i => i.Id == a.ItemId).Select(i => new { i.Type, i.ParentIndex, i.Index }).FirstOrDefault() })
+                    .Select(a => new
+                    {
+                        a.ItemId,
+                        a.Name,
+                        a.SeriesId,
+                        a.SeriesName,
+                        a.SeasonId,
+                        a.RuntimeTicks,
+                        a.UserId,
+                        a.UserName,
+                        a.Client,
+                        a.Device,
+                        a.DeviceId,
+                        a.PlayMethod,
+                        a.Duration,
+                        Item = context.Items.Where(i => i.Id == a.ItemId).Select(i => new { i.Type, i.ParentIndex, i.Index }).FirstOrDefault()
+                    })
                     .FirstOrDefaultAsync(cancellationToken);
                 if (recent != null)
                 {
