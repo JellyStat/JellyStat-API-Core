@@ -157,7 +157,11 @@ builder.Services.AddSingleton<IAuthorizationPolicyProvider, DefaultAccessTokenPo
 
 builder.Services.AddControllers();
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
-builder.Services.AddOpenApi();
+builder.Services.AddOpenApi(options =>
+{
+    options.AddDocumentTransformer<OpenApiSecurityTransformer>();
+    options.AddOperationTransformer<OpenApiSecurityTransformer>();
+});
 
 builder.Services.AddAuthorization(options =>
 {
