@@ -13,6 +13,7 @@ using Jellystat_API_Core.Services.Reports.Query;
 using Jellystat_API_Core.Services.Reports.Rendering;
 using Jellystat_API_Core.Services.TaskLogging;
 using Jellystat_API_Core.Services.Tasks;
+using Jellystat_API_Core.Services.Updates;
 using Jellystat_API_Core.Services.Webhooks;
 using Jellystat_API_Core.Services.WebSocket;
 using Microsoft.AspNetCore.Authentication;
@@ -151,6 +152,10 @@ builder.Services.AddSingleton<WebhookDispatcher>();
 builder.Services.AddSingleton<IWebhookPublisher>(sp => sp.GetRequiredService<WebhookDispatcher>());
 builder.Services.AddHostedService(sp => sp.GetRequiredService<WebhookDispatcher>());
 builder.Services.AddHttpClient(WebhookSender.HttpClientName, client => client.Timeout = TimeSpan.FromSeconds(15));
+
+// Update checks: a background timer polls GitHub and caches the result, so /Api/Version never hits GitHub per request
+builder.Services.AddSingleton<UpdateCheckService>();
+builder.Services.AddHostedService(sp => sp.GetRequiredService<UpdateCheckService>());
 
 
 builder.Services.AddSingleton<IAuthorizationPolicyProvider, DefaultAccessTokenPolicyProvider>();
