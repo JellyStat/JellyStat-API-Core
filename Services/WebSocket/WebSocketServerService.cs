@@ -45,6 +45,10 @@ namespace Jellystat_API_Core.Services.WebSocket
                         var message = Encoding.UTF8.GetString(buffer, 0, result.Count);
                         _logger.LogInformation("Received message from {ConnectionId}: {Message}", connectionId, message);
 
+                        if (IsSessionsRequest(message))
+                        {
+                            await SendCurrentSessionsAsync(connectionId, webSocket, serverId, scopedUserId);
+                        }
                     }
                     else if (result.MessageType == WebSocketMessageType.Binary)
                     {
@@ -113,15 +117,7 @@ namespace Jellystat_API_Core.Services.WebSocket
                 string cacheKey = userId ?? string.Empty;
                 if (!payloads.TryGetValue(cacheKey, out byte[]? bytes))
                 {
-                    IList<BaseSessionItem> visible = userId == null
-                        ? sessions
-                        : sessions.Where(s => s.UserId == userId).ToList();
-                    var message = new JellystatWebsocketMessage<IList<BaseSessionItem>>
-                    {
-                        Type = WebsocketServerTypes.Sessions,
-                        Data = visible
-                    };
-                    bytes = Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(message, Global.jsonSettings));
+                    bytes = SerializeSessions(sessions, userId);
                     payloads[cacheKey] = bytes;
                 }
                 return bytes;
@@ -137,6 +133,41 @@ namespace Jellystat_API_Core.Services.WebSocket
             }
 
             await Task.WhenAll(tasks);
+        }
+
+        private static byte[] SerializeSessions(IList<BaseSessionItem> sessions, string? userId)
+        {
+            IList<BaseSessionItem> visible = userId == null
+                ? sessions
+                : sessions.Where(s => s.UserId == userId).ToList();
+            var message = new JellystatWebsocketMessage<IList<BaseSessionItem>>
+            {
+                Type = WebsocketServerTypes.Sessions,
+                Data = visible
+            };
+            return Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(message, Global.jsonSettings));
+        }
+
+        // A client asks for the current sessions with {"type":"Sessions"}, e.g. when the Live Sessions page opens
+        private static bool IsSessionsRequest(string message)
+        {
+            try
+            {
+                var type = Newtonsoft.Json.Linq.JObject.Parse(message)["type"]?.ToString();
+                return string.Equals(type, nameof(WebsocketServerTypes.Sessions), StringComparison.OrdinalIgnoreCase);
+            }
+            catch (JsonException)
+            {
+                return false;
+            }
+        }
+
+        private async Task SendCurrentSessionsAsync(string connectionId, System.Net.WebSockets.WebSocket webSocket, string serverId, string? scopedUserId)
+        {
+            var api = Global.APIInstanceManager.GetInstance(serverId);
+            if (api == null) return;
+
+            await SendBytesAsync(connectionId, webSocket, SerializeSessions(api.GetSessionData(), scopedUserId));
         }
 
         public IEnumerable<string> GetConnectedClients()
