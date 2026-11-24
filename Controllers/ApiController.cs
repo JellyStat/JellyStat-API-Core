@@ -12,6 +12,7 @@ using Jellystat_API_Core.Models.API.Base;
 using Jellystat_API_Core.Models.Jellystat;
 using Jellystat_API_Core.Models.Jellystat.Helpers;
 using Jellystat_API_Core.Services.API;
+using Jellystat_API_Core.Services.Updates;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -28,9 +29,11 @@ namespace Jellystat_API_Core.Controllers
         private readonly IAPIInstanceManager _apiInstanceManager;
         private readonly ApplicationDbContext context;
         private readonly ILogger<ApiController> _logger;
+        private readonly UpdateCheckService _updateCheckService;
 
-        public ApiController(IAPIInstanceManager apiInstanceManager, ApplicationDbContext context, ILogger<ApiController> logger)
+        public ApiController(IAPIInstanceManager apiInstanceManager, ApplicationDbContext context, ILogger<ApiController> logger, UpdateCheckService updateCheckService)
         {
+            _updateCheckService = updateCheckService;
 
             _apiInstanceManager = apiInstanceManager;
             this.context = context;
@@ -920,17 +923,14 @@ namespace Jellystat_API_Core.Controllers
 
 
         [HttpGet("Version", Name = "Version")]
-        public async Task<ActionResult> GetVersion()
+        public ActionResult GetVersion()
         {
-            string version = UpdateHelper.CurrentApiVersion.ToString();
-            string UITag = UpdateHelper.GetCurrentUITag();
+            string version = UpdateCheckService.CurrentApiVersion.ToString();
+            string UITag = UpdateCheckService.GetCurrentUITag();
 
-            var latestUiTask = UpdateHelper.GetLatestUITag();
-            var latestApiTask = UpdateHelper.GetLatestApiVersion();
-            await Task.WhenAll(latestUiTask, latestApiTask);
-
-            UIReleaseInfo? releaseInfo = latestUiTask.Result;
-            Version? latestApiVersion = latestApiTask.Result;
+            // Served from the background check's cache; this endpoint never calls GitHub
+            UIReleaseInfo? releaseInfo = _updateCheckService.LatestUi;
+            Version? latestApiVersion = _updateCheckService.LatestApi;
             bool hasUpdate = false;
 
             if (releaseInfo != null && releaseInfo.Id != UITag)
@@ -942,7 +942,7 @@ namespace Jellystat_API_Core.Controllers
             {
                 apiVersion = version,
                 LatestApiVersion = latestApiVersion?.ToString() ?? string.Empty,
-                ApiHasUpdate = UpdateHelper.IsApiUpdateAvailable(latestApiVersion),
+                ApiHasUpdate = UpdateCheckService.IsApiUpdateAvailable(latestApiVersion),
                 CurrentUiTag = UITag,
                 LatestUiTag = releaseInfo?.Id ?? string.Empty,
                 UIHasUpdate = hasUpdate
@@ -955,9 +955,10 @@ namespace Jellystat_API_Core.Controllers
         public async Task<ActionResult> UpdateUI()
         {
 
-            UIReleaseInfo? latestRelease = await UpdateHelper.GetLatestUITag();
+            // Fetch fresh so the hash is checked against the current manifest (this also refreshes the cached result)
+            UIReleaseInfo? latestRelease = await _updateCheckService.FetchLatestUiAsync();
 
-            bool hasUpdate = await UpdateHelper.IsUIUpdateAvailable(latestRelease?.Id);
+            bool hasUpdate = UpdateCheckService.IsUIUpdateAvailable(latestRelease?.Id);
 
             string url = latestRelease?.Link ?? string.Empty;
 
@@ -990,7 +991,7 @@ namespace Jellystat_API_Core.Controllers
                     await downloadStream.CopyToAsync(fileStream);
                 }
 
-                string downloadedFileHash = UpdateHelper.GetFileHash(tempZipPath);
+                string downloadedFileHash = UpdateCheckService.GetFileHash(tempZipPath);
 
                 if (!downloadedFileHash.Equals(hash, StringComparison.OrdinalIgnoreCase))
                 {
@@ -998,7 +999,7 @@ namespace Jellystat_API_Core.Controllers
                     return StatusCode(StatusCodes.Status500InternalServerError, new { UpdateAvailable = hasUpdate, Message = "Downloaded file hash does not match expected hash." });
                 }
 
-                UpdateHelper.ExtractNewUI(tempZipPath, uiDirectory);
+                UpdateCheckService.ExtractNewUI(tempZipPath, uiDirectory);
 
                 System.IO.File.Delete(tempZipPath);
             }
