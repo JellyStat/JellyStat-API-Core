@@ -9,6 +9,7 @@ using Jellystat_API_Core.Services.TaskLogging;
 using Jellystat_API_Core.Services.Webhooks;
 using Microsoft.EntityFrameworkCore;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 
 namespace Jellystat_API_Core.Classes.Tasks
 {
@@ -304,23 +305,23 @@ namespace Jellystat_API_Core.Classes.Tasks
                             {
                                 Id = i.Id,
                                 ServerId = i.ServerId,
-                                Name = i.Name,
+                                Name = StripNul(i.Name),
                                 LibraryId = library.Id,
                                 DateCreated = i.DateCreated,
-                                MediaStreams = i.MediaStreams,
+                                MediaStreams = StripNul(i.MediaStreams),
                                 Duration = i.RunTimeTicks ?? 0,
                                 Type = i.Type,
-                                ImageTag = i.ImageTag,
-                                ImageHash = i.ImageHash,
-                                Genres = i.Genres,
-                                Path = i.Path,
+                                ImageTag = StripNul(i.ImageTag),
+                                ImageHash = StripNul(i.ImageHash),
+                                Genres = i.Genres?.Select(g => StripNul(g)).ToList()!,
+                                Path = StripNul(i.Path),
                                 Size = i.Size,
                                 Bitrate = i.Bitrate,
                                 ParentId = i.ParentId,
                                 ParentIndex = i.ParentIndex,
                                 Index = i.Index,
-                                Codec = i.Codec,
-                                Resolution = i.Resolution,
+                                Codec = StripNul(i.Codec),
+                                Resolution = StripNul(i.Resolution),
                             }));
 
                             index += items.Count;
@@ -349,6 +350,25 @@ namespace Jellystat_API_Core.Classes.Tasks
             }
 
         }
+        // Postgres rejects NUL in text and jsonb, and media servers pass NULs through from broken file tags;
+        // one such item would otherwise roll back its whole library
+        [return: NotNullIfNotNull(nameof(value))]
+        private static string? StripNul(string? value) => value?.Replace("\0", "");
+
+        [return: NotNullIfNotNull(nameof(streams))]
+        private static IList<BaseMediaStream>? StripNul(IList<BaseMediaStream>? streams)
+        {
+            // A null list from the API is passed through unchanged, as before
+            foreach (BaseMediaStream stream in streams ?? [])
+            {
+                stream.Codec = StripNul(stream.Codec);
+                stream.VideoRange = StripNul(stream.VideoRange);
+                stream.DisplayTitle = StripNul(stream.DisplayTitle);
+                stream.AspectRatio = StripNul(stream.AspectRatio);
+            }
+            return streams;
+        }
+
         private static readonly HashSet<ItemTypes> MediaAddedTypes = [ItemTypes.Movie, ItemTypes.Series, ItemTypes.Episode, ItemTypes.Audio];
 
         /// <summary>Runs after the sync has committed, so a failure here only costs the notification, never the sync.</summary>
