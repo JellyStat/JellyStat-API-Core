@@ -339,10 +339,11 @@ namespace Jellystat_API_Core.Classes.Tasks
                         await transaction.RollbackAsync(cancellationToken);
                         throw;
                     }
-                    catch (Exception)
+                    catch (Exception ex)
                     {
                         await transaction.RollbackAsync(cancellationToken);
-                        await loggingService.AddMessageAsync(log, $"Error during library items sync for library {library.Name}.");
+                        await loggingService.AddMessageAsync(log, $"Error during library items sync for library {library.Name}: {ex.GetBaseException().Message}");
+                        Debug.WriteLine($"Error during library items sync for library {library.Name}: {ex}");
                     }
                 }
             }
@@ -388,6 +389,26 @@ namespace Jellystat_API_Core.Classes.Tasks
 
         private record StagingCounts(int Added, int Updated, int Archived);
 
+        /// <summary>
+        /// Sets each parent's Size to the sum of its children's sizes (0 when it has none).
+        /// Aggregates in one grouped pass; a correlated subquery rescans ItemsStaging per parent and times out on large servers.
+        /// </summary>
+        private static Task RollUpStagingSizes(ApplicationDbContext context, ItemTypes parentType, ItemTypes childType, CancellationToken cancellationToken)
+        {
+            return context.Database.ExecuteSqlAsync($@"
+                UPDATE ""ItemsStaging"" AS p
+                SET ""Size"" = agg.total
+                FROM (
+                    SELECT parent.""Id"", COALESCE(SUM(child.""Size""), 0)::bigint AS total
+                    FROM ""ItemsStaging"" AS parent
+                    LEFT JOIN ""ItemsStaging"" AS child
+                        ON child.""ParentId"" = parent.""Id"" AND child.""Type"" = {(int)childType}
+                    WHERE parent.""Type"" = {(int)parentType}
+                    GROUP BY parent.""Id""
+                ) AS agg
+                WHERE p.""Id"" = agg.""Id""", cancellationToken);
+        }
+
         private async Task<StagingCounts> UpdateFromStaging(ApplicationDbContext context, Logs log, ITaskLogging loggingService, bool performArchiveStep = true, CancellationToken cancellationToken = default)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -400,26 +421,11 @@ namespace Jellystat_API_Core.Classes.Tasks
                     var serverId = api.config.Id;
 
                     // Step 1: Update Seasons by summing their child Episodes
-                    // This generates a single UPDATE ... FROM ... SQL statement
-                    await context.ItemsStaging
-                        .Where(s => s.Type == ItemTypes.Season) // Seasons
-                        .ExecuteUpdateAsync(setters => setters.SetProperty(
-                            s => s.Size,
-                            s => context.ItemsStaging
-                                .Where(e => e.Type == ItemTypes.Episode && e.ParentId == s.Id) // Episodes
-                                .Sum(e => e.Size)
-                        ), cancellationToken);
+                    await RollUpStagingSizes(context, ItemTypes.Season, ItemTypes.Episode, cancellationToken);
 
                     // Step 2: Update Series by summing their child Seasons
                     // Since the previous command finished, the Season sizes are now accurate
-                    await context.ItemsStaging
-                        .Where(series => series.Type == ItemTypes.Series) // Series
-                        .ExecuteUpdateAsync(setters => setters.SetProperty(
-                            series => series.Size,
-                            series => context.ItemsStaging
-                                .Where(s => s.Type == ItemTypes.Season && s.ParentId == series.Id) // Seasons
-                                .Sum(s => s.Size)
-                        ), cancellationToken);
+                    await RollUpStagingSizes(context, ItemTypes.Series, ItemTypes.Season, cancellationToken);
 
                     // Update existing items from staging (pure EF, no materialization)
                     var updateQuery = from target in context.Items
