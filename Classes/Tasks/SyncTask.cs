@@ -593,12 +593,13 @@ namespace Jellystat_API_Core.Classes.Tasks
         {
             try
             {
-                List<Data.Schema.Activity> archivedActivity = await context.Activity
+                var archivedActivityWithType = await context.Activity
                     .Where(a => a.ServerId == api.config.Id)
                     .Join(context.Items, a => a.ItemId, i => i.Id, (a, i) => new { Activity = a, Item = i })
                     .Where(joined => joined.Item.archived)
-                    .Select(joined => joined.Activity)
+                    .Select(joined => new { joined.Activity, joined.Item.Type })
                     .ToListAsync();
+                List<Data.Schema.Activity> archivedActivity = archivedActivityWithType.Select(a => a.Activity).ToList();
 
                 if (archivedActivity.IsEmpty())
                 {
@@ -615,10 +616,14 @@ namespace Jellystat_API_Core.Classes.Tasks
 
                 var seriesNames = episodeData.Keys.Select(k => k.SeriesName).ToHashSet();
 
-                // Fetch all matching items in one optimized query
-                var movieItems = await context.Items
+                // Fetch all matching items in one optimized query.
+                // Names aren't unique (the same film in two libraries, a book sharing a film's title), so match on
+                // name and type, and take the first when several still match
+                var movieItems = (await context.Items
                     .Where(i => i.ServerId == api.config.Id && !i.archived && movieNames.Contains(i.Name))
-                    .ToDictionaryAsync(i => i.Name, i => i);
+                    .ToListAsync())
+                    .GroupBy(i => (i.Name, i.Type))
+                    .ToDictionary(g => g.Key, g => g.First());
 
                 // For episodes: get all series and their descendants in one query
                 var episodeItems = await (
@@ -648,9 +653,9 @@ namespace Jellystat_API_Core.Classes.Tasks
                 int migratedCount = 0;
 
                 // Migrate movie activity
-                foreach (var activity in archivedActivity.Where(a => a.SeriesId == null))
+                foreach (var (activity, type) in archivedActivityWithType.Where(a => a.Activity.SeriesId == null).Select(a => (a.Activity, a.Type)))
                 {
-                    if (movieItems.TryGetValue(activity.Name, out var item))
+                    if (movieItems.TryGetValue((activity.Name, type), out var item))
                     {
                         activity.ItemId = item.Id;
                         activity.SeriesName = null;
