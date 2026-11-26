@@ -10,3 +10,5 @@
 # Windows installer build output
 /publish
 /installer/Output
+
+.claude

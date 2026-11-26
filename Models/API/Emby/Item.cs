@@ -29,7 +29,7 @@ namespace Jellystat_API_Core.Models.API.Emby
         public override int? Index => Type == ItemTypes.Season || Type == ItemTypes.Episode ? IndexNumber : null;
         public override long? RunTimeTicks => MediaSources.Where(ms => ms.Id == $"mediasource_{Id}").FirstOrDefault(defaultValue: null)?.RunTimeTicks ?? 0;
 
-        public override string Codec => MediaStreams.Where(ms => ms.Type == MediaStreamType.Video).FirstOrDefault(defaultValue: null)?.Codec ?? "";
+        public override string Codec => MediaStreams.Where(ms => ms.Type == MediaStreamType.Video || (Type == ItemTypes.Audio && ms.Type == MediaStreamType.Audio)).FirstOrDefault(defaultValue: null)?.Codec ?? "";
         public override string Resolution
         {
             get
