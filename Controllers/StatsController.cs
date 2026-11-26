@@ -504,7 +504,8 @@ namespace Jellystat_API_Core.Controllers
                  ItemTypes.Series,
                  ItemTypes.Season,
                  ItemTypes.Unknown,
-                 ItemTypes.Trailer
+                 ItemTypes.Trailer,
+                 ItemTypes.MusicAlbum
             };
 
             return context.Items
@@ -533,7 +534,8 @@ namespace Jellystat_API_Core.Controllers
                  ItemTypes.Series,
                  ItemTypes.Season,
                  ItemTypes.Unknown,
-                 ItemTypes.Trailer
+                 ItemTypes.Trailer,
+                 ItemTypes.MusicAlbum
             };
 
             return context.Items

@@ -235,7 +235,7 @@ namespace Jellystat_API_Core.Classes.API
                 $"StartIndex={startIndex}",
                 $"Limit={limit}",
                 $"Recursive={recursive.ToString().ToLower()}",
-                "ExcludeItemTypes=Folder,Studio,Genre",
+                "ExcludeItemTypes=Folder,Studio,Genre,MusicArtist",
                 "sortBy=DateCreated",
                 "sortOrder=Descending"
 
