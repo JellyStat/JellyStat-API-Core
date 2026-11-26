@@ -14,6 +14,7 @@ namespace Jellystat_API_Core.Enums
         Folder,
         Trailer,
         TvChannel,
-        Unknown
+        Unknown,
+        MusicAlbum
     }
 }

@@ -10,6 +10,7 @@ namespace Jellystat_API_Core.Models.API.Emby
         public IList<MediaSources> MediaSources { private get; set; } = [];
         public string? SeriesId { private get; set; }
         public string? SeasonId { private get; set; }
+        public string? AlbumId { private get; set; }
         public int? ParentIndexNumber { private get; set; }
         public int? IndexNumber { private get; set; }
         public ImageTags? ImageTags { private get; set; }
@@ -24,7 +25,7 @@ namespace Jellystat_API_Core.Models.API.Emby
         public override string ImageHash => ImageBlurHashes?.Primary?.ContainsKey(ImageTag) == true ? ImageBlurHashes.Primary[ImageTag] : "";
 
 
-        public override string? ParentId => Type == ItemTypes.Season ? SeriesId : (Type == ItemTypes.Episode ? SeasonId : null);
+        public override string? ParentId => Type == ItemTypes.Season ? SeriesId : (Type == ItemTypes.Episode ? SeasonId : (Type == ItemTypes.Audio ? AlbumId : null));
         public override int? ParentIndex => Type == ItemTypes.Episode ? ParentIndexNumber : null;
         public override int? Index => Type == ItemTypes.Season || Type == ItemTypes.Episode ? IndexNumber : null;
         public override long? RunTimeTicks => MediaSources.Where(ms => ms.Id == $"mediasource_{Id}").FirstOrDefault(defaultValue: null)?.RunTimeTicks ?? 0;
